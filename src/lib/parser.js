@@ -1,0 +1,704 @@
+/** @typedef {import('./types.js').Bet} Bet */
+
+export const FLAG_MAP = {
+    '🇲🇽': 'Mexico',
+    '🇿🇦': 'South Africa',
+    '🇰🇷': 'South Korea',
+    '🇨🇿': 'Czech Republic',
+    '🇫🇷': 'France',
+    '🇪🇸': 'Spain',
+    '🇦🇷': 'Argentina',
+    '🇬🇧': 'United Kingdom',
+    '🏴󠁧󠁢󠁥󠁮󠁧󠁿': 'England',
+    '🇧🇷': 'Brazil',
+    '🇩🇪': 'Germany',
+    '🇵🇹': 'Portugal',
+    '🇳🇱': 'Netherlands',
+    '🇧🇪': 'Belgium',
+    '🇮🇹': 'Italy',
+    '🇺🇾': 'Uruguay',
+    '🇨🇴': 'Colombia',
+    '🇨🇱': 'Chile',
+    '🇺🇸': 'USA',
+    '🇨🇦': 'Canada',
+    '🇯🇵': 'Japan',
+    '🇦🇺': 'Australia',
+    '🇸🇦': 'Saudi Arabia',
+    '🇶🇦': 'Qatar',
+    '🇦🇪': 'United Arab Emirates',
+    '🇲🇦': 'Morocco',
+    '🇸🇳': 'Senegal',
+    '🇬🇭': 'Ghana',
+    '🇨🇲': 'Cameroon',
+    '🇧🇦': 'Bosnia & Herzegovina'
+};
+
+export const TEAM_ALIASES = {
+    'mexico': 'Mexico',
+    'méxico': 'Mexico',
+    'espana': 'Spain',
+    'españa': 'Spain',
+    'spain': 'Spain',
+    'sudafrica': 'South Africa',
+    'sadafrica': 'South Africa',
+    'south africa': 'South Africa',
+    'sur africa': 'South Africa',
+    'surafrica': 'South Africa',
+    'surafric': 'South Africa',
+    'corea': 'South Korea',
+    'corea del sur': 'South Korea',
+    'corea s': 'South Korea',
+    'korea': 'South Korea',
+    'south korea': 'South Korea',
+    'checa': 'Czech Republic',
+    'chec': 'Czech Republic',
+    'chequia': 'Czech Republic',
+    'czech': 'Czech Republic',
+    'rep checa': 'Czech Republic',
+    'rep. checa': 'Czech Republic',
+    'r checa': 'Czech Republic',
+    'r. checa': 'Czech Republic',
+    'republica checa': 'Czech Republic',
+    'república checa': 'Czech Republic',
+    'francia': 'France',
+    'argentina': 'Argentina',
+    'inglaterra': 'England',
+    'uk': 'United Kingdom',
+    'brasil': 'Brazil',
+    'alemania': 'Germany',
+    'alemana': 'Germany',
+    'germany': 'Germany',
+    'portugal': 'Portugal',
+    'holanda': 'Netherlands',
+    'paises bajos': 'Netherlands',
+    'p bajos': 'Netherlands',
+    'netherlands': 'Netherlands',
+    'bélgica': 'Belgium',
+    'belgica': 'Belgium',
+    'belgium': 'Belgium',
+    'italia': 'Italy',
+    'italy': 'Italy',
+    'uruguay': 'Uruguay',
+    'colombia': 'Colombia',
+    'chile': 'Chile',
+    'eeuu': 'USA',
+    'estados': 'USA',
+    'unidos': 'USA',
+    'estados unidos': 'USA',
+    'usa': 'USA',
+    'canda': 'Canada',
+    'can': 'Canada',
+    'canadá': 'Canada',
+    'canada': 'Canada',
+    'japón': 'Japan',
+    'japan': 'Japan',
+    'australia': 'Australia',
+    'arabia': 'Saudi Arabia',
+    'arabia saudita': 'Saudi Arabia',
+    'qatar': 'Qatar',
+    'emiratos': 'United Arab Emirates',
+    'marruecos': 'Morocco',
+    'morocco': 'Morocco',
+    'senegal': 'Senegal',
+    'ghana': 'Ghana',
+    'camerún': 'Cameroon',
+    'cameroon': 'Cameroon',
+    'bosnia': 'Bosnia & Herzegovina',
+    'bos': 'Bosnia & Herzegovina',
+    'bósnia': 'Bosnia & Herzegovina',
+    'paraguay': 'Paraguay',
+    'haiti': 'Haiti',
+    'escancia': 'Scotland',
+    'escocia': 'Scotland',
+    'escosia': 'Scotland',
+    'scotland': 'Scotland',
+    'suiza': 'Switzerland',
+    'zuisa': 'Switzerland',
+    'switzerland': 'Switzerland',
+    'arabia': 'Saudi Arabia',
+    'catar': 'Qatar',
+    'qarar': 'Qatar',
+    'irán': 'Iran',
+    'iran': 'Iran',
+    'turquia': 'Turkey',
+    'turkey': 'Turkey',
+    'cura': 'Curaçao',
+    'curacao': 'Curaçao',
+    'curaçao': 'Curaçao',
+    'curazao': 'Curaçao',
+    'corazao': 'Curaçao',
+    'ecuador': 'Ecuador',
+    'costa': 'Ivory Coast',
+    'costa marfil': 'Ivory Coast',
+    'costa de marfil': 'Ivory Coast',
+    'costa d marfil': 'Ivory Coast',
+    'c marfil': 'Ivory Coast',
+    'c maril': 'Ivory Coast',
+    'c verde': 'Ivory Coast',
+    'verde': 'Ivory Coast',
+    'costamarfil': 'Ivory Coast',
+    'costadom': 'Ivory Coast',
+    'ivory coast': 'Ivory Coast',
+    'fil': 'Ivory Coast',
+    'suecia': 'Sweden',
+    'suecis': 'Sweden',
+    'sweden': 'Sweden',
+    'tunes': 'Tunisia',
+    'tine': 'Tunisia',
+    'tinez': 'Tunisia',
+    'tines': 'Tunisia',
+    'tunez': 'Tunisia',
+    'tunisia': 'Tunisia',
+    'egipto': 'Egypt',
+    'egypt': 'Egypt',
+    'iran': 'Iran',
+    'n zelanda': 'New Zealand',
+    'nueva zelanda': 'New Zealand',
+    'new zealand': 'New Zealand',
+    'nz': 'New Zealand',
+    'islas cabo verde': 'Cape Verde',
+    'cabo verde': 'Cape Verde',
+    'cape verde': 'Cape Verde',
+    'iraq': 'Iraq',
+    'irak': 'Iraq',
+    'noruega': 'Norway',
+    'norway': 'Norway',
+    'argelia': 'Algeria',
+    'algeria': 'Algeria',
+    'austria': 'Austria',
+    'jordania': 'Jordan',
+    'jordan': 'Jordan',
+    'rdcongo': 'DR Congo',
+    'dr congo': 'DR Congo',
+    'rd Congo': 'DR Congo',
+    'congo': 'DR Congo',
+    'uzbekistan': 'Uzbekistan',
+    'uzbek': 'Uzbekistan',
+    'croacia': 'Croatia',
+    'croatia': 'Croatia',
+    'panama': 'Panama',
+    'panamá': 'Panama'
+};
+
+/**
+ * @param {string} name
+ * @returns {string}
+ */
+export function normalizeTeamName(name) {
+    if (!name) return '';
+    const stripped = name
+        .replace(/\p{Emoji_Presentation}/gu, '')
+        .replace(/\p{Extended_Pictographic}/gu, '');
+    const lower = stripped.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    return TEAM_ALIASES[/** @type {keyof typeof TEAM_ALIASES} */ (lower)] || lower;
+}
+
+/**
+ * @param {string} text
+ * @returns {Array<{flag: string, country: string}>}
+ */
+export function extractFlags(text) {
+    const flags = [];
+    for (const [flag, country] of Object.entries(FLAG_MAP)) {
+        if (text.includes(flag)) {
+            flags.push({ flag, country });
+        }
+    }
+    return flags;
+}
+
+/**
+ * @param {string} text
+ * @returns {{home: number, away: number} | null}
+ */
+export function parseScorePattern(text) {
+    const patterns = [
+        /(\d+)\s*[-–]\s*(\d+)/,
+        /(\d+)\s+a\s+(\d+)/,
+        /(\d+)\s+[-–vs]+\s+(\d+)/
+    ];
+
+    for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+            return { home: parseInt(match[1]), away: parseInt(match[2]) };
+        }
+    }
+    return null;
+}
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function parseChampionBet(text) {
+    const championPatterns = [
+        /(?:^|\n)[\s]*冠军[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+)/i,
+        /(?:^|\n)[\s]*(?:campeón|campeon|champion|gañador|ganador)[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+        /(?:^|\n)[\s]*(?:yo apuesto.*?(?:a\s+)?|pienso.*?(?:que\s+)?|creo.*?(?:que\s+)?)(?:que\s+)?([a-zA-Záéíóúüñ\s]+?)\s+(?:es\s+)?(?:el\s+)?(?:campeón|campeon)/i,
+    ];
+
+    for (const pattern of championPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+            const team = normalizeTeamName(match[1].trim());
+            if (team && team.length > 2) return team;
+        }
+    }
+
+    const flagPattern = /(?:campeón|campeon|champion)[^\n]*?([🇲🇽🇿🇦🇰🇷🇨🇿🇫🇷🇪🇸🇦🇷🇬🇧🏴󠁧󠁢󠁥󠁮󠁧󠁿🇧🇷🇩🇪🇵🇹🇳🇱🇧🇪🇮🇹🇺🇾🇨🇱🇺🇸🇨🇦🇯🇵🇦🇺🇸🇦🇶🇦🇦🇪🇲🇦🇸🇳🇬🇭🇨🇲🇧🇦])/;
+    const flagMatch = text.match(flagPattern);
+    if (flagMatch) {
+        const flag = /** @type {keyof typeof FLAG_MAP} */ (flagMatch[1]);
+        return FLAG_MAP[flag] || null;
+    }
+
+    return null;
+}
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function parseRunnerupBet(text) {
+    const runnerupPatterns = [
+        /(?:^|\n)[\s]*(?:subampeón|subcamp[eé]on|subampion|sub\s*campeón)[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+        /(?:^|\n)[\s]*(?:segundo|2[º°]?\s*(?:lugar|puesto))[^\w]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+    ];
+
+    for (const pattern of runnerupPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+            const team = normalizeTeamName(match[1].trim());
+            if (team && team.length > 2) return team;
+        }
+    }
+
+    const flagPattern = /(?:sub(?:camp|amp)[eé]on|sub\s*campeón)[^\n]*?([🇲🇽🇿🇦🇰🇷🇨🇿🇫🇷🇪🇸🇦🇷🇬🇧🏴󠁧󠁢󠁥󠁮󠁧󠁿🇧🇷🇩🇪🇵🇹🇳🇱🇧🇪🇮🇹🇺🇾🇨🇱🇺🇸🇨🇦🇯🇵🇦🇺🇸🇦🇶🇦🇦🇪🇲🇦🇸🇳🇬🇭🇨🇲🇧🇦])/;
+    const flagMatch = text.match(flagPattern);
+    if (flagMatch) {
+        const flag = /** @type {keyof typeof FLAG_MAP} */ (flagMatch[1]);
+        return FLAG_MAP[flag] || null;
+    }
+
+    return null;
+}
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function parseTopscorerBet(text) {
+    const topscorerPatterns = [
+        /(?:^|\n)[\s]*(?:goleador|goleador|sub\s*goleador)[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+        /(?:^|\n)[\s]*(?:top scorer|maximo|goles?)[^\w]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+        /(?:^|\n)[\s]*(?:anotador|marcador)[^\w]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+    ];
+
+    for (const pattern of topscorerPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+            const name = match[1].trim();
+            if (name && name.length > 2) return name;
+        }
+    }
+    return null;
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function replaceFlags(text) {
+    let result = text;
+    for (const [flag, country] of Object.entries(FLAG_MAP)) {
+        result = result.split(flag).join(' ' + country + ' ');
+    }
+    return result;
+}
+
+/**
+ * @param {string} text
+ * @returns {Array<{home: number, away: number, homeTeam: string, awayTeam: string}>}
+ */
+export function parseAllScoreBets(text) {
+    /** @type {Array<{home: number, away: number, homeTeam: string, awayTeam: string}>} */
+    const results = [];
+    const seen = new Set();
+
+    const textWithNames = replaceFlags(text);
+    const separated = textWithNames.replace(/([A-Za-záéíóúüñÁÉÍÓÚÜÑ])(\d)/g, '$1 $2');
+    const lines = separated.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    /**
+     * @param {string} home
+     * @param {string} away
+     * @param {number} hs
+     * @param {number} as_
+     */
+    function addBet(home, away, hs, as_) {
+        const key = `${home}|${away}|${hs}|${as_}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        results.push({
+            home: hs,
+            away: as_,
+            homeTeam: home,
+            awayTeam: away
+        });
+    }
+
+    /**
+     * @param {string} line
+     * @returns {Array<{home: string, away: string, hs: number, as_: number}>}
+     */
+    function parseAllMatchesInLine(line) {
+        /** @type {Array<{home: string, away: string, hs: number, as_: number}>} */
+        const results = [];
+
+        const matchStrings = line.split(/[,;]\s*|\n/).filter(s => s.trim().length > 0);
+
+        for (const matchStr of matchStrings) {
+            const cleanMatch = matchStr
+                .replace(/\bvs\.?\b/gi, ' ')
+                .replace(/\bvrs\.?\b/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const tokens = cleanMatch.split(' ').filter(Boolean);
+            if (tokens.length < 3) continue;
+
+            const tokenData = [];
+            for (const tok of tokens) {
+                const hyphenMatch = tok.match(/^(\d+)[-–](\d+)$/);
+                if (hyphenMatch) {
+                    tokenData.push({ raw: tok, num: parseInt(hyphenMatch[1]), awayScore: parseInt(hyphenMatch[2]), team: null });
+                } else {
+                    tokenData.push({ raw: tok, num: /^\d+$/.test(tok) ? parseInt(tok) : null, awayScore: null, team: normalizeTeamName(tok) });
+                }
+            }
+
+            const joinedTokens = [];
+            let i = 0;
+            while (i < tokenData.length) {
+                const td = tokenData[i];
+                if (td.num !== null) {
+                    joinedTokens.push(td);
+                    i++;
+                    continue;
+                }
+
+                let combined = td.raw;
+                let j = i + 1;
+                while (j < tokenData.length && tokenData[j].num === null) {
+                    combined += ' ' + tokenData[j].raw;
+                    j++;
+                }
+
+                joinedTokens.push({
+                    raw: combined,
+                    num: null,
+                    awayScore: null,
+                    team: normalizeTeamName(combined)
+                });
+                i = j;
+            }
+
+            let pos = 0;
+            while (pos + 3 <= joinedTokens.length) {
+                const t1 = joinedTokens[pos];
+                const s1 = joinedTokens[pos + 1];
+                const t2 = joinedTokens[pos + 2];
+                const s2 = joinedTokens[pos + 3];
+
+                if (t1.num === null && s1.num !== null && t2.num === null) {
+                    if (s1.awayScore !== null) {
+                        const homeTeam = t1.team;
+                        const awayTeam = t2.team;
+                        if (homeTeam && awayTeam && homeTeam !== awayTeam) {
+                            results.push({ home: homeTeam, away: awayTeam, hs: s1.num, as_: s1.awayScore });
+                        }
+                        pos += 3;
+                    } else if (s2 && s2.num !== null) {
+                        const homeTeam = t1.team;
+                        const awayTeam = t2.team;
+                        if (homeTeam && awayTeam && homeTeam !== awayTeam) {
+                            results.push({ home: homeTeam, away: awayTeam, hs: s1.num, as_: s2.num });
+                        }
+                        pos += 4;
+                    } else {
+                        pos++;
+                    }
+                } else {
+                    pos++;
+                }
+            }
+        }
+
+        const seenKeys = new Set();
+        const uniqueResults = [];
+        for (const r of results) {
+            const key = `${r.home}|${r.away}|${r.hs}|${r.as_}`;
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                uniqueResults.push(r);
+            }
+        }
+        return uniqueResults;
+    }
+
+    for (const line of lines) {
+        const matches = parseAllMatchesInLine(line);
+        for (const m of matches) {
+            addBet(m.home, m.away, m.hs, m.as_);
+        }
+    }
+
+    /**
+     * @param {string} line
+     * @returns {{team: string, num: number} | null}
+     */
+    function extractTeamAndNum(/** @type {string} */ line) {
+        const norm = line
+            .replace(/\bvs\.?\b/gi, ' ')
+            .replace(/[-–]/g, ' ')
+            .replace(/\./g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const tokens = norm.split(' ').filter(Boolean);
+
+        let num = null;
+        let numIdx = -1;
+        for (let i = 0; i < tokens.length; i++) {
+            if (/^\d+$/.test(tokens[i])) {
+                num = parseInt(tokens[i]);
+                numIdx = i;
+                break;
+            }
+        }
+        if (num === null || numIdx === 0) return null;
+
+        const teamTokens = tokens.slice(0, numIdx);
+        let team = normalizeTeamName(teamTokens.join(' '));
+        if (!team || team.length <= 2) {
+            team = normalizeTeamName(teamTokens[teamTokens.length - 1]);
+        }
+
+        return (team !== null && team.length > 2) ? { team, num } : null;
+    }
+
+    /**
+     * @param {string} line
+     * @returns {boolean}
+     */
+    function lineHasCompleteMatch(/** @type {string} */ line) {
+        const matches = parseAllMatchesInLine(line);
+        return matches.length > 0;
+    }
+
+    /**
+     * @param {string} line
+     * @returns {boolean}
+     */
+    function lineHasSingleTeamAndScore(/** @type {string} */ line) {
+        const extracted = extractTeamAndNum(line);
+        if (!extracted) return false;
+        const norm = line
+            .replace(/\bvs\.?\b/gi, ' ')
+            .replace(/[-–]/g, ' ')
+            .replace(/\./g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const tokens = norm.split(' ').filter(Boolean);
+        const numCount = tokens.filter(t => /^\d+$/.test(t)).length;
+        return numCount === 1;
+    }
+
+    for (let i = 0; i < lines.length - 1; i++) {
+        const line1 = lines[i];
+        const line2 = lines[i + 1];
+
+        if (lineHasCompleteMatch(line1) || lineHasCompleteMatch(line2)) {
+            continue;
+        }
+
+        const a = extractTeamAndNum(line1);
+        const b = extractTeamAndNum(line2);
+        if (a && b && a.team !== b.team) {
+            addBet(a.team, b.team, a.num, b.num);
+            i++;
+        }
+    }
+
+    return results;
+}
+
+/**
+ * @param {string} text
+ */
+export function parseScoreBet(text) {
+    const allScores = parseAllScoreBets(text);
+
+    if (allScores.length > 0) {
+        return allScores.map(s => ({
+            type: 'score',
+            homeTeam: s.homeTeam,
+            awayTeam: s.awayTeam,
+            homeScore: s.home,
+            awayScore: s.away,
+            bet_text: `${s.homeTeam} ${s.home} - ${s.away} ${s.awayTeam}`
+        }));
+    }
+
+    return null;
+}
+
+/**
+ * @param {any} message
+ * @returns {Bet[]}
+ */
+export function parseMessage(message) {
+    const text = message.Message || message.message || message.bet_text || message.original_message || '';
+    const timestamp = message.Time || message.timestamp || message.date || '';
+    const participant = message['Display Name'] || message.participant || message.sender || 'Unknown';
+    const phone = message.Phone || message.phone || '';
+    const messageId = message['Message Id'] || message.id || '';
+
+    const existingStatus = message.status || 'pending';
+    const existingPoints = message.points || 0;
+    const existingRealResult = message.real_result || null;
+
+    /** @type {Bet[]} */
+    const bets = [];
+
+    const champion = parseChampionBet(text);
+    if (champion) {
+        bets.push({
+            id: `${messageId}_champion`,
+            messageId,
+            timestamp,
+            participant,
+            phone,
+            originalMessage: text,
+            type: 'champion',
+            prediction: { champion },
+            bet_text: `Campeón: ${champion}`,
+            status: existingStatus,
+            points: existingPoints,
+            real_result: existingRealResult,
+            verified: false,
+            manuallyEdited: false
+        });
+    }
+
+    const runnerup = parseRunnerupBet(text);
+    if (runnerup) {
+        bets.push({
+            id: `${messageId}_runnerup`,
+            messageId,
+            timestamp,
+            participant,
+            phone,
+            originalMessage: text,
+            type: 'runnerup',
+            prediction: { runnerup },
+            bet_text: `Subcampeón: ${runnerup}`,
+            status: existingStatus,
+            points: existingPoints,
+            real_result: existingRealResult,
+            verified: false,
+            manuallyEdited: false
+        });
+    }
+
+    const topscorer = parseTopscorerBet(text);
+    if (topscorer) {
+        bets.push({
+            id: `${messageId}_topscorer`,
+            messageId,
+            timestamp,
+            participant,
+            phone,
+            originalMessage: text,
+            type: 'topscorer',
+            prediction: { topscorer },
+            bet_text: `Goleador: ${topscorer}`,
+            status: existingStatus,
+            points: existingPoints,
+            real_result: existingRealResult,
+            verified: false,
+            manuallyEdited: false
+        });
+    }
+
+    const scoreBets = parseScoreBet(text);
+    if (scoreBets && scoreBets.length > 0) {
+        for (const scoreBet of scoreBets) {
+            bets.push({
+                id: `${messageId}_score_${bets.filter(b => b.type === 'score').length}`,
+                messageId,
+                timestamp,
+                participant,
+                phone,
+                originalMessage: text,
+                type: 'score',
+                prediction: {
+                    homeTeam: scoreBet.homeTeam,
+                    awayTeam: scoreBet.awayTeam,
+                    homeScore: scoreBet.homeScore,
+                    awayScore: scoreBet.awayScore
+                },
+                bet_text: scoreBet.bet_text,
+                status: existingStatus,
+                points: existingPoints,
+                real_result: existingRealResult,
+                verified: false,
+                manuallyEdited: false
+            });
+        }
+    }
+
+    if (bets.length === 0 && (message.bet_text || message.original_message)) {
+        bets.push({
+            id: messageId || `bet_${Math.random().toString(36).substr(2, 9)}`,
+            messageId,
+            timestamp,
+            participant,
+            phone,
+            originalMessage: text,
+            type: message.type || 'score',
+            prediction: message.prediction || {},
+            bet_text: message.bet_text || text,
+            status: existingStatus,
+            points: existingPoints,
+            real_result: existingRealResult,
+            verified: message.verified || false,
+            manuallyEdited: message.manuallyEdited || false
+        });
+    }
+
+    return bets;
+}
+
+/**
+ * @param {any} jsonData
+ * @returns {Bet[]}
+ */
+export function parseWhatsAppExport(jsonData) {
+    /** @type {Bet[]} */
+    const allBets = [];
+    const messages = Array.isArray(jsonData) ? jsonData : jsonData.messages || [];
+
+    messages.forEach((/** @type {any} */ msg) => {
+        if (!msg.Message && !msg.message && !msg.bet_text && !msg.original_message) return;
+        const bets = parseMessage(msg);
+        allBets.push(...bets);
+    });
+
+    return allBets;
+}
