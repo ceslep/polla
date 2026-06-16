@@ -91,6 +91,7 @@ export const TEAM_ALIASES = {
     'canadá': 'Canada',
     'canada': 'Canada',
     'japón': 'Japan',
+    'japon': 'Japan',
     'japan': 'Japan',
     'australia': 'Australia',
     'arabia': 'Saudi Arabia',
