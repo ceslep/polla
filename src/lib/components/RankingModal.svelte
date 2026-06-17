@@ -1,0 +1,94 @@
+<script>
+    import { appState } from '../stores.svelte.js';
+
+    let { onClose = () => {}, onSelectParticipant = () => {} } = $props();
+
+    const participantStats = $derived(() => {
+        const map = new Map();
+        for (const bet of appState.bets) {
+            if (!map.has(bet.participant)) {
+                map.set(bet.participant, {
+                    phone: bet.phone,
+                    name: bet.participant,
+                    points: 0,
+                    exact: 0,
+                    correct: 0,
+                    incorrect: 0,
+                    pending: 0,
+                    total: 0
+                });
+            }
+            const p = map.get(bet.participant);
+            p.total++;
+            p.points += bet.points || 0;
+            if (bet.status === 'exact') p.exact++;
+            else if (bet.status === 'correct') p.correct++;
+            else if (bet.status === 'incorrect') p.incorrect++;
+            else if (bet.status === 'pending') p.pending++;
+        }
+        return [...map.values()].sort((a, b) => b.points - a.points);
+    });
+
+    /** @param {number} index */
+    function getPosition(index) {
+        if (index === 0) return '1ro';
+        if (index === 1) return '2do';
+        if (index === 2) return '3ro';
+        return `${index + 1}to`;
+    }
+
+    /** @param {string} phone */
+    function openParticipant(phone) {
+        onSelectParticipant(phone);
+    }
+</script>
+
+<div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" onclick={() => onClose()}>
+    <div class="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden" role="document" onclick={(e) => e.stopPropagation()}>
+        <div class="p-4 border-b border-white/10 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-yellow-400">🏆 Ranking de Participantes</h2>
+            <button onclick={() => onClose()} class="text-gray-400 hover:text-white text-2xl cursor-pointer">&times;</button>
+        </div>
+        <div class="p-4 overflow-y-auto max-h-[75vh]">
+            <table class="w-full text-sm">
+                <thead class="text-left text-gray-400 border-b border-white/10">
+                    <tr>
+                        <th class="pb-3 pr-4">#</th>
+                        <th class="pb-3 pr-4">Participante</th>
+                        <th class="pb-3 pr-4 text-center">Puntos</th>
+                        <th class="pb-3 pr-4 text-center">Exactas</th>
+                        <th class="pb-3 pr-4 text-center">Aciertos</th>
+                        <th class="pb-3 pr-4 text-center">Erradas</th>
+                        <th class="pb-3 pr-4 text-center">Pendientes</th>
+                        <th class="pb-3 text-center">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#each participantStats() as p, i}
+                        <tr
+                            class="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
+                            onclick={() => openParticipant(p.phone)}
+                        >
+                            <td class="py-3 pr-4">
+                                <span class="font-bold {
+                                    i === 0 ? 'text-yellow-400' :
+                                    i === 1 ? 'text-gray-300' :
+                                    i === 2 ? 'text-orange-400' : 'text-gray-500'
+                                }">
+                                    {getPosition(i)}
+                                </span>
+                            </td>
+                            <td class="py-3 pr-4 font-medium">{p.name}</td>
+                            <td class="py-3 pr-4 text-center font-bold text-yellow-400">{p.points}</td>
+                            <td class="py-3 pr-4 text-center text-cyan-400">{p.exact}</td>
+                            <td class="py-3 pr-4 text-center text-emerald-400">{p.correct}</td>
+                            <td class="py-3 pr-4 text-center text-red-400">{p.incorrect}</td>
+                            <td class="py-3 pr-4 text-center text-orange-400">{p.pending}</td>
+                            <td class="py-3 text-center text-gray-400">{p.total}</td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

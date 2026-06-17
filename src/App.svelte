@@ -10,16 +10,25 @@
     import WorldCupResultsModal from './lib/components/WorldCupResultsModal.svelte';
     import ResultsModal from './lib/components/ResultsModal.svelte';
     import PendingBetsModal from './lib/components/PendingBetsModal.svelte';
+    import RankingModal from './lib/components/RankingModal.svelte';
+    import ParticipantDetailModal from './lib/components/ParticipantDetailModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let showResultsModal = $state(false);
     let showAnalysisModal = $state(false);
     let showPendingModal = $state(false);
+    let showRankingModal = $state(false);
+    let selectedParticipantPhone = $state(/** @type {string|null} */ (null));
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
 
     /** @param {any} bet */
     function handleSelectBet(bet) {
         selectedBet = bet;
+    }
+
+    /** @param {string} phone */
+    function handleParticipantClick(phone) {
+        selectedParticipantPhone = phone;
     }
 
     /** @param {any[]} updatedBets */
@@ -157,12 +166,13 @@
         }
     }
 
-    onMount(() => {
+    onMount(async () => {
         const saved = localStorage.getItem('polla_bets');
         if (saved) {
             try {
                 appState.bets = JSON.parse(saved);
-                analyzeBets(true);
+                await analyzeBets(true);
+                showRankingModal = true;
             } catch (e) { console.error(e); }
         }
     });
@@ -202,20 +212,13 @@
                         {appState.isLoading ? 'Analizando...' : '🔗 Analizar con GitHub'}
                     </button>
                     <button
-                        class="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50"
-                        onclick={() => analyzeBets(false)}
-                        disabled={appState.isLoading}
-                    >
-                        {appState.isLoading ? 'Analizando...' : '☁️ Analizar con API'}
-                    </button>
-                    <button
                         class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
                         onclick={async () => {
                             try {
                                 const result = await saveBetsToSheets(appState.bets);
                                 alert(`✓ Guardadas ${result.saved} apuestas en Sheets`);
-                            } catch (err) {
-                                alert('Error al guardar: ' + err.message);
+                            } catch (/** @type {any} */ err) {
+                                alert('Error al guardar: ' + (err.message || err));
                             }
                         }}
                         disabled={appState.isLoading || appState.bets.length === 0}
@@ -235,8 +238,8 @@
                 <DropZone />
             </div>
         {:else}
-            <StatsGrid onPendingClick={() => showPendingModal = true} />
-            <BetTable onSelectBet={handleSelectBet} />
+            <StatsGrid onPendingClick={() => showPendingModal = true} onRankingClick={() => showRankingModal = true} />
+            <BetTable onSelectBet={handleSelectBet} onParticipantClick={handleParticipantClick} />
         {/if}
     </div>
 
@@ -260,6 +263,20 @@
 
     {#if showPendingModal}
         <PendingBetsModal onClose={() => showPendingModal = false} />
+    {/if}
+
+    {#if showRankingModal}
+        <RankingModal
+            onClose={() => showRankingModal = false}
+            onSelectParticipant={handleParticipantClick}
+        />
+    {/if}
+
+    {#if selectedParticipantPhone}
+        <ParticipantDetailModal
+            phone={selectedParticipantPhone}
+            onClose={() => selectedParticipantPhone = null}
+        />
     {/if}
 </main>
 

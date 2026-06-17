@@ -2,7 +2,7 @@
     import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
 
-    let { onSelectBet } = $props();
+    let { onSelectBet, onParticipantClick } = $props();
 
     let activeTab = $state('grouped');
 
@@ -463,9 +463,12 @@
                                 {bet.timestamp ? formatTimestamp(bet.timestamp) : '-'}
                             </td>
                             <td class="px-6 py-4">
-                                <span class="px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium">
+                                <button
+                                    onclick={(e) => { e.stopPropagation(); onParticipantClick?.(bet.phone, bet.participant); }}
+                                    class="px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                                >
                                     {bet.participant}
-                                </span>
+                                </button>
                                 {#if malformed}
                                     <span class="ml-2 text-red-400 text-xs" title="Esta apuesta puede tener problemas de parseo">⚠️</span>
                                 {/if}

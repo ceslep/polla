@@ -28,6 +28,7 @@
     let teamSearch = $state('');
     /** @type {string | null} */
     let selectedTeamForWins = $state(null);
+    let showStandings = $state(false);
 
     const groupFilters = [
         { key: 'Group A', label: 'A' },
@@ -250,6 +251,36 @@
         loadMatches();
     });
 
+    const groupStandings = $derived.by(() => {
+        /** @type {Record<string, Record<string, {pj: number, pg: number, pp: number, pe: number, gf: number, gc: number, gd: number, pts: number}>>} */
+        const standings = {};
+
+        matches.filter(m => m.group && m.score?.ft).forEach(m => {
+            if (!standings[m.group]) standings[m.group] = {};
+
+            [m.team1, m.team2].forEach((team, i) => {
+                if (!standings[m.group][team]) {
+                    standings[m.group][team] = { pj: 0, pg: 0, pp: 0, pe: 0, gf: 0, gc: 0, gd: 0, pts: 0 };
+                }
+                const s = standings[m.group][team];
+                s.pj++;
+                const goalsFor = i === 0 ? m.score.ft[0] : m.score.ft[1];
+                const goalsAgainst = i === 0 ? m.score.ft[1] : m.score.ft[0];
+                s.gf += goalsFor;
+                s.gc += goalsAgainst;
+                if (goalsFor > goalsAgainst) { s.pg++; s.pts += 3; }
+                else if (goalsFor < goalsAgainst) { s.pp++; }
+                else { s.pe++; s.pts += 1; }
+            });
+        });
+
+        Object.values(standings).forEach(group => {
+            Object.values(group).forEach(s => { s.gd = s.gf - s.gc; });
+        });
+
+        return standings;
+    });
+
     async function loadMatches() {
         isLoading = true;
         error = null;
@@ -274,7 +305,15 @@
                     {matches.length} partidos
                 </div>
             </div>
-            <button class="text-gray-400 hover:text-white text-2xl" onclick={onClose}>&times;</button>
+            <div class="flex items-center gap-3">
+                <button
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-bold transition-all"
+                    onclick={() => showStandings = !showStandings}
+                >
+                    📊 {showStandings ? 'Ver Partidos' : 'Ver Posiciones'}
+                </button>
+                <button class="text-gray-400 hover:text-white text-2xl" onclick={onClose}>&times;</button>
+            </div>
         </div>
 
         <!-- Filter Tabs -->
@@ -377,6 +416,64 @@
                         </button>
                     {/if}
                 </div>
+            {:else if showStandings}
+                <!-- Standings Table View -->
+                {#if Object.keys(groupStandings).length === 0}
+                    <div class="text-center py-12">
+                        <div class="text-5xl mb-4">📊</div>
+                        <p class="text-gray-400">Sin datos de posiciones disponibles</p>
+                    </div>
+                {:else}
+                    <div class="space-y-6">
+                        {#each Object.entries(groupStandings).sort() as [group, teams]}
+                            {@const sorted = Object.entries(teams).sort((a, b) => {
+                                const diff = b[1].pts - a[1].pts || b[1].gd - a[1].gd || b[1].gf - a[1].gf;
+                                return diff;
+                            })}
+                            <div class="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                                <div class="p-3 bg-emerald-900/30 border-b border-white/10">
+                                    <h3 class="font-bold text-emerald-400">{group}</h3>
+                                </div>
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="text-gray-400 text-xs">
+                                            <th class="text-left p-3">Selección</th>
+                                            <th class="p-2">PJ</th>
+                                            <th class="p-2">PG</th>
+                                            <th class="p-2">PP</th>
+                                            <th class="p-2">PE</th>
+                                            <th class="p-2">GF</th>
+                                            <th class="p-2">GC</th>
+                                            <th class="p-2">GD</th>
+                                            <th class="p-2 font-bold text-emerald-400">Pts</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {#each sorted as [team, stats], idx}
+                                            <tr class="border-t border-white/5 {idx < 2 ? 'bg-emerald-900/10' : ''}">
+                                                <td class="p-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span>{@html getFlagHtml(team)}</span>
+                                                        <span class="font-medium">{team}</span>
+                                                        {#if idx < 2}<span class="text-xs text-emerald-400">▶</span>{/if}
+                                                    </div>
+                                                </td>
+                                                <td class="p-2 text-center text-gray-300">{stats.pj}</td>
+                                                <td class="p-2 text-center text-gray-300">{stats.pg}</td>
+                                                <td class="p-2 text-center text-gray-300">{stats.pp}</td>
+                                                <td class="p-2 text-center text-gray-300">{stats.pe}</td>
+                                                <td class="p-2 text-center text-gray-300">{stats.gf}</td>
+                                                <td class="p-2 text-center text-gray-300">{stats.gc}</td>
+                                                <td class="p-2 text-center {stats.gd > 0 ? 'text-emerald-400' : stats.gd < 0 ? 'text-red-400' : 'text-gray-400'}">{stats.gd > 0 ? '+' : ''}{stats.gd}</td>
+                                                <td class="p-2 text-center font-bold text-emerald-400">{stats.pts}</td>
+                                            </tr>
+                                        {/each}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
             {:else}
                 <div class="space-y-3">
                     {#each filteredMatches() as match, idx}
