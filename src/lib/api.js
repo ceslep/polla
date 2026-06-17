@@ -243,3 +243,61 @@ export async function saveBetsToSheets(bets) {
     }
     return result;
 }
+
+/**
+ * Carga las apuestas desde Google Sheets (hoja "datos").
+ * Transforma del formato flat de Sheets al formato nested del frontend.
+ * @returns {Promise<any[]>}
+ */
+export async function loadBetsFromSheets() {
+    const response = await fetch(GET_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            worksheetTitle: SHEETS_WORKSHEET
+        })
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+
+    return (result.bets || []).map(row => {
+        const rawPoints = row.points;
+        let points = 0;
+        if (typeof rawPoints === 'number' && !isNaN(rawPoints)) {
+            points = rawPoints;
+        } else if (typeof rawPoints === 'string') {
+            const match = rawPoints.match(/^-?\d+/);
+            if (match) {
+                points = parseInt(match[0], 10);
+            }
+        }
+        return {
+            id: typeof row.id === 'string' ? row.id : String(row.id || ''),
+            messageId: typeof row.messageId === 'string' ? row.messageId : String(row.messageId || ''),
+            timestamp: typeof row.timestamp === 'string' ? row.timestamp : String(row.timestamp || ''),
+            participant: typeof row.participant === 'string' ? row.participant : String(row.participant || ''),
+            phone: typeof row.phone === 'string' ? row.phone : String(row.phone || ''),
+            type: typeof row.type === 'string' ? row.type : 'score',
+            bet_text: typeof row.bet_text === 'string' ? row.bet_text : String(row.bet_text || ''),
+            prediction: {
+                homeTeam: typeof row.homeTeam === 'string' ? row.homeTeam : String(row.homeTeam || ''),
+                awayTeam: typeof row.awayTeam === 'string' ? row.awayTeam : String(row.awayTeam || ''),
+                homeScore: row.homeScore !== '' && row.homeScore != null ? Number(row.homeScore) : null,
+                awayScore: row.awayScore !== '' && row.awayScore != null ? Number(row.awayScore) : null,
+                champion: typeof row.champion === 'string' ? row.champion : String(row.champion || ''),
+                runnerup: typeof row.runnerup === 'string' ? row.runnerup : String(row.runnerup || ''),
+                topscorer: typeof row.topscorer === 'string' ? row.topscorer : String(row.topscorer || '')
+            },
+            status: typeof row.status === 'string' ? row.status : 'pending',
+            points,
+            real_result: typeof row.real_result === 'string' ? row.real_result : (row.realResult ? String(row.realResult) : null),
+            verified: row.verified === true || row.verified === 'TRUE' || row.verified === true,
+            manuallyEdited: row.manuallyEdited === true || row.manuallyEdited === 'TRUE' || row.manuallyEdited === true,
+            originalMessage: typeof row.originalMessage === 'string' ? row.originalMessage : (row.original_message ? String(row.original_message) : '')
+        };
+    });
+}

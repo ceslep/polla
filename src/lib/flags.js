@@ -75,17 +75,26 @@ const TEAM_TO_ISO = {
     'dr congo': 'cd',
     'uzbekistan': 'uz',
     'croatia': 'hr',
-    'panama': 'pa'
+    'panama': 'pa',
+    'denmark': 'dk',
+    'poland': 'pl',
+    'ukraine': 'ua',
+    'serbia': 'rs',
+    'wales': 'gb-wls',
+    'hungary': 'hu',
+    'russia': 'ru'
 };
 
 const SUBDIVISION_EMOJI = {
     'gb-eng': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-    'gb-sct': '🏴󠁧󠁢󠁳󠁣󠁴󠁿'
+    'gb-sct': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+    'gb-wls': '🏴󠁧󠁢󠁷󠁬󠁳󠁿'
 };
 
 const SUBDIVISION_SPAIN = {
     'gb-eng': 'Inglaterra',
-    'gb-sct': 'Escocia'
+    'gb-sct': 'Escocia',
+    'gb-wls': 'Gales'
 };
 
 function emojiFromIso(iso) {

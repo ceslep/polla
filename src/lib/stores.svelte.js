@@ -211,7 +211,7 @@ export const filteredBets = () => {
             case 'timestamp-asc':
                 return (a.timestamp || '').localeCompare(b.timestamp || '');
             case 'points-desc':
-                return (b.points || 0) - (a.points || 0);
+                return (Number(b.points) || 0) - (Number(a.points) || 0);
             case 'participant':
                 return (a.participant || '').localeCompare(b.participant || '');
             default:
@@ -228,7 +228,7 @@ export const stats = () => {
     const exact = appState.bets.filter(b => b.status === 'exact').length;
     const correct = appState.bets.filter(b => b.status === 'correct').length;
     const incorrect = appState.bets.filter(b => b.status === 'incorrect').length;
-    const points = appState.bets.reduce((sum, b) => sum + (b.points || 0), 0);
+    const points = appState.bets.reduce((sum, b) => sum + (Number(b.points) || 0), 0);
 
     return { total, pending, exact, correct, incorrect, points };
 };
@@ -243,6 +243,7 @@ export const participants = () => {
  */
 export function findMatchForBet(bet, matches) {
     if (bet.type !== 'score') return null;
+    if (!bet.prediction) return null;
 
     const homeNorm = normalizeTeamName(bet.prediction.homeTeam || '');
     const awayNorm = normalizeTeamName(bet.prediction.awayTeam || '');

@@ -28,9 +28,9 @@
             <div class="text-3xl font-bold text-blue-400">{currentStats.exact}</div>
             <div class="text-xs text-gray-400 uppercase tracking-wider">Exactas</div>
         </div>
-        <button onclick={onRankingClick} class="bg-white/10 p-4 rounded-xl text-center hover:bg-white/20 transition-colors cursor-pointer border border-yellow-500/30 bg-yellow-500/5">
+        <a href="#/ranking" class="bg-white/10 p-4 rounded-xl text-center hover:bg-white/20 transition-colors cursor-pointer border border-yellow-500/30 bg-yellow-500/5">
             <div class="text-3xl font-bold text-yellow-400">{currentStats.points}</div>
             <div class="text-xs text-gray-400 uppercase tracking-wider">Puntos</div>
-        </button>
+        </a>
     </div>
 </div>

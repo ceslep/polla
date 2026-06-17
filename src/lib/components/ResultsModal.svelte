@@ -1,239 +1,6 @@
 <script>
     import { FLAG_MAP } from '../parser.js';
-
-    /** @type {Record<string, string>} */
-    const TEAM_TO_EMOJI = {
-        'argentina': '🇦🇷',
-        'brazil': '🇧🇷',
-        'brasil': '🇧🇷',
-        'mexico': '🇲🇽',
-        'méxico': '🇲🇽',
-        'south africa': '🇿🇦',
-        'south korea': '🇰🇷',
-        'korea': '🇰🇷',
-        'corea': '🇰🇷',
-        'corea del sur': '🇰🇷',
-        'czech republic': '🇨🇿',
-        'czechia': '🇨🇿',
-        'checa': '🇨🇿',
-        'chequia': '🇨🇿',
-        'france': '🇫🇷',
-        'francia': '🇫🇷',
-        'spain': '🇪🇸',
-        'españa': '🇪🇸',
-        'espana': '🇪🇸',
-        'england': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-        'inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-        'united kingdom': '🇬🇧',
-        'germany': '🇩🇪',
-        'alemania': '🇩🇪',
-        'portugal': '🇵🇹',
-        'netherlands': '🇳🇱',
-        'holanda': '🇳🇱',
-        'paises bajos': '🇳🇱',
-        'belgium': '🇧🇪',
-        'bélgica': '🇧🇪',
-        'belgica': '🇧🇪',
-        'italy': '🇮🇹',
-        'italia': '🇮🇹',
-        'uruguay': '🇺🇾',
-        'colombia': '🇨🇴',
-        'chile': '🇨🇱',
-        'usa': '🇺🇸',
-        'estados unidos': '🇺🇸',
-        'eeuu': '🇺🇸',
-        'united states': '🇺🇸',
-        'canada': '🇨🇦',
-        'canadá': '🇨🇦',
-        'canda': '🇨🇦',
-        'japan': '🇯🇵',
-        'japón': '🇯🇵',
-        'australia': '🇦🇺',
-        'saudi arabia': '🇸🇦',
-        'arabia saudita': '🇸🇦',
-        'qatar': '🇶🇦',
-        'united arab emirates': '🇦🇪',
-        'emiratos arabes': '🇦🇪',
-        'morocco': '🇲🇦',
-        'marruecos': '🇲🇦',
-        'senegal': '🇸🇳',
-        'ghana': '🇬🇭',
-        'cameroon': '🇨🇲',
-        'camerún': '🇨🇲',
-        'bosnia & herzegovina': '🇧🇦',
-        'bosnia': '🇧🇦',
-        'bosnia herzegovina': '🇧🇦',
-        'paraguay': '🇵🇾',
-        'ecuador': '🇪🇨',
-        'croatia': '🇭🇷',
-        'croacia': '🇭🇷',
-        'denmark': '🇩🇰',
-        'dinamarca': '🇩🇰',
-        'poland': '🇵🇱',
-        'polonia': '🇵🇱',
-        'ukraine': '🇺🇦',
-        'ucrania': '🇺🇦',
-        'serbia': '🇷🇸',
-        'wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-        'gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-        'switzerland': '🇨🇭',
-        'suiza': '🇨🇭',
-        'zuisa': '🇨🇭',
-        'ivory coast': '🇨🇮',
-        'costa de marfil': '🇨🇮',
-        'c marfil': '🇨🇮',
-        'ireland': '🇮🇪',
-        'irlanda': '🇮🇪',
-        'scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-        'escocia': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-        'hungary': '🇭🇺',
-        'hungria': '🇭🇺',
-        'norway': '🇳🇴',
-        'noruega': '🇳🇴',
-        'sweden': '🇸🇪',
-        'suecia': '🇸🇪',
-        'austria': '🇦🇹',
-        'turkey': '🇹🇷',
-        'turquia': '🇹🇷',
-        'russia': '🇷🇺',
-        'rusia': '🇷🇺',
-        'algeria': '🇩🇿',
-        'argelia': '🇩🇿',
-        'tunisia': '🇹🇳',
-        'tunez': '🇹🇳',
-        'egypt': '🇪🇬',
-        'egipto': '🇪🇬',
-        'iran': '🇮🇷',
-        'iraq': '🇮🇶',
-        'jordan': '🇯🇴',
-        'jordania': '🇯🇴',
-        'new zealand': '🇳🇿',
-        'nueva zelanda': '🇳🇿',
-    };
-
-    /** @type {Record<string, string>} */
-    const TEAM_TO_SPANISH = {
-        'argentina': 'Argentina',
-        'brazil': 'Brasil',
-        'brasil': 'Brasil',
-        'mexico': 'México',
-        'méxico': 'México',
-        'south africa': 'Sudáfica',
-        'south korea': 'Corea del Sur',
-        'korea': 'Corea del Sur',
-        'corea': 'Corea del Sur',
-        'corea del sur': 'Corea del Sur',
-        'czech republic': 'República Checa',
-        'czechia': 'República Checa',
-        'checa': 'República Checa',
-        'chequia': 'República Checa',
-        'france': 'Francia',
-        'francia': 'Francia',
-        'spain': 'España',
-        'españa': 'España',
-        'espana': 'España',
-        'england': 'Inglaterra',
-        'inglaterra': 'Inglaterra',
-        'united kingdom': 'Reino Unido',
-        'germany': 'Alemania',
-        'alemania': 'Alemania',
-        'portugal': 'Portugal',
-        'netherlands': 'Países Bajos',
-        'holanda': 'Países Bajos',
-        'paises bajos': 'Países Bajos',
-        'belgium': 'Bélgica',
-        'bélgica': 'Bélgica',
-        'belgica': 'Bélgica',
-        'italy': 'Italia',
-        'italia': 'Italia',
-        'uruguay': 'Uruguay',
-        'colombia': 'Colombia',
-        'chile': 'Chile',
-        'usa': 'Estados Unidos',
-        'estados unidos': 'Estados Unidos',
-        'eeuu': 'Estados Unidos',
-        'united states': 'Estados Unidos',
-        'canada': 'Canadá',
-        'canadá': 'Canadá',
-        'canda': 'Canadá',
-        'japan': 'Japón',
-        'japón': 'Japón',
-        'australia': 'Australia',
-        'saudi arabia': 'Arabia Saudita',
-        'arabia saudita': 'Arabia Saudita',
-        'qatar': 'Catar',
-        'united arab emirates': 'Emiratos Árabes Unidos',
-        'emiratos arabes': 'Emiratos Árabes Unidos',
-        'morocco': 'Marruecos',
-        'marruecos': 'Marruecos',
-        'senegal': 'Senegal',
-        'ghana': 'Ghana',
-        'cameroon': 'Camerún',
-        'camerún': 'Camerún',
-        'bosnia & herzegovina': 'Bosnia y Herzegovina',
-        'bosnia': 'Bosnia y Herzegovina',
-        'bosnia herzegovina': 'Bosnia y Herzegovina',
-        'paraguay': 'Paraguay',
-        'ecuador': 'Ecuador',
-        'croatia': 'Croacia',
-        'croacia': 'Croacia',
-        'denmark': 'Dinamarca',
-        'dinamarca': 'Dinamarca',
-        'poland': 'Polonia',
-        'polonia': 'Polonia',
-        'ukraine': 'Ucrania',
-        'ucrania': 'Ucardia',
-        'serbia': 'Serbia',
-        'wales': 'Gales',
-        'gales': 'Gales',
-        'switzerland': 'Suiza',
-        'suiza': 'Suiza',
-        'zuisa': 'Suiza',
-        'ivory coast': 'Costa de Marfil',
-        'costa de marfil': 'Costa de Marfil',
-        'c marfil': 'Costa de Marfil',
-        'ireland': 'Irlanda',
-        'irlanda': 'Irlanda',
-        'scotland': 'Escocia',
-        'escocia': 'Escocia',
-        'hungary': 'Hungría',
-        'hungria': 'Hungría',
-        'norway': 'Noruega',
-        'noruega': 'Noruega',
-        'sweden': 'Suecia',
-        'suecia': 'Suecia',
-        'austria': 'Austria',
-        'turkey': 'Turquía',
-        'turquia': 'Turquía',
-        'russia': 'Rusia',
-        'rusia': 'Rusia',
-        'algeria': 'Argelia',
-        'argelia': 'Argelia',
-        'tunisia': 'Túnez',
-        'tunez': 'Túnez',
-        'egypt': 'Egipto',
-        'egipto': 'Egipto',
-        'iran': 'Irán',
-        'iraq': 'Irak',
-        'jordan': 'Jordania',
-        'jordania': 'Jordania',
-        'new zealand': 'Nueva Zelanda',
-        'nueva zelanda': 'Nueva Zelanda',
-    };
-
-    /** @param {string} teamName */
-    function getTeamEmoji(teamName) {
-        if (!teamName) return '';
-        const lower = teamName.toLowerCase().trim();
-        return TEAM_TO_EMOJI[lower] || '';
-    }
-
-    /** @param {string} teamName */
-    function getSpanishName(teamName) {
-        if (!teamName) return teamName;
-        const lower = teamName.toLowerCase().trim();
-        return TEAM_TO_SPANISH[lower] || teamName;
-    }
+    import Flag from './Flag.svelte';
 
     /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], onClose: () => void }} */
     let { summary, errors = [], winners = [], bets = [], onClose } = $props();
@@ -273,7 +40,7 @@
             incorrectas,
             pending,
             total: participantBets.length,
-            totalPoints: participantBets.reduce((sum, b) => sum + (b.points || 0), 0)
+            totalPoints: participantBets.reduce((sum, b) => sum + (Number(b.points) || 0), 0)
         };
     }
 
@@ -308,11 +75,9 @@
     function getScoreDisplay(bet) {
         if (bet.type !== 'score' || !bet.prediction) return null;
         return {
-            homeFlag: getTeamEmoji(bet.prediction.homeTeam),
-            homeName: getSpanishName(bet.prediction.homeTeam),
+            homeTeam: bet.prediction.homeTeam,
             homeScore: bet.prediction.homeScore,
-            awayFlag: getTeamEmoji(bet.prediction.awayTeam),
-            awayName: getSpanishName(bet.prediction.awayTeam),
+            awayTeam: bet.prediction.awayTeam,
             awayScore: bet.prediction.awayScore
         };
     }
@@ -320,13 +85,13 @@
     /** @param {any} bet */
     function getChampionDisplay(bet) {
         if (bet.type !== 'champion' || !bet.prediction) return null;
-        return { flag: getTeamEmoji(bet.prediction.champion), name: getSpanishName(bet.prediction.champion) };
+        return { team: bet.prediction.champion };
     }
 
     /** @param {any} bet */
     function getRunnerupDisplay(bet) {
         if (bet.type !== 'runnerup' || !bet.prediction) return null;
-        return { flag: getTeamEmoji(bet.prediction.runnerup), name: getSpanishName(bet.prediction.runnerup) };
+        return { team: bet.prediction.runnerup };
     }
 
     /** @param {any} bet */
@@ -361,16 +126,17 @@
             return clean;
         }
 
+        const baseUrl = 'https://ceslep.github.io/polla/#/participant/';
+
         const rows = winners.map(w => {
-            const rank = `${w.rank}.`;
-            const name = cleanName(w.participant);
-            const pts = `${w.points} pts`;
-            return `${rank.padEnd(4)}${name.padEnd(25)}${pts}`;
+            const encodedName = encodeURIComponent(w.participant);
+            const url = baseUrl + encodedName;
+            return `${w.rank}. [${cleanName(w.participant)}](${url}) - ${w.points} pts`;
         });
 
         const text = `🏆 CLASIFICACIÓN POLLA MUNDIAL 2026
 
-${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).join('\n')}`;
+${rows.join('\n')}`;
         navigator.clipboard.writeText(text).then(() => {
             exportMessage = '¡Copiado!';
             setTimeout(() => { exportMessage = null; }, 2000);
@@ -458,19 +224,17 @@ ${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).j
                                         </div>
                                         {#if scoreBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span>{scoreBet.homeFlag} {scoreBet.homeName}</span>
+                                                <Flag teamName={scoreBet.homeTeam} size="sm" />
                                                 <span class="text-yellow-400 font-bold">{scoreBet.homeScore}-{scoreBet.awayScore}</span>
-                                                <span>{scoreBet.awayFlag} {scoreBet.awayName}</span>
+                                                <Flag teamName={scoreBet.awayTeam} size="sm" />
                                             </div>
                                         {:else if champBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{champBet.flag}</span>
-                                                <span>{champBet.name}</span>
+                                                <Flag teamName={champBet.team} size="sm" />
                                             </div>
                                         {:else if runnerupBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{runnerupBet.flag}</span>
-                                                <span>{runnerupBet.name}</span>
+                                                <Flag teamName={runnerupBet.team} size="sm" />
                                             </div>
                                         {:else if topscorerBet}
                                             <div class="text-white text-sm mt-2 font-medium">
@@ -508,19 +272,17 @@ ${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).j
                                         </div>
                                         {#if scoreBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span>{scoreBet.homeFlag} {scoreBet.homeName}</span>
+                                                <Flag teamName={scoreBet.homeTeam} size="sm" />
                                                 <span class="text-emerald-400 font-bold">{scoreBet.homeScore}-{scoreBet.awayScore}</span>
-                                                <span>{scoreBet.awayFlag} {scoreBet.awayName}</span>
+                                                <Flag teamName={scoreBet.awayTeam} size="sm" />
                                             </div>
                                         {:else if champBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{champBet.flag}</span>
-                                                <span>{champBet.name}</span>
+                                                <Flag teamName={champBet.team} size="sm" />
                                             </div>
                                         {:else if runnerupBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{runnerupBet.flag}</span>
-                                                <span>{runnerupBet.name}</span>
+                                                <Flag teamName={runnerupBet.team} size="sm" />
                                             </div>
                                         {:else if topscorerBet}
                                             <div class="text-white text-sm mt-2 font-medium">
@@ -558,19 +320,17 @@ ${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).j
                                         </div>
                                         {#if scoreBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span>{scoreBet.homeFlag} {scoreBet.homeName}</span>
+                                                <Flag teamName={scoreBet.homeTeam} size="sm" />
                                                 <span class="text-blue-400 font-bold">{scoreBet.homeScore}-{scoreBet.awayScore}</span>
-                                                <span>{scoreBet.awayFlag} {scoreBet.awayName}</span>
+                                                <Flag teamName={scoreBet.awayTeam} size="sm" />
                                             </div>
                                         {:else if champBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{champBet.flag}</span>
-                                                <span>{champBet.name}</span>
+                                                <Flag teamName={champBet.team} size="sm" />
                                             </div>
                                         {:else if runnerupBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{runnerupBet.flag}</span>
-                                                <span>{runnerupBet.name}</span>
+                                                <Flag teamName={runnerupBet.team} size="sm" />
                                             </div>
                                         {:else if topscorerBet}
                                             <div class="text-white text-sm mt-2 font-medium">
@@ -608,19 +368,17 @@ ${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).j
                                         </div>
                                         {#if scoreBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span>{scoreBet.homeFlag} {scoreBet.homeName}</span>
+                                                <Flag teamName={scoreBet.homeTeam} size="sm" />
                                                 <span class="text-red-400 font-bold">{scoreBet.homeScore}-{scoreBet.awayScore}</span>
-                                                <span>{scoreBet.awayFlag} {scoreBet.awayName}</span>
+                                                <Flag teamName={scoreBet.awayTeam} size="sm" />
                                             </div>
                                         {:else if champBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{champBet.flag}</span>
-                                                <span>{champBet.name}</span>
+                                                <Flag teamName={champBet.team} size="sm" />
                                             </div>
                                         {:else if runnerupBet}
                                             <div class="flex items-center gap-2 text-white text-sm mt-2 font-medium">
-                                                <span class="text-2xl">{runnerupBet.flag}</span>
-                                                <span>{runnerupBet.name}</span>
+                                                <Flag teamName={runnerupBet.team} size="sm" />
                                             </div>
                                         {:else if topscorerBet}
                                             <div class="text-white text-sm mt-2 font-medium">

@@ -226,7 +226,7 @@
 
     /** @param {any[]} bets */
     function calculateTotalPoints(bets) {
-        return bets.reduce((sum, b) => sum + (b.points || 0), 0);
+        return bets.reduce((sum, b) => sum + (Number(b.points) || 0), 0);
     }
 </script>
 
@@ -407,7 +407,7 @@
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-xl">{getStatusIcon(bet.status)}</span>
-                                                    <span class="text-xl font-bold text-yellow-400">+{bet.points || 0}</span>
+                                                    <span class="text-xl font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
                                                 </div>
                                             </div>
                                         {/each}
@@ -463,12 +463,13 @@
                                 {bet.timestamp ? formatTimestamp(bet.timestamp) : '-'}
                             </td>
                             <td class="px-6 py-4">
-                                <button
-                                    onclick={(e) => { e.stopPropagation(); onParticipantClick?.(bet.phone, bet.participant); }}
+                                <a
+                                    href="#/participant/{encodeURIComponent(bet.participant)}"
+                                    onclick={(e) => e.stopPropagation()}
                                     class="px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium hover:bg-cyan-500/20 transition-colors cursor-pointer"
                                 >
                                     {bet.participant}
-                                </button>
+                                </a>
                                 {#if malformed}
                                     <span class="ml-2 text-red-400 text-xs" title="Esta apuesta puede tener problemas de parseo">⚠️</span>
                                 {/if}
@@ -491,7 +492,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 font-bold text-yellow-500">
-                                {bet.points || 0}
+                                {Number(bet.points) || 0}
                             </td>
                         </tr>
                     {/each}

@@ -1,16 +1,16 @@
 <script>
     import { appState } from '../stores.svelte.js';
 
-    let { phone, onClose = () => {} } = $props();
+    let { name, onClose = () => {} } = $props();
 
     let activeTab = $state('all');
 
     const participant = $derived(() => {
-        return appState.bets.find(b => b.phone === phone)?.participant || 'Desconocido';
+        return appState.bets.find(b => b.participant === name)?.participant || 'Desconocido';
     });
 
     const participantBets = $derived(() => {
-        return appState.bets.filter(b => b.phone === phone);
+        return appState.bets.filter(b => b.participant === name);
     });
 
     const stats = $derived(() => {
@@ -20,7 +20,7 @@
             correct: bets.filter(b => b.status === 'correct').length,
             incorrect: bets.filter(b => b.status === 'incorrect').length,
             pending: bets.filter(b => b.status === 'pending').length,
-            points: bets.reduce((sum, b) => sum + (b.points || 0), 0),
+            points: bets.reduce((sum, b) => sum + (Number(b.points) || 0), 0),
             total: bets.length
         };
     });
@@ -28,13 +28,13 @@
     const participantRank = $derived(() => {
         const map = new Map();
         for (const bet of appState.bets) {
-            if (!map.has(bet.phone)) {
-                map.set(bet.phone, { phone: bet.phone, points: 0 });
+            if (!map.has(bet.participant)) {
+                map.set(bet.participant, { name: bet.participant, points: 0 });
             }
-            map.get(bet.phone).points += bet.points || 0;
+            map.get(bet.participant).points += Number(bet.points) || 0;
         }
         const sorted = [...map.values()].sort((a, b) => b.points - a.points);
-        const index = sorted.findIndex(p => p.phone === phone);
+        const index = sorted.findIndex(p => p.name === name);
         return {
             position: index + 1,
             total: sorted.length
@@ -102,7 +102,7 @@
             <div class="flex justify-between items-start">
                 <div>
                     <h2 class="text-xl font-bold text-white">{participant()}</h2>
-                    <p class="text-gray-400 text-sm">{phone}</p>
+                    <p class="text-gray-400 text-sm">{appState.bets.find(b => b.participant === name)?.phone || ''}</p>
                     <p class="text-yellow-400 font-medium mt-1">
                         {participantRank().position}place de {participantRank().total} participantes
                         <span class="text-gray-500">•</span>
@@ -196,7 +196,7 @@
                                     <span class="px-2 py-0.5 rounded text-xs {badge.class}">{badge.label}</span>
                                 </td>
                                 <td class="py-2 text-right font-medium {bet.points > 0 ? 'text-yellow-400' : 'text-gray-500'}">
-                                    {bet.points || 0}
+                                    {Number(bet.points) || 0}
                                 </td>
                             </tr>
                         {/each}

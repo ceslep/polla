@@ -1,7 +1,7 @@
 <script>
     import { appState } from '../stores.svelte.js';
 
-    let { onClose = () => {}, onSelectParticipant = () => {} } = $props();
+    let { onClose = () => {} } = $props();
 
     const participantStats = $derived(() => {
         const map = new Map();
@@ -20,7 +20,7 @@
             }
             const p = map.get(bet.participant);
             p.total++;
-            p.points += bet.points || 0;
+            p.points += Number(bet.points) || 0;
             if (bet.status === 'exact') p.exact++;
             else if (bet.status === 'correct') p.correct++;
             else if (bet.status === 'incorrect') p.incorrect++;
@@ -35,11 +35,6 @@
         if (index === 1) return '2do';
         if (index === 2) return '3ro';
         return `${index + 1}to`;
-    }
-
-    /** @param {string} phone */
-    function openParticipant(phone) {
-        onSelectParticipant(phone);
     }
 </script>
 
@@ -67,7 +62,7 @@
                     {#each participantStats() as p, i}
                         <tr
                             class="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
-                            onclick={() => openParticipant(p.phone)}
+                            onclick={() => window.location.hash = `/participant/${encodeURIComponent(p.name)}`}
                         >
                             <td class="py-3 pr-4">
                                 <span class="font-bold {

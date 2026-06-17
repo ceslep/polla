@@ -652,7 +652,7 @@ export function parseMessage(message) {
     const messageId = message['Message Id'] || message.id || '';
 
     const existingStatus = message.status || 'pending';
-    const existingPoints = message.points || 0;
+    const existingPoints = Number(message.points) || 0;
     const existingRealResult = message.real_result || null;
 
     /** @type {Bet[]} */

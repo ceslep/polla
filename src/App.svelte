@@ -1,7 +1,7 @@
 <script>
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, participants, safeFormatDate } from './lib/stores.svelte.js';
-    import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets } from './lib/api.js';
+    import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
@@ -12,13 +12,25 @@
     import PendingBetsModal from './lib/components/PendingBetsModal.svelte';
     import RankingModal from './lib/components/RankingModal.svelte';
     import ParticipantDetailModal from './lib/components/ParticipantDetailModal.svelte';
+    import AdminModal from './lib/components/AdminModal.svelte';
+    import MessageModal from './lib/components/MessageModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let showResultsModal = $state(false);
     let showAnalysisModal = $state(false);
     let showPendingModal = $state(false);
     let showRankingModal = $state(false);
-    let selectedParticipantPhone = $state(/** @type {string|null} */ (null));
+    let showAdminModal = $state(false);
+    let showMessageModal = $state(false);
+    let isSavingToSheets = $state(false);
+    let isLoadingFromSheets = $state(false);
+    let loadFromSheetsFailed = $state(false);
+    let messageModalType = $state(/** @type {'info' | 'warning' | 'error' | 'success'} */ ('info'));
+    let messageModalContent = $state('');
+    let adminAction = $state(/** @type {(() => void) | null} */ (null));
+    let adminTitle = $state('');
+    let adminMessage = $state('');
+    let selectedParticipantName = $state(/** @type {string|null} */ (null));
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
 
     /** @param {any} bet */
@@ -26,9 +38,31 @@
         selectedBet = bet;
     }
 
-    /** @param {string} phone */
-    function handleParticipantClick(phone) {
-        selectedParticipantPhone = phone;
+    function handleHashChange() {
+        const hash = window.location.hash.slice(2) || '/';
+        if (hash.startsWith('participant/')) {
+            const name = decodeURIComponent(hash.split('/')[1]);
+            selectedParticipantName = name;
+            showRankingModal = false;
+        } else if (hash === 'ranking') {
+            showRankingModal = true;
+            selectedParticipantName = null;
+        } else {
+            showRankingModal = false;
+            selectedParticipantName = null;
+        }
+    }
+
+    export function goToParticipant(/** @type {string} */ name) {
+        window.location.hash = `/participant/${encodeURIComponent(name)}`;
+    }
+
+    export function goToRanking() {
+        window.location.hash = '/ranking';
+    }
+
+    export function closeModals() {
+        window.location.hash = '/';
     }
 
     /** @param {any[]} updatedBets */
@@ -45,7 +79,7 @@
 
         for (const bet of appState.bets) {
             const current = pointsByParticipant.get(bet.participant) || 0;
-            pointsByParticipant.set(bet.participant, current + (bet.points || 0));
+            pointsByParticipant.set(bet.participant, current + (Number(bet.points) || 0));
         }
 
         const sorted = [...pointsByParticipant.entries()]
@@ -114,7 +148,7 @@
                         const adjustedTimestamp = matchInAll.date + ' ' + bet.timestamp.substring(10);
                         console.log('Adjusted:', bet.bet_text, 'from', bet.timestamp, 'to', adjustedTimestamp);
                         effectiveBet = { ...bet, timestamp: adjustedTimestamp };
-                    } else {
+                    } else if (bet.prediction) {
                         const homeNorm = normalizeTeamName(bet.prediction.homeTeam || '');
                         const awayNorm = normalizeTeamName(bet.prediction.awayTeam || '');
                         const matchAnyDate = allMatchesFormatted.find(m => {
@@ -167,14 +201,48 @@
     }
 
     onMount(async () => {
+        handleHashChange();
+        window.addEventListener('hashchange', handleHashChange);
+
         const saved = localStorage.getItem('polla_bets');
         if (saved) {
             try {
                 appState.bets = JSON.parse(saved);
                 await analyzeBets(true);
-                showRankingModal = true;
+                if (!window.location.hash) {
+                    showRankingModal = true;
+                }
             } catch (e) { console.error(e); }
+        } else {
+            // localStorage vacío → cargar desde Google Sheets
+            isLoadingFromSheets = true;
+            loadFromSheetsFailed = false;
+            try {
+                console.log('No localStorage, loading from Sheets...');
+                const sheetsBets = await loadBetsFromSheets();
+                if (sheetsBets.length > 0) {
+                    // Reset verified to force recalculation - ensure points is a number
+                    const betsToAnalyze = sheetsBets.map((bet) => ({
+                        ...bet,
+                        verified: false,
+                        status: 'pending',
+                        points: Number(bet.points) || 0
+                    }));
+                    appState.bets = betsToAnalyze;
+                    localStorage.setItem('polla_bets', JSON.stringify(betsToAnalyze));
+                    await analyzeBets(true);
+                }
+            } catch (e) {
+                console.error('Failed to load from Sheets:', e);
+                loadFromSheetsFailed = true;
+            } finally {
+                isLoadingFromSheets = false;
+            }
         }
+
+        return () => {
+            window.removeEventListener('hashchange', handleHashChange);
+        };
     });
 </script>
 
@@ -206,24 +274,46 @@
                     </button>
                     <button
                         class="px-6 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
-                        onclick={() => analyzeBets(true)}
+                        onclick={() => {
+                            adminAction = () => analyzeBets(true);
+                            adminTitle = "Análisis con GitHub";
+                            adminMessage = "Se requiere acceso administrativo para realizar el análisis utilizando los datos de GitHub.";
+                            showAdminModal = true;
+                        }}
                         disabled={appState.isLoading}
                     >
                         {appState.isLoading ? 'Analizando...' : '🔗 Analizar con GitHub'}
                     </button>
                     <button
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
-                        onclick={async () => {
-                            try {
-                                const result = await saveBetsToSheets(appState.bets);
-                                alert(`✓ Guardadas ${result.saved} apuestas en Sheets`);
-                            } catch (/** @type {any} */ err) {
-                                alert('Error al guardar: ' + (err.message || err));
-                            }
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2"
+                        onclick={() => {
+                            adminAction = async () => {
+                                isSavingToSheets = true;
+                                try {
+                                    const result = await saveBetsToSheets(appState.bets);
+                                    messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
+                                    messageModalType = 'success';
+                                    showMessageModal = true;
+                                } catch (/** @type {any} */ err) {
+                                    messageModalContent = 'Error al guardar:\n' + (err.message || err);
+                                    messageModalType = 'error';
+                                    showMessageModal = true;
+                                } finally {
+                                    isSavingToSheets = false;
+                                }
+                            };
+                            adminTitle = "Guardar en Sheets";
+                            adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
+                            showAdminModal = true;
                         }}
-                        disabled={appState.isLoading || appState.bets.length === 0}
+                        disabled={appState.isLoading || appState.bets.length === 0 || isSavingToSheets}
                     >
-                        💾 Guardar en Sheets
+                        {#if isSavingToSheets}
+                            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Guardando...
+                        {:else}
+                            <span>💾</span> Guardar en Sheets
+                        {/if}
                     </button>
                 {/if}
             </div>
@@ -231,7 +321,21 @@
     </header>
 
     <div class="max-w-7xl mx-auto px-6 py-10">
-        {#if appState.bets.length === 0}
+        {#if isLoadingFromSheets}
+            <div class="flex flex-col items-center justify-center py-20">
+                <div class="text-6xl mb-6 animate-spin">⚙️</div>
+                <h2 class="text-2xl font-bold text-cyan-400 mb-2">Cargando desde Google Sheets...</h2>
+                <p class="text-gray-400">Obteniendo tus apuestas guardadas</p>
+            </div>
+        {:else if appState.bets.length === 0}
+            {#if loadFromSheetsFailed}
+                <div class="text-center mb-8">
+                    <div class="bg-red-500/20 border border-red-500/30 rounded-xl px-6 py-4 mb-6 inline-block">
+                        <p class="text-red-400">⚠️ No se pudo cargar desde Sheets</p>
+                        <p class="text-gray-400 text-sm">Carga el archivo JSON de WhatsApp para comenzar</p>
+                    </div>
+                </div>
+            {/if}
             <div class="max-w-2xl mx-auto mt-20 text-center">
                 <h2 class="text-4xl font-bold mb-4">🏆 ¡Bienvenido a la Polla!</h2>
                 <p class="text-gray-400 mb-12">Carga tu exportación de WhatsApp para empezar a calcular puntos.</p>
@@ -239,7 +343,7 @@
             </div>
         {:else}
             <StatsGrid onPendingClick={() => showPendingModal = true} onRankingClick={() => showRankingModal = true} />
-            <BetTable onSelectBet={handleSelectBet} onParticipantClick={handleParticipantClick} />
+            <BetTable onSelectBet={handleSelectBet} />
         {/if}
     </div>
 
@@ -268,14 +372,37 @@
     {#if showRankingModal}
         <RankingModal
             onClose={() => showRankingModal = false}
-            onSelectParticipant={handleParticipantClick}
         />
     {/if}
 
-    {#if selectedParticipantPhone}
+    {#if selectedParticipantName}
         <ParticipantDetailModal
-            phone={selectedParticipantPhone}
-            onClose={() => selectedParticipantPhone = null}
+            name={selectedParticipantName}
+            onClose={() => selectedParticipantName = null}
+        />
+    {/if}
+
+    {#if showAdminModal}
+        <AdminModal
+            title={adminTitle}
+            message={adminMessage}
+            onConfirm={() => {
+                showAdminModal = false;
+                if (adminAction) adminAction();
+                adminAction = null;
+            }}
+            onClose={() => {
+                showAdminModal = false;
+                adminAction = null;
+            }}
+        />
+    {/if}
+
+    {#if showMessageModal}
+        <MessageModal
+            message={messageModalContent}
+            type={messageModalType}
+            onClose={() => showMessageModal = false}
         />
     {/if}
 </main>

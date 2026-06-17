@@ -241,7 +241,7 @@
                     </div>
                     <div>
                         <span class="block text-xs text-gray-500 uppercase mb-1">Puntos Ganados</span>
-                        <div class="text-2xl font-bold text-yellow-500">{bet.points || 0}</div>
+                        <div class="text-2xl font-bold text-yellow-500">{Number(bet.points) || 0}</div>
                     </div>
                 </div>
 
