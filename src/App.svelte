@@ -78,6 +78,7 @@
         const pointsByParticipant = new Map();
 
         for (const bet of appState.bets) {
+            if (bet.status === 'pending') continue;
             const current = pointsByParticipant.get(bet.participant) || 0;
             pointsByParticipant.set(bet.participant, current + (Number(bet.points) || 0));
         }
@@ -201,24 +202,20 @@
     }
 
     onMount(async () => {
-        handleHashChange();
-        window.addEventListener('hashchange', handleHashChange);
-
+        const isGitHubPages = window.location.hostname === 'ceslep.github.io';
         const saved = localStorage.getItem('polla_bets');
-        if (saved) {
+
+        if (saved && !isGitHubPages) {
             try {
                 appState.bets = JSON.parse(saved);
                 await analyzeBets(true);
-                if (!window.location.hash) {
-                    showRankingModal = true;
-                }
             } catch (e) { console.error(e); }
         } else {
-            // localStorage vacío → cargar desde Google Sheets
+            // localStorage vacío o forzado por GitHub Pages → cargar desde Google Sheets
             isLoadingFromSheets = true;
             loadFromSheetsFailed = false;
             try {
-                console.log('No localStorage, loading from Sheets...');
+                console.log(isGitHubPages ? 'Forced GitHub Pages load from Sheets...' : 'No localStorage, loading from Sheets...');
                 const sheetsBets = await loadBetsFromSheets();
                 if (sheetsBets.length > 0) {
                     // Reset verified to force recalculation - ensure points is a number
@@ -238,6 +235,13 @@
             } finally {
                 isLoadingFromSheets = false;
             }
+        }
+
+        handleHashChange();
+        window.addEventListener('hashchange', handleHashChange);
+
+        if (!window.location.hash) {
+            showRankingModal = true;
         }
 
         return () => {

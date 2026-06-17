@@ -14,14 +14,14 @@
     });
 
     const stats = $derived(() => {
-        const bets = participantBets();
+        const bets = participantBets().filter(b => b.status !== 'pending');
         return {
             exact: bets.filter(b => b.status === 'exact').length,
             correct: bets.filter(b => b.status === 'correct').length,
             incorrect: bets.filter(b => b.status === 'incorrect').length,
-            pending: bets.filter(b => b.status === 'pending').length,
-            points: bets.reduce((sum, b) => sum + (Number(b.points) || 0), 0),
-            total: bets.length
+            pending: participantBets().filter(b => b.status === 'pending').length,
+            points: participantBets().reduce((sum, b) => sum + (Number(b.points) || 0), 0),
+            total: participantBets().length
         };
     });
 
@@ -104,7 +104,7 @@
                     <h2 class="text-xl font-bold text-white">{participant()}</h2>
                     <p class="text-gray-400 text-sm">{appState.bets.find(b => b.participant === name)?.phone || ''}</p>
                     <p class="text-yellow-400 font-medium mt-1">
-                        {participantRank().position}place de {participantRank().total} participantes
+                        Puesto {participantRank().position} de {participantRank().total} participantes
                         <span class="text-gray-500">•</span>
                         <span class="font-bold text-yellow-400">{stats().points} puntos</span>
                     </p>
@@ -131,9 +131,9 @@
                     <div class="text-2xl font-bold text-orange-400">{stats().pending}</div>
                     <div class="text-xs text-gray-400">Pendientes</div>
                 </div>
-                <div class="bg-yellow-500/10 rounded-lg p-3">
-                    <div class="text-2xl font-bold text-yellow-400">{stats().total}</div>
-                    <div class="text-xs text-gray-400">Total</div>
+                <div class="bg-yellow-500/20 rounded-lg p-3 border border-yellow-500/30">
+                    <div class="text-2xl font-black text-yellow-400">{stats().points}</div>
+                    <div class="text-xs text-yellow-400/70 uppercase font-bold">Puntos</div>
                 </div>
             </div>
         </div>

@@ -228,7 +228,7 @@ export const stats = () => {
     const exact = appState.bets.filter(b => b.status === 'exact').length;
     const correct = appState.bets.filter(b => b.status === 'correct').length;
     const incorrect = appState.bets.filter(b => b.status === 'incorrect').length;
-    const points = appState.bets.reduce((sum, b) => sum + (Number(b.points) || 0), 0);
+    const points = appState.bets.filter(b => b.status !== 'pending').reduce((sum, b) => sum + (Number(b.points) || 0), 0);
 
     return { total, pending, exact, correct, incorrect, points };
 };
