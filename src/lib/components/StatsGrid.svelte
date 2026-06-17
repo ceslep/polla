@@ -1,6 +1,8 @@
 <script>
     import { stats } from '../stores.svelte.js';
 
+    let { onPendingClick = () => {} } = $props();
+
     const currentStats = $derived(stats());
 </script>
 
@@ -9,10 +11,10 @@
         <div class="text-3xl font-bold text-cyan-400">{currentStats.total}</div>
         <div class="text-xs text-gray-400 uppercase tracking-wider">Total</div>
     </div>
-    <div class="bg-white/10 p-4 rounded-xl text-center">
+    <button onclick={onPendingClick} class="bg-white/10 p-4 rounded-xl text-center hover:bg-white/20 transition-colors cursor-pointer">
         <div class="text-3xl font-bold text-orange-400">{currentStats.pending}</div>
         <div class="text-xs text-gray-400 uppercase tracking-wider">Pendientes</div>
-    </div>
+    </button>
     <div class="bg-white/10 p-4 rounded-xl text-center">
         <div class="text-3xl font-bold text-emerald-400">{currentStats.exact + currentStats.correct}</div>
         <div class="text-xs text-gray-400 uppercase tracking-wider">Aciertos</div>

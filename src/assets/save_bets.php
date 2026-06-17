@@ -8,7 +8,7 @@
  * localStorage 'polla_bets') y reescribe la hoja entera. La estructura Bet del
  * proyecto (ver src/lib/types.js) se aplana en columnas:
  *
- * Hoja "bets" (20 columnas A:T):
+ * Hoja "datos" (20 columnas A:T):
  *   A:id, B:messageId, C:timestamp, D:participant, E:phone, F:type, G:bet_text,
  *   H:homeTeam, I:awayTeam, J:homeScore, K:awayScore,
  *   L:champion, M:runnerup, N:topscorer,
@@ -110,7 +110,7 @@ try {
     }
 
     $spreadsheetId  = $data['spreadsheetId'];
-    $worksheetTitle = $data['worksheetTitle'] ?? 'bets';
+    $worksheetTitle = $data['worksheetTitle'] ?? 'datos';
     $bets           = $data['bets'];
 
     $client = new Client();

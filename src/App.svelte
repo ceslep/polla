@@ -1,17 +1,20 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet, participants } from './lib/stores.svelte.js';
-    import { loadMatches, loadMatchesFromGitHub, compareBetWithMatch } from './lib/api.js';
+    import { appState, findMatchForBet, participants, safeFormatDate } from './lib/stores.svelte.js';
+    import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets } from './lib/api.js';
+    import { normalizeTeamName } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
     import BetModal from './lib/components/BetModal.svelte';
     import WorldCupResultsModal from './lib/components/WorldCupResultsModal.svelte';
     import ResultsModal from './lib/components/ResultsModal.svelte';
+    import PendingBetsModal from './lib/components/PendingBetsModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let showResultsModal = $state(false);
     let showAnalysisModal = $state(false);
+    let showPendingModal = $state(false);
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
 
     /** @param {any} bet */
@@ -64,16 +67,68 @@
                 ? await loadMatchesFromGitHub()
                 : await loadMatches();
             console.log('Matches loaded:', matches.length, matches);
+            console.log('Match dates in scored matches:', [...new Set(matches.map(m => m.date))].sort());
             appState.matches = matches;
 
-            const updatedBets = appState.bets.map(bet => {
-                if (bet.status !== 'pending' && bet.verified) return bet;
+            console.log('Loading all matches for validation...');
+            const allRawMatches = await loadWorldCupMatches();
+            const allMatchesFormatted = allRawMatches
+                .filter(m => m.team1 && m.team2)
+                .map((m, i) => ({
+                    id: i + 1,
+                    date: m.date,
+                    homeTeam: normalizeTeamName(m.team1),
+                    homeShort: m.team1,
+                    awayTeam: normalizeTeamName(m.team2),
+                    awayShort: m.team2,
+                    homeScore: m.score?.ft?.[0] ?? null,
+                    awayScore: m.score?.ft?.[1] ?? null,
+                    resultString: m.score ? `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}` : `${m.team1} vs ${m.team2}`
+                }));
+            appState.allMatches = allMatchesFormatted;
+            console.log('All matches loaded:', allMatchesFormatted.length);
+            console.log('Has Qatar in allMatches:', allMatchesFormatted.some(m => m.homeTeam.includes('Qatar') || m.awayTeam.includes('Qatar')));
 
-                const match = findMatchForBet(bet, matches);
+            const updatedBets = appState.bets.map(bet => {
+                if (bet.status !== 'pending' && bet.verified) {
+                    return bet;
+                }
+
+                let effectiveBet = bet;
+                const betDate = safeFormatDate(bet.timestamp);
+                const cutoffDateStr = '2026-06-14';
+
+                if (betDate && betDate < cutoffDateStr) {
+                    const matchInAll = findMatchForBet(effectiveBet, allMatchesFormatted);
+                    console.log('matchInAll:', bet.bet_text, '| prediction:', JSON.stringify(bet.prediction), '|', matchInAll ? matchInAll.homeTeam + ' '+ matchInAll.awayTeam : 'null');
+                    if (matchInAll) {
+                        const adjustedTimestamp = matchInAll.date + ' ' + bet.timestamp.substring(10);
+                        console.log('Adjusted:', bet.bet_text, 'from', bet.timestamp, 'to', adjustedTimestamp);
+                        effectiveBet = { ...bet, timestamp: adjustedTimestamp };
+                    } else {
+                        const homeNorm = normalizeTeamName(bet.prediction.homeTeam || '');
+                        const awayNorm = normalizeTeamName(bet.prediction.awayTeam || '');
+                        const matchAnyDate = allMatchesFormatted.find(m => {
+                            const mHomeNorm = normalizeTeamName(m.homeTeam);
+                            const mAwayNorm = normalizeTeamName(m.awayTeam);
+                            return (homeNorm === mHomeNorm && awayNorm === mAwayNorm) ||
+                                   (homeNorm === mAwayNorm && awayNorm === mHomeNorm);
+                        });
+                        if (matchAnyDate) {
+                            const adjustedTimestamp = matchAnyDate.date + ' ' + bet.timestamp.substring(10);
+                            console.log('Adjusted (team match only):', bet.bet_text, 'from', bet.timestamp, 'to', adjustedTimestamp);
+                            effectiveBet = { ...bet, timestamp: adjustedTimestamp };
+                        }
+                    }
+                }
+
+                const match = findMatchForBet(effectiveBet, matches);
+                console.log('match graded:', bet.bet_text, '|', match ? match.homeTeam + ' '+ match.awayTeam + ' '+ match.date + ' Score:' + match.homeScore + '-' + match.awayScore : 'null');
                 if (match) {
-                    const result = compareBetWithMatch(bet, match);
+                    const result = compareBetWithMatch(effectiveBet, match);
+                    console.log('compareBetWithMatch result:', bet.bet_text, '|', JSON.stringify(result));
                     updatedCount++;
-                    return { ...bet, ...result };
+                    return { ...effectiveBet, ...result };
                 }
                 return bet;
             });
@@ -153,6 +208,20 @@
                     >
                         {appState.isLoading ? 'Analizando...' : '☁️ Analizar con API'}
                     </button>
+                    <button
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                        onclick={async () => {
+                            try {
+                                const result = await saveBetsToSheets(appState.bets);
+                                alert(`✓ Guardadas ${result.saved} apuestas en Sheets`);
+                            } catch (err) {
+                                alert('Error al guardar: ' + err.message);
+                            }
+                        }}
+                        disabled={appState.isLoading || appState.bets.length === 0}
+                    >
+                        💾 Guardar en Sheets
+                    </button>
                 {/if}
             </div>
         </div>
@@ -166,7 +235,7 @@
                 <DropZone />
             </div>
         {:else}
-            <StatsGrid />
+            <StatsGrid onPendingClick={() => showPendingModal = true} />
             <BetTable onSelectBet={handleSelectBet} />
         {/if}
     </div>
@@ -187,6 +256,10 @@
 
     {#if showResultsModal}
         <WorldCupResultsModal onClose={() => showResultsModal = false} />
+    {/if}
+
+    {#if showPendingModal}
+        <PendingBetsModal onClose={() => showPendingModal = false} />
     {/if}
 </main>
 

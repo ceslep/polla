@@ -3,10 +3,11 @@ import { normalizeTeamName } from './parser.js';
 /** @typedef {import('./types.js').Bet} Bet */
 /** @typedef {import('./types.js').Match} Match */
 
-/** @type {{ bets: Bet[], matches: Match[], isLoading: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
+/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
 export const appState = $state({
     bets: [],
     matches: [],
+    allMatches: [],
     isLoading: false,
     filters: {
         participant: '',
@@ -46,14 +47,20 @@ export const matchDates = () => {
 };
 
 /** @param {string | undefined} dateStr */
-function safeFormatDate(dateStr) {
+export function safeFormatDate(dateStr) {
     if (!dateStr) return null;
     try {
         let d;
         if (typeof dateStr === 'string' && dateStr.includes('/')) {
             const [datePart] = dateStr.split(' ');
-            const [year, month, day] = datePart.split('/');
-            d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            const parts = datePart.split('/');
+            if (parts[0].length === 4) {
+                const [year, month, day] = parts;
+                d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            } else {
+                const [day, month, year] = parts;
+                d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            }
         } else if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
             const [year, month, day] = dateStr.split('-').map(Number);
             d = new Date(year, month - 1, day);
@@ -188,6 +195,12 @@ export const filteredBets = () => {
             const text = (bet.bet_text + ' ' + bet.participant).toLowerCase();
             if (!text.includes(search)) return false;
         }
+        // Ocultar apuestas de score cuyos equipos no forman un partido real en ninguna fecha.
+        // Las apuestas de partidos existentes (aunque sea fecha equivocada o aún sin jugar)
+        // sí se muestran.
+        if (bet.type === 'score' && !teamsMatchAnyDate(bet, appState.allMatches)) {
+            return false;
+        }
         return true;
     });
 
@@ -234,7 +247,10 @@ export function findMatchForBet(bet, matches) {
     const homeNorm = normalizeTeamName(bet.prediction.homeTeam || '');
     const awayNorm = normalizeTeamName(bet.prediction.awayTeam || '');
 
-    console.log('findMatchForBet:', { homeNorm, awayNorm, matchesCount: matches.length });
+    // La fecha del partido debe coincidir con el día en que se envió la apuesta.
+    // Si no coinciden, el cruce no concuerda con la fecha → no se empareja
+    // (no califica y queda oculto del listado).
+    const betDay = safeFormatDate(bet.timestamp);
 
     for (const match of matches) {
         const mHomeNorm = normalizeTeamName(match.homeTeam);
@@ -242,24 +258,64 @@ export function findMatchForBet(bet, matches) {
         const mHomeShort = normalizeTeamName(match.homeShort);
         const mAwayShort = normalizeTeamName(match.awayShort);
 
-        console.log('Comparing:', { homeNorm, awayNorm, mHomeNorm, mAwayNorm });
+        const teamsMatch =
+            ((homeNorm === mHomeNorm || homeNorm === mHomeShort) &&
+             (awayNorm === mAwayNorm || awayNorm === mAwayShort)) ||
+            // Invertido por si el orden local/visitante difiere en el mensaje.
+            ((homeNorm === mAwayNorm || homeNorm === mAwayShort) &&
+             (awayNorm === mHomeNorm || awayNorm === mHomeShort));
 
-        if ((homeNorm === mHomeNorm || homeNorm === mHomeShort) &&
-            (awayNorm === mAwayNorm || awayNorm === mAwayShort)) {
-            console.log('Match found!');
-            return match;
-        }
+        if (!teamsMatch) continue;
 
-        // Try inverted in case of order issues in message
-        if ((homeNorm === mAwayNorm || homeNorm === mAwayShort) &&
-            (awayNorm === mHomeNorm || awayNorm === mHomeShort)) {
-            console.log('Match found (inverted)!');
-            return match;
-        }
+        const matchDay = safeFormatDate(match.date);
+        if (betDay && matchDay && betDay !== matchDay) continue;
+
+        return match;
     }
 
-    console.log('No match found');
     return null;
+}
+
+/**
+ * ¿Los equipos de la apuesta forman un partido real del calendario, en cualquier
+ * fecha? Sirve para distinguir "cruce equivocado de fecha" (existe pero otro día →
+ * se oculta) de "equipo no reconocido / partido inexistente" (se muestra pendiente).
+ * @param {Bet} bet
+ * @param {Match[]} matches
+ * @returns {boolean}
+ */
+export function teamsMatchAnyDate(bet, matches) {
+    if (bet.type !== 'score') return false;
+
+    const homeNorm = normalizeTeamName(bet.prediction.homeTeam || '');
+    const awayNorm = normalizeTeamName(bet.prediction.awayTeam || '');
+
+    return matches.some(match => {
+        const mHomeNorm = normalizeTeamName(match.homeTeam);
+        const mAwayNorm = normalizeTeamName(match.awayTeam);
+        const mHomeShort = normalizeTeamName(match.homeShort);
+        const mAwayShort = normalizeTeamName(match.awayShort);
+
+        return (
+            ((homeNorm === mHomeNorm || homeNorm === mHomeShort) &&
+             (awayNorm === mAwayNorm || awayNorm === mAwayShort)) ||
+            ((homeNorm === mAwayNorm || homeNorm === mAwayShort) &&
+             (awayNorm === mHomeNorm || awayNorm === mHomeShort))
+        );
+    });
+}
+
+/**
+ * Filter bets to only those that have a corresponding real match
+ * @param {Bet[]} bets
+ * @param {Match[]} matches
+ * @returns {Bet[]}
+ */
+export function filterBetsWithRealMatches(bets, matches) {
+    return bets.filter(bet => {
+        if (bet.type !== 'score') return true;
+        return findMatchForBet(bet, matches) !== null;
+    });
 }
 
 /** @param {string} original @param {string} alias */

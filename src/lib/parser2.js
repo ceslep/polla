@@ -124,6 +124,8 @@ const TEAM_ALIASES = {
     // Saudi Arabia
     'arabia': 'Saudi Arabia',
     'arabia saudita': 'Saudi Arabia',
+    'arabia saudí': 'Saudi Arabia',
+    'arabia saudi': 'Saudi Arabia',
     // Qatar
     'qatar': 'Qatar',
     // UAE
@@ -174,6 +176,7 @@ const TEAM_ALIASES = {
     'curacao': 'Curaçao',
     'curaçao': 'Curaçao',
     'curazao': 'Curaçao',
+    'cruzao': 'Curaçao',
     'corazao': 'Curaçao',
     // Ivory Coast
     'costa': 'Ivory Coast',
@@ -199,7 +202,9 @@ const TEAM_ALIASES = {
     'sweden': 'Sweden',
     // New Zealand
     'n zelanda': 'New Zealand',
+    'zelanda': 'New Zealand',
     'nueva zelanda': 'New Zealand',
+    'nueva selanda': 'New Zealand',
     // Netherlands
     'paises bajos': 'Netherlands',
     'p bajos': 'Netherlands',

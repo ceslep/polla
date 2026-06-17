@@ -30,7 +30,8 @@ export const FLAG_MAP = {
     '🇸🇳': 'Senegal',
     '🇬🇭': 'Ghana',
     '🇨🇲': 'Cameroon',
-    '🇧🇦': 'Bosnia & Herzegovina'
+    '🇧🇦': 'Bosnia & Herzegovina',
+    '🇺🇲': 'USA'
 };
 
 export const TEAM_ALIASES = {
@@ -60,11 +61,16 @@ export const TEAM_ALIASES = {
     'r. checa': 'Czech Republic',
     'republica checa': 'Czech Republic',
     'república checa': 'Czech Republic',
+    'republica c': 'Czech Republic',
+    'czech republic': 'Czech Republic',
     'francia': 'France',
+    'france': 'France',
     'argentina': 'Argentina',
     'inglaterra': 'England',
+    'england': 'England',
     'uk': 'United Kingdom',
     'brasil': 'Brazil',
+    'brazil': 'Brazil',
     'alemania': 'Germany',
     'alemana': 'Germany',
     'germany': 'Germany',
@@ -82,10 +88,12 @@ export const TEAM_ALIASES = {
     'colombia': 'Colombia',
     'chile': 'Chile',
     'eeuu': 'USA',
+    'euu': 'USA',
     'estados': 'USA',
     'unidos': 'USA',
     'estados unidos': 'USA',
     'usa': 'USA',
+    'united states': 'USA',
     'canda': 'Canada',
     'can': 'Canada',
     'canadá': 'Canada',
@@ -96,6 +104,10 @@ export const TEAM_ALIASES = {
     'australia': 'Australia',
     'arabia': 'Saudi Arabia',
     'arabia saudita': 'Saudi Arabia',
+    'arabia saudí': 'Saudi Arabia',
+    'arabia saudi': 'Saudi Arabia',
+    'arabiasaudita': 'Saudi Arabia',
+    'saudi arabia': 'Saudi Arabia',
     'qatar': 'Qatar',
     'emiratos': 'United Arab Emirates',
     'marruecos': 'Morocco',
@@ -107,26 +119,32 @@ export const TEAM_ALIASES = {
     'bosnia': 'Bosnia & Herzegovina',
     'bos': 'Bosnia & Herzegovina',
     'bósnia': 'Bosnia & Herzegovina',
+    'bosnia herzegovina': 'Bosnia & Herzegovina',
+    'bosniaherzegovina': 'Bosnia & Herzegovina',
     'paraguay': 'Paraguay',
+    'parag': 'Paraguay',
     'haiti': 'Haiti',
     'escancia': 'Scotland',
     'escocia': 'Scotland',
     'escosia': 'Scotland',
+    'escogia': 'Scotland',
     'scotland': 'Scotland',
     'suiza': 'Switzerland',
     'zuisa': 'Switzerland',
     'switzerland': 'Switzerland',
-    'arabia': 'Saudi Arabia',
     'catar': 'Qatar',
     'qarar': 'Qatar',
+    'quatar': 'Qatar',
     'irán': 'Iran',
     'iran': 'Iran',
     'turquia': 'Turkey',
+    'turkia': 'Turkey',
     'turkey': 'Turkey',
     'cura': 'Curaçao',
     'curacao': 'Curaçao',
     'curaçao': 'Curaçao',
     'curazao': 'Curaçao',
+    'cruzao': 'Curaçao',
     'corazao': 'Curaçao',
     'ecuador': 'Ecuador',
     'costa': 'Ivory Coast',
@@ -135,8 +153,9 @@ export const TEAM_ALIASES = {
     'costa d marfil': 'Ivory Coast',
     'c marfil': 'Ivory Coast',
     'c maril': 'Ivory Coast',
-    'c verde': 'Ivory Coast',
-    'verde': 'Ivory Coast',
+    'c de marfil': 'Ivory Coast',
+    'cmarfil': 'Ivory Coast',
+    'cmaril': 'Ivory Coast',
     'costamarfil': 'Ivory Coast',
     'costadom': 'Ivory Coast',
     'ivory coast': 'Ivory Coast',
@@ -152,13 +171,16 @@ export const TEAM_ALIASES = {
     'tunisia': 'Tunisia',
     'egipto': 'Egypt',
     'egypt': 'Egypt',
-    'iran': 'Iran',
     'n zelanda': 'New Zealand',
+    'zelanda': 'New Zealand',
     'nueva zelanda': 'New Zealand',
+    'nueva selanda': 'New Zealand',
     'new zealand': 'New Zealand',
     'nz': 'New Zealand',
     'islas cabo verde': 'Cape Verde',
     'cabo verde': 'Cape Verde',
+    'c verde': 'Cape Verde',
+    'verde': 'Cape Verde',
     'cape verde': 'Cape Verde',
     'iraq': 'Iraq',
     'irak': 'Iraq',
@@ -197,6 +219,34 @@ export function normalizeTeamName(name) {
         .replace(/\s{2,}/g, " ")
         .trim();
     return TEAM_ALIASES[/** @type {keyof typeof TEAM_ALIASES} */ (lower)] || lower;
+}
+
+/** Formas canónicas válidas (valores del mapa de alias). */
+const CANONICAL_TEAMS = new Set(Object.values(TEAM_ALIASES));
+
+/**
+ * Normaliza un texto a un equipo canónico. Si el texto completo no resuelve
+ * a un canónico (p.ej. "canada canada" cuando el mensaje trae nombre + bandera,
+ * o ruido como "korea s checa 2"), prueba palabras y pares de palabras y devuelve
+ * el primer equipo canónico encontrado.
+ * @param {string} raw
+ * @returns {string}
+ */
+export function resolveTeamName(raw) {
+    const norm = normalizeTeamName(raw);
+    if (CANONICAL_TEAMS.has(norm)) return norm;
+
+    const words = norm.split(' ').filter(Boolean);
+    // Pares de palabras adyacentes primero (equipos de dos palabras: "south korea").
+    for (let k = 0; k < words.length - 1; k++) {
+        const pair = normalizeTeamName(words[k] + ' ' + words[k + 1]);
+        if (CANONICAL_TEAMS.has(pair)) return pair;
+    }
+    for (const w of words) {
+        const single = normalizeTeamName(w);
+        if (CANONICAL_TEAMS.has(single)) return single;
+    }
+    return norm;
 }
 
 /**
@@ -332,7 +382,10 @@ export function parseAllScoreBets(text) {
     const results = [];
     const seen = new Set();
 
-    const textWithNames = replaceFlags(text);
+    const textWithNames = replaceFlags(text)
+        // Cualquier emoji no mapeado en FLAG_MAP queda pegado al número (ej. "Usa🇺🇲1");
+        // lo convertimos en separador para no perder la apuesta al tokenizar.
+        .replace(/\p{Extended_Pictographic}/gu, ' ');
     const separated = textWithNames.replace(/([A-Za-záéíóúüñÁÉÍÓÚÜÑ])(\d)/g, '$1 $2');
     const lines = separated.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
@@ -365,9 +418,30 @@ export function parseAllScoreBets(text) {
         const matchStrings = line.split(/[,;]\s*|\n/).filter(s => s.trim().length > 0);
 
         for (const matchStr of matchStrings) {
-            const cleanMatch = matchStr
+            let cleanMatch = matchStr
                 .replace(/\bvs\.?\b/gi, ' ')
                 .replace(/\bvrs\.?\b/gi, ' ')
+                // "2 a 1" → la "a" es separador de marcador, no equipo: la quitamos.
+                .replace(/(\d)\s+a\s+(\d)/gi, '$1 $2')
+                // "1 - 1" o "1-1" → convertir a "1§2" para detectar como marcador compuesto
+                .replace(/(\d)\s*[-–]\s*(\d)/g, '$1§$2')
+                // "3-C" o "3-C verde" → donde C es una letra inicial de equipo: expandir abreviatura
+                .replace(/(\d)-([A-ZÁÉÍÓÚÜÑ])(\s+|$)/gi, (match, num, letter, after) => {
+                    const expansions = {
+                        'C': 'Cabo Verde', 'E': 'Ecuador', 'B': 'Brazil', 'I': 'Iran',
+                        'A': 'Arabia', 'S': 'Saudi Arabia', 'P': 'Paraguay', 'U': 'Uruguay',
+                        'M': 'Marruecos', 'Mo': 'Morocco', 'H': 'Haiti', 'S': 'Scotland'
+                    };
+                    const teamName = expansions[letter] || letter;
+                    return `${num} ${teamName} `;
+                })
+                // "2-Egipto" → separar número de nombre de equipo (N-TEAM donde TEAM empieza con letra)
+                .replace(/(\d)-([A-Za-záéíóúüñÁÉÍÓÚÜÑ])/g, '$1 $2')
+                // "1- Uruguay" → convertir a "1 Uruguay" (score seguido de guión y espacio antes de equipo)
+                .replace(/(\d)[-–]\s+([A-Za-záéíóúüñÁÉÍÓÚÜÑ])/g, '$1 $2')
+                // "1escocia" → poner espacio entre número y texto
+                .replace(/(\d)([A-Za-záéíóúüñÁÉÍÓÚÜÑ])/g, '$1 $2')
+                .replace(/([A-Za-záéíóúüñÁÉÍÓÚÜÑ])(\d)/g, '$1 $2')
                 .replace(/\s+/g, ' ')
                 .trim();
 
@@ -376,11 +450,12 @@ export function parseAllScoreBets(text) {
 
             const tokenData = [];
             for (const tok of tokens) {
-                const hyphenMatch = tok.match(/^(\d+)[-–](\d+)$/);
+                const hyphenMatch = tok.match(/^(\d+)[-–§](\d+)$/);
                 if (hyphenMatch) {
                     tokenData.push({ raw: tok, num: parseInt(hyphenMatch[1]), awayScore: parseInt(hyphenMatch[2]), team: null });
                 } else {
-                    tokenData.push({ raw: tok, num: /^\d+$/.test(tok) ? parseInt(tok) : null, awayScore: null, team: normalizeTeamName(tok) });
+                    const cleanTok = tok.replace(/[.,]$/, '');
+                    tokenData.push({ raw: tok, num: /^\d+$/.test(cleanTok) ? parseInt(cleanTok) : null, awayScore: null, team: normalizeTeamName(tok.replace(/[.,§]$/, '')) });
                 }
             }
 
@@ -389,8 +464,14 @@ export function parseAllScoreBets(text) {
             while (i < tokenData.length) {
                 const td = tokenData[i];
                 if (td.num !== null) {
-                    joinedTokens.push(td);
-                    i++;
+                    if (td.awayScore === null && i + 1 < tokenData.length && tokenData[i + 1].num !== null) {
+                        const compoundTd = { raw: td.raw + '§' + tokenData[i + 1].raw, num: td.num, awayScore: tokenData[i + 1].num, team: null };
+                        joinedTokens.push(compoundTd);
+                        i += 2;
+                    } else {
+                        joinedTokens.push(td);
+                        i++;
+                    }
                     continue;
                 }
 
@@ -405,7 +486,7 @@ export function parseAllScoreBets(text) {
                     raw: combined,
                     num: null,
                     awayScore: null,
-                    team: normalizeTeamName(combined)
+                    team: resolveTeamName(combined)
                 });
                 i = j;
             }
@@ -485,9 +566,9 @@ export function parseAllScoreBets(text) {
         if (num === null || numIdx === 0) return null;
 
         const teamTokens = tokens.slice(0, numIdx);
-        let team = normalizeTeamName(teamTokens.join(' '));
+        let team = resolveTeamName(teamTokens.join(' '));
         if (!team || team.length <= 2) {
-            team = normalizeTeamName(teamTokens[teamTokens.length - 1]);
+            team = resolveTeamName(teamTokens[teamTokens.length - 1]);
         }
 
         return (team !== null && team.length > 2) ? { team, num } : null;
@@ -697,6 +778,10 @@ export function parseWhatsAppExport(jsonData) {
 
     messages.forEach((/** @type {any} */ msg) => {
         if (!msg.Message && !msg.message && !msg.bet_text && !msg.original_message) return;
+        const text = msg.Message || msg.message || msg.bet_text || msg.original_message || '';
+        // El organizador publica plantillas con marcadores de muestra ("Ejemplo: Colombia 1
+        // Rusia 2, ..."). No son apuestas reales — se ignoran.
+        if (/\bejemplos?\s*:/i.test(text)) return;
         const bets = parseMessage(msg);
         allBets.push(...bets);
     });

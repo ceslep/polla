@@ -36,8 +36,8 @@
  * @property {string} homeShort
  * @property {string} awayTeam
  * @property {string} awayShort
- * @property {number} homeScore
- * @property {number} awayScore
+ * @property {number | null} homeScore
+ * @property {number | null} awayScore
  * @property {string} resultString
  */
 

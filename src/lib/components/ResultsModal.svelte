@@ -1,28 +1,238 @@
 <script>
-    import { FLAG_MAP, TEAM_ALIASES, normalizeTeamName } from '../parser.js';
+    import { FLAG_MAP } from '../parser.js';
+
+    /** @type {Record<string, string>} */
+    const TEAM_TO_EMOJI = {
+        'argentina': '🇦🇷',
+        'brazil': '🇧🇷',
+        'brasil': '🇧🇷',
+        'mexico': '🇲🇽',
+        'méxico': '🇲🇽',
+        'south africa': '🇿🇦',
+        'south korea': '🇰🇷',
+        'korea': '🇰🇷',
+        'corea': '🇰🇷',
+        'corea del sur': '🇰🇷',
+        'czech republic': '🇨🇿',
+        'czechia': '🇨🇿',
+        'checa': '🇨🇿',
+        'chequia': '🇨🇿',
+        'france': '🇫🇷',
+        'francia': '🇫🇷',
+        'spain': '🇪🇸',
+        'españa': '🇪🇸',
+        'espana': '🇪🇸',
+        'england': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+        'inglaterra': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+        'united kingdom': '🇬🇧',
+        'germany': '🇩🇪',
+        'alemania': '🇩🇪',
+        'portugal': '🇵🇹',
+        'netherlands': '🇳🇱',
+        'holanda': '🇳🇱',
+        'paises bajos': '🇳🇱',
+        'belgium': '🇧🇪',
+        'bélgica': '🇧🇪',
+        'belgica': '🇧🇪',
+        'italy': '🇮🇹',
+        'italia': '🇮🇹',
+        'uruguay': '🇺🇾',
+        'colombia': '🇨🇴',
+        'chile': '🇨🇱',
+        'usa': '🇺🇸',
+        'estados unidos': '🇺🇸',
+        'eeuu': '🇺🇸',
+        'united states': '🇺🇸',
+        'canada': '🇨🇦',
+        'canadá': '🇨🇦',
+        'canda': '🇨🇦',
+        'japan': '🇯🇵',
+        'japón': '🇯🇵',
+        'australia': '🇦🇺',
+        'saudi arabia': '🇸🇦',
+        'arabia saudita': '🇸🇦',
+        'qatar': '🇶🇦',
+        'united arab emirates': '🇦🇪',
+        'emiratos arabes': '🇦🇪',
+        'morocco': '🇲🇦',
+        'marruecos': '🇲🇦',
+        'senegal': '🇸🇳',
+        'ghana': '🇬🇭',
+        'cameroon': '🇨🇲',
+        'camerún': '🇨🇲',
+        'bosnia & herzegovina': '🇧🇦',
+        'bosnia': '🇧🇦',
+        'bosnia herzegovina': '🇧🇦',
+        'paraguay': '🇵🇾',
+        'ecuador': '🇪🇨',
+        'croatia': '🇭🇷',
+        'croacia': '🇭🇷',
+        'denmark': '🇩🇰',
+        'dinamarca': '🇩🇰',
+        'poland': '🇵🇱',
+        'polonia': '🇵🇱',
+        'ukraine': '🇺🇦',
+        'ucrania': '🇺🇦',
+        'serbia': '🇷🇸',
+        'wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+        'gales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+        'switzerland': '🇨🇭',
+        'suiza': '🇨🇭',
+        'zuisa': '🇨🇭',
+        'ivory coast': '🇨🇮',
+        'costa de marfil': '🇨🇮',
+        'c marfil': '🇨🇮',
+        'ireland': '🇮🇪',
+        'irlanda': '🇮🇪',
+        'scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+        'escocia': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+        'hungary': '🇭🇺',
+        'hungria': '🇭🇺',
+        'norway': '🇳🇴',
+        'noruega': '🇳🇴',
+        'sweden': '🇸🇪',
+        'suecia': '🇸🇪',
+        'austria': '🇦🇹',
+        'turkey': '🇹🇷',
+        'turquia': '🇹🇷',
+        'russia': '🇷🇺',
+        'rusia': '🇷🇺',
+        'algeria': '🇩🇿',
+        'argelia': '🇩🇿',
+        'tunisia': '🇹🇳',
+        'tunez': '🇹🇳',
+        'egypt': '🇪🇬',
+        'egipto': '🇪🇬',
+        'iran': '🇮🇷',
+        'iraq': '🇮🇶',
+        'jordan': '🇯🇴',
+        'jordania': '🇯🇴',
+        'new zealand': '🇳🇿',
+        'nueva zelanda': '🇳🇿',
+    };
+
+    /** @type {Record<string, string>} */
+    const TEAM_TO_SPANISH = {
+        'argentina': 'Argentina',
+        'brazil': 'Brasil',
+        'brasil': 'Brasil',
+        'mexico': 'México',
+        'méxico': 'México',
+        'south africa': 'Sudáfica',
+        'south korea': 'Corea del Sur',
+        'korea': 'Corea del Sur',
+        'corea': 'Corea del Sur',
+        'corea del sur': 'Corea del Sur',
+        'czech republic': 'República Checa',
+        'czechia': 'República Checa',
+        'checa': 'República Checa',
+        'chequia': 'República Checa',
+        'france': 'Francia',
+        'francia': 'Francia',
+        'spain': 'España',
+        'españa': 'España',
+        'espana': 'España',
+        'england': 'Inglaterra',
+        'inglaterra': 'Inglaterra',
+        'united kingdom': 'Reino Unido',
+        'germany': 'Alemania',
+        'alemania': 'Alemania',
+        'portugal': 'Portugal',
+        'netherlands': 'Países Bajos',
+        'holanda': 'Países Bajos',
+        'paises bajos': 'Países Bajos',
+        'belgium': 'Bélgica',
+        'bélgica': 'Bélgica',
+        'belgica': 'Bélgica',
+        'italy': 'Italia',
+        'italia': 'Italia',
+        'uruguay': 'Uruguay',
+        'colombia': 'Colombia',
+        'chile': 'Chile',
+        'usa': 'Estados Unidos',
+        'estados unidos': 'Estados Unidos',
+        'eeuu': 'Estados Unidos',
+        'united states': 'Estados Unidos',
+        'canada': 'Canadá',
+        'canadá': 'Canadá',
+        'canda': 'Canadá',
+        'japan': 'Japón',
+        'japón': 'Japón',
+        'australia': 'Australia',
+        'saudi arabia': 'Arabia Saudita',
+        'arabia saudita': 'Arabia Saudita',
+        'qatar': 'Catar',
+        'united arab emirates': 'Emiratos Árabes Unidos',
+        'emiratos arabes': 'Emiratos Árabes Unidos',
+        'morocco': 'Marruecos',
+        'marruecos': 'Marruecos',
+        'senegal': 'Senegal',
+        'ghana': 'Ghana',
+        'cameroon': 'Camerún',
+        'camerún': 'Camerún',
+        'bosnia & herzegovina': 'Bosnia y Herzegovina',
+        'bosnia': 'Bosnia y Herzegovina',
+        'bosnia herzegovina': 'Bosnia y Herzegovina',
+        'paraguay': 'Paraguay',
+        'ecuador': 'Ecuador',
+        'croatia': 'Croacia',
+        'croacia': 'Croacia',
+        'denmark': 'Dinamarca',
+        'dinamarca': 'Dinamarca',
+        'poland': 'Polonia',
+        'polonia': 'Polonia',
+        'ukraine': 'Ucrania',
+        'ucrania': 'Ucardia',
+        'serbia': 'Serbia',
+        'wales': 'Gales',
+        'gales': 'Gales',
+        'switzerland': 'Suiza',
+        'suiza': 'Suiza',
+        'zuisa': 'Suiza',
+        'ivory coast': 'Costa de Marfil',
+        'costa de marfil': 'Costa de Marfil',
+        'c marfil': 'Costa de Marfil',
+        'ireland': 'Irlanda',
+        'irlanda': 'Irlanda',
+        'scotland': 'Escocia',
+        'escocia': 'Escocia',
+        'hungary': 'Hungría',
+        'hungria': 'Hungría',
+        'norway': 'Noruega',
+        'noruega': 'Noruega',
+        'sweden': 'Suecia',
+        'suecia': 'Suecia',
+        'austria': 'Austria',
+        'turkey': 'Turquía',
+        'turquia': 'Turquía',
+        'russia': 'Rusia',
+        'rusia': 'Rusia',
+        'algeria': 'Argelia',
+        'argelia': 'Argelia',
+        'tunisia': 'Túnez',
+        'tunez': 'Túnez',
+        'egypt': 'Egipto',
+        'egipto': 'Egipto',
+        'iran': 'Irán',
+        'iraq': 'Irak',
+        'jordan': 'Jordania',
+        'jordania': 'Jordania',
+        'new zealand': 'Nueva Zelanda',
+        'nueva zelanda': 'Nueva Zelanda',
+    };
 
     /** @param {string} teamName */
     function getTeamEmoji(teamName) {
         if (!teamName) return '';
-        const normalized = normalizeTeamName(teamName).toLowerCase();
-        for (const [emoji, country] of Object.entries(FLAG_MAP)) {
-            if (normalized.includes(country.toLowerCase()) || country.toLowerCase().includes(normalized)) {
-                return emoji;
-            }
-        }
-        return '';
+        const lower = teamName.toLowerCase().trim();
+        return TEAM_TO_EMOJI[lower] || '';
     }
 
     /** @param {string} teamName */
     function getSpanishName(teamName) {
         if (!teamName) return teamName;
-        const normalized = normalizeTeamName(teamName);
-        for (const [emoji, country] of Object.entries(FLAG_MAP)) {
-            if (normalized.toLowerCase().includes(country.toLowerCase())) {
-                return country;
-            }
-        }
-        return teamName;
+        const lower = teamName.toLowerCase().trim();
+        return TEAM_TO_SPANISH[lower] || teamName;
     }
 
     /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], onClose: () => void }} */
@@ -39,6 +249,12 @@
     /** @param {string} participant */
     function getParticipantBets(participant) {
         return bets.filter(b => b.participant === participant);
+    }
+
+    /** @param {string} participant */
+    function getParticipantPhone(participant) {
+        const bet = bets.find(b => b.participant === participant);
+        return bet?.phone || '';
     }
 
     /** @param {string} participant */
@@ -122,6 +338,44 @@
     function clearParticipantSelection() {
         selectedParticipant = null;
     }
+
+    /** @type {string | null} */
+    let exportMessage = $state(null);
+
+    function exportToWhatsApp() {
+        const header = '🏆 CLASIFICACIÓN POLLA MUNDIAL 2026\n\n';
+
+        /** @param {string} name */
+        function cleanName(name) {
+            const clean = name
+                .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+                .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+                .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+                .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+                .replace(/[\u{2600}-\u{26FF}]/gu, '')
+                .replace(/[\u{2700}-\u{27BF}]/gu, '')
+                .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+                .replace(/[^a-zA-Z0-9ñÑ\s]/g, '')
+                .replace(/\s+/g, ' ').trim();
+            if (clean.length === 0) return 'sin nombre';
+            return clean;
+        }
+
+        const rows = winners.map(w => {
+            const rank = `${w.rank}.`;
+            const name = cleanName(w.participant);
+            const pts = `${w.points} pts`;
+            return `${rank.padEnd(4)}${name.padEnd(25)}${pts}`;
+        });
+
+        const text = `🏆 CLASIFICACIÓN POLLA MUNDIAL 2026
+
+${winners.map(w => `${w.rank}. ${cleanName(w.participant)} - ${w.points} pts`).join('\n')}`;
+        navigator.clipboard.writeText(text).then(() => {
+            exportMessage = '¡Copiado!';
+            setTimeout(() => { exportMessage = null; }, 2000);
+        });
+    }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -130,6 +384,7 @@
     <div class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
         <div class="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
             {#if selectedParticipant}
+                {@const participantPhone = bets.find(b => b.participant === selectedParticipant)?.phone || ''}
                 <div class="flex items-center gap-3">
                     <button
                         class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
@@ -137,7 +392,12 @@
                     >
                         ←
                     </button>
-                    <h2 class="text-xl font-bold text-cyan-400">Detalles de {selectedParticipant}</h2>
+                    <div>
+                        <h2 class="text-xl font-bold text-cyan-400">Detalles de {selectedParticipant}</h2>
+                        {#if participantPhone}
+                            <p class="text-xs text-gray-400">{participantPhone}</p>
+                        {/if}
+                    </div>
                 </div>
             {:else}
                 <h2 class="text-xl font-bold text-cyan-400">📊 Análisis Completado</h2>
@@ -421,11 +681,24 @@
                 <!-- Winners Section -->
                 {#if winners.length > 0}
                     <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
-                        <h3 class="text-yellow-400 font-bold text-sm uppercase mb-3 flex items-center gap-2">
-                            <span>🏆</span> Clasificación Actual
-                        </h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-yellow-400 font-bold text-sm uppercase flex items-center gap-2">
+                                <span>🏆</span> Clasificación Actual
+                            </h3>
+                            {#if exportMessage}
+                                <span class="text-emerald-400 text-sm font-medium">{exportMessage}</span>
+                            {:else}
+                                <button
+                                    class="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-lg transition-colors"
+                                    onclick={exportToWhatsApp}
+                                >
+                                    📋 Copiar
+                                </button>
+                            {/if}
+                        </div>
                         <div class="space-y-2">
-                            {#each winners.slice(0, 10) as winner}
+                            {#each winners as winner}
+                                {@const winnerPhone = getParticipantPhone(winner.participant)}
                                 <button
                                     class="w-full flex items-center justify-between bg-black/20 rounded-lg p-3 hover:bg-white/10 transition-colors {winner.rank <= 3 ? 'border border-yellow-500/30' : ''}"
                                     onclick={() => selectedParticipant = winner.participant}
@@ -438,7 +711,12 @@
                                              'bg-white/10 text-gray-400'}">
                                             {winner.rank}
                                         </span>
-                                        <span class="text-white font-semibold">{winner.participant}</span>
+                                        <div class="flex flex-col items-start">
+                                            <span class="text-white font-semibold">{winner.participant}</span>
+                                            {#if winnerPhone}
+                                                <span class="text-xs text-gray-500">{winnerPhone}</span>
+                                            {/if}
+                                        </div>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <span class="text-2xl font-black text-yellow-400">{formatNumber(winner.points)} pts</span>
@@ -461,12 +739,22 @@
             {/if}
         </div>
 
-        <div class="p-6 bg-white/5 border-t border-white/10 flex justify-end gap-3 flex-shrink-0">
+        <div class="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center flex-shrink-0">
+            {#if !selectedParticipant}
+                <button
+                    class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
+                    onclick={exportToWhatsApp}
+                >
+                    📋 Exportar para WhatsApp
+                </button>
+            {:else}
+                <div></div>
+            {/if}
             <button
                 class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition-colors"
                 onclick={onClose}
             >
-                {selectedParticipant ? 'Volver' : 'Continuar'}
+                {selectedParticipant ? '← Volver' : 'Continuar'}
             </button>
         </div>
     </div>

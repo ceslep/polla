@@ -1,3 +1,5 @@
+import { normalizeTeamName } from './parser.js';
+
 const CONFIG_URL = 'https://app.iedeoccidente.com/pollaweb/config.php';
 const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
 
@@ -28,164 +30,26 @@ async function getConfig() {
 /** @typedef {import('./types.js').Bet} Bet */
 /** @typedef {import('./types.js').Match} Match */
 
-const TEAM_ALIASES_API = {
-    'Mexico': 'Mexico',
-    'South Africa': 'South Africa',
-    'Sudafrica': 'South Africa',
-    'Sudamérica': 'South Africa',
-    'South Korea': 'South Korea',
-    'Korea': 'South Korea',
-    'Corea': 'South Korea',
-    'Corea del Sur': 'South Korea',
-    'Czech Republic': 'Czechia',
-    'Czechia': 'Czechia',
-    'República Checa': 'Czechia',
-    'Rep checa': 'Czechia',
-    'R checa': 'Czechia',
-    'Chequia': 'Czechia',
-    'Canada': 'Canada',
-    'Canda': 'Canada',
-    'Bosnia & Herzegovina': 'Bosnia',
-    'Bosnia': 'Bosnia',
-    'Qatar': 'Qatar',
-    'Qarar': 'Qatar',
-    'Switzerland': 'Switzerland',
-    'Zuisa': 'Switzerland',
-    'Suiza': 'Switzerland',
-    'Brazil': 'Brazil',
-    'Brasil': 'Brazil',
-    'Morocco': 'Morocco',
-    'Marruecos': 'Morocco',
-    'Haiti': 'Haiti',
-    'Scotland': 'Scotland',
-    'Escocia': 'Scotland',
-    'Escosia': 'Scotland',
-    'USA': 'United States',
-    'United States': 'United States',
-    'Estados Unidos': 'United States',
-    'EEUU': 'United States',
-    'Paraguay': 'Paraguay',
-    'Australia': 'Australia',
-    'Turkey': 'Turkey',
-    'Turquia': 'Turkey',
-    'Germany': 'Germany',
-    'Alemania': 'Germany',
-    'Aleman': 'Germany',
-    'Curaçao': 'Curacao',
-    'Curacao': 'Curacao',
-    'Curazao': 'Curacao',
-    'Corazao': 'Curacao',
-    'Ivory Coast': 'Ivory Coast',
-    'Costa': 'Ivory Coast',
-    'Costa Marfil': 'Ivory Coast',
-    'Costa de Marfil': 'Ivory Coast',
-    'Costa d Marfil': 'Ivory Coast',
-    'C marfil': 'Ivory Coast',
-    'C maril': 'Ivory Coast',
-    'C verde': 'Ivory Coast',
-    'Verde': 'Ivory Coast',
-    'Ecuador': 'Ecuador',
-    'Netherlands': 'Netherlands',
-    'Paises Bajos': 'Netherlands',
-    'P bajos': 'Netherlands',
-    'Holanda': 'Netherlands',
-    'Japan': 'Japan',
-    'Japón': 'Japan',
-    'Sweden': 'Sweden',
-    'Suecia': 'Sweden',
-    'Suecis': 'Sweden',
-    'Tunisia': 'Tunisia',
-    'Tunes': 'Tunisia',
-    'Tinez': 'Tunisia',
-    'Tines': 'Tunisia',
-    'Tunez': 'Tunisia',
-    'Belgium': 'Belgium',
-    'Bélgica': 'Belgium',
-    'Egypt': 'Egypt',
-    'Egipto': 'Egypt',
-    'Iran': 'Iran',
-    'Irán': 'Iran',
-    'New Zealand': 'New Zealand',
-    'Nueva Zelanda': 'New Zealand',
-    'N zelanda': 'New Zealand',
-    'Spain': 'Spain',
-    'España': 'Spain',
-    'Espana': 'Spain',
-    'Saudi Arabia': 'Saudi Arabia',
-    'Arabia Saudita': 'Saudi Arabia',
-    'Arabia': 'Saudi Arabia',
-    'Cape Verde': 'Cape Verde',
-    'Cabo Verde': 'Cape Verde',
-    'Uruguay': 'Uruguay',
-    'France': 'France',
-    'Francia': 'France',
-    'Senegal': 'Senegal',
-    'Iraq': 'Iraq',
-    'Irak': 'Iraq',
-    'Norway': 'Norway',
-    'Noruega': 'Norway',
-    'Argentina': 'Argentina',
-    'Algeria': 'Algeria',
-    'Argelia': 'Algeria',
-    'Austria': 'Austria',
-    'Jordan': 'Jordan',
-    'Jordania': 'Jordan',
-    'Portugal': 'Portugal',
-    'DR Congo': 'DR Congo',
-    'RD Congo': 'DR Congo',
-    'Uzbekistan': 'Uzbekistan',
-    'Colombia': 'Colombia',
-    'England': 'England',
-    'Inglaterra': 'England',
-    'Croatia': 'Croatia',
-    'Croacia': 'Croatia',
-    'Ghana': 'Ghana',
-    'Panama': 'Panama',
-    'Panamá': 'Panama'
-};
-
-/**
- * @param {string} name
- * @returns {string}
- */
-function normalizeTeamNameApi(name) {
-    if (!name) return '';
-    const stripped = name
-        .replace(/\p{Emoji_Presentation}/gu, '')
-        .replace(/\p{Extended_Pictographic}/gu, '');
-    const lower = stripped.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-    return TEAM_ALIASES_API[/** @type {keyof typeof TEAM_ALIASES_API} */ (lower)] || lower;
-}
-
 /**
  * @returns {Promise<Match[]>}
  */
 export async function loadMatchesFromGitHub() {
-    console.log('Fetching from:', GITHUB_MATCHES_URL);
     try {
         const response = await fetch(GITHUB_MATCHES_URL);
-        console.log('Response status:', response.status);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        console.log('Data received, matches count:', (data.matches || []).length);
 
         const matches = data.matches || [];
         const withScores = matches.filter((/** @type {any} */ m) => m.score && m.score.ft);
-        console.log('Matches with scores:', withScores.length);
 
         return withScores
             .map((/** @type {any} */ m, /** @type {number} */ index) => ({
                 id: index + 1,
                 date: m.date,
-                homeTeam: normalizeTeamNameApi(m.team1),
+                homeTeam: normalizeTeamName(m.team1),
                 homeShort: m.team1,
-                awayTeam: normalizeTeamNameApi(m.team2),
+                awayTeam: normalizeTeamName(m.team2),
                 awayShort: m.team2,
                 homeScore: m.score.ft[0],
                 awayScore: m.score.ft[1],
@@ -347,6 +211,29 @@ export async function saveAliasesToSheets(aliases) {
             spreadsheetId: SHEETS_SPREADSHEET_ID,
             worksheetTitle: 'alias',
             bets: rows
+        })
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Guarda las apuestas en Google Sheets (hoja "datos").
+ * @param {any[]} bets - Arreglo de apuestas del frontend
+ * @returns {Promise<{ success: boolean, saved: number, rows: number }>}
+ */
+export async function saveBetsToSheets(bets) {
+    const response = await fetch(SAVE_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            worksheetTitle: SHEETS_WORKSHEET,
+            bets: bets
         })
     });
 
