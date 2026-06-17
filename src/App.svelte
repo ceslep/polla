@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, participants, safeFormatDate } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -13,14 +13,18 @@
     import RankingModal from './lib/components/RankingModal.svelte';
     import ParticipantDetailModal from './lib/components/ParticipantDetailModal.svelte';
     import AdminModal from './lib/components/AdminModal.svelte';
+    import AdminUploadModal from './lib/components/AdminUploadModal.svelte';
     import MessageModal from './lib/components/MessageModal.svelte';
+    import MobileMenu from './lib/components/MobileMenu.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
+    let mobileMenuOpen = $state(false);
     let showResultsModal = $state(false);
     let showAnalysisModal = $state(false);
     let showPendingModal = $state(false);
     let showRankingModal = $state(false);
     let showAdminModal = $state(false);
+    let showAdminUploadModal = $state(false);
     let showMessageModal = $state(false);
     let isSavingToSheets = $state(false);
     let isLoadingFromSheets = $state(false);
@@ -32,6 +36,7 @@
     let adminMessage = $state('');
     let selectedParticipantName = $state(/** @type {string|null} */ (null));
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
+    const isDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     /** @param {any} bet */
     function handleSelectBet(bet) {
@@ -201,48 +206,47 @@
         }
     }
 
-    onMount(async () => {
-        const isGitHubPages = window.location.hostname === 'ceslep.github.io';
-        const saved = localStorage.getItem('polla_bets');
-
-        if (saved && !isGitHubPages) {
-            try {
-                appState.bets = JSON.parse(saved);
-                await analyzeBets(true);
-            } catch (e) { console.error(e); }
-        } else {
-            // localStorage vacío o forzado por GitHub Pages → cargar desde Google Sheets
-            isLoadingFromSheets = true;
-            loadFromSheetsFailed = false;
-            try {
-                console.log(isGitHubPages ? 'Forced GitHub Pages load from Sheets...' : 'No localStorage, loading from Sheets...');
-                const sheetsBets = await loadBetsFromSheets();
-                if (sheetsBets.length > 0) {
-                    // Reset verified to force recalculation - ensure points is a number
-                    const betsToAnalyze = sheetsBets.map((bet) => ({
-                        ...bet,
-                        verified: false,
-                        status: 'pending',
-                        points: Number(bet.points) || 0
-                    }));
-                    appState.bets = betsToAnalyze;
-                    localStorage.setItem('polla_bets', JSON.stringify(betsToAnalyze));
-                    await analyzeBets(true);
-                }
-            } catch (e) {
-                console.error('Failed to load from Sheets:', e);
-                loadFromSheetsFailed = true;
-            } finally {
-                isLoadingFromSheets = false;
-            }
-        }
-
+    onMount(() => {
         handleHashChange();
         window.addEventListener('hashchange', handleHashChange);
-
         if (!window.location.hash) {
             showRankingModal = true;
         }
+
+        (async () => {
+            const isGitHubPages = window.location.hostname === 'ceslep.github.io';
+            const saved = localStorage.getItem('polla_bets');
+
+            if (saved && !isGitHubPages) {
+                try {
+                    appState.bets = JSON.parse(saved);
+                    await analyzeBets(true);
+                } catch (e) { console.error(e); }
+            } else {
+                isLoadingFromSheets = true;
+                loadFromSheetsFailed = false;
+                try {
+                    console.log(isGitHubPages ? 'Forced GitHub Pages load from Sheets...' : 'No localStorage, loading from Sheets...');
+                    const sheetsBets = await loadBetsFromSheets();
+                    if (sheetsBets.length > 0) {
+                        const betsToAnalyze = sheetsBets.map((bet) => ({
+                            ...bet,
+                            verified: false,
+                            status: 'pending',
+                            points: Number(bet.points) || 0
+                        }));
+                        appState.bets = betsToAnalyze;
+                        localStorage.setItem('polla_bets', JSON.stringify(betsToAnalyze));
+                        await analyzeBets(true);
+                    }
+                } catch (e) {
+                    console.error('Failed to load from Sheets:', e);
+                    loadFromSheetsFailed = true;
+                } finally {
+                    isLoadingFromSheets = false;
+                }
+            }
+        })();
 
         return () => {
             window.removeEventListener('hashchange', handleHashChange);
@@ -252,45 +256,65 @@
 
 <main class="min-h-screen bg-[#111] text-white selection:bg-cyan-500/30">
     <header class="bg-black/40 border-b border-white/5 backdrop-blur-md sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <h1 class="text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent italic tracking-tighter">
-                POLLA MUNDIALISTA 2026
+        <div class="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
+            <h1 class="text-xl md:text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent italic tracking-tighter">
+                POLLA 2026
             </h1>
-            
-            <div class="flex gap-4">
+
+            <div class="flex items-center gap-2 md:gap-4">
                 <button
-                    class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-500/20"
+                    class="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-500/20 min-h-11"
                     onclick={() => showResultsModal = true}
                 >
-                    🌐 Resultados
+                    <span class="hidden sm:inline">🌐</span> <span class="sm:hidden">📊</span><span class="ml-1 hidden sm:inline">Resultados</span>
                 </button>
-                {#if appState.bets.length > 0}
-                    <button
-                        class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all border border-white/10"
-                        onclick={() => {
-                            if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
-                                appState.bets = [];
-                                localStorage.removeItem('polla_bets');
-                            }
-                        }}
-                    >
-                        Resetear
-                    </button>
-                    <button
-                        class="px-6 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
-                        onclick={() => {
+
+                <button
+                    class="hidden md:flex px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all border border-white/10 min-h-11"
+                    onclick={() => {
+                        if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
+                            appState.bets = [];
+                            localStorage.removeItem('polla_bets');
+                        }
+                    }}
+                >
+                    Resetear
+                </button>
+
+                <button
+                    class="hidden md:flex px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20 min-h-11 disabled:opacity-50"
+                    onclick={() => {
+                        if (isDev) {
+                            analyzeBets(true);
+                        } else {
                             adminAction = () => analyzeBets(true);
                             adminTitle = "Análisis con GitHub";
                             adminMessage = "Se requiere acceso administrativo para realizar el análisis utilizando los datos de GitHub.";
                             showAdminModal = true;
-                        }}
-                        disabled={appState.isLoading}
-                    >
-                        {appState.isLoading ? 'Analizando...' : '🔗 Analizar con GitHub'}
-                    </button>
-                    <button
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2"
-                        onclick={() => {
+                        }
+                    }}
+                    disabled={appState.isLoading}
+                >
+                    {appState.isLoading ? 'Analizando...' : '🔗 Analizar'}
+                </button>
+
+                <button
+                    class="hidden md:flex px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 min-h-11 disabled:opacity-50"
+                    onclick={() => {
+                        if (isDev) {
+                            isSavingToSheets = true;
+                            saveBetsToSheets(appState.bets).then(result => {
+                                messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
+                                messageModalType = 'success';
+                                showMessageModal = true;
+                                isSavingToSheets = false;
+                            }).catch(err => {
+                                messageModalContent = 'Error al guardar:\n' + (err.message || err);
+                                messageModalType = 'error';
+                                showMessageModal = true;
+                                isSavingToSheets = false;
+                            });
+                        } else {
                             adminAction = async () => {
                                 isSavingToSheets = true;
                                 try {
@@ -309,22 +333,47 @@
                             adminTitle = "Guardar en Sheets";
                             adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
                             showAdminModal = true;
-                        }}
-                        disabled={appState.isLoading || appState.bets.length === 0 || isSavingToSheets}
-                    >
-                        {#if isSavingToSheets}
-                            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Guardando...
-                        {:else}
-                            <span>💾</span> Guardar en Sheets
-                        {/if}
-                    </button>
-                {/if}
+                        }
+                    }}
+                    disabled={appState.isLoading || appState.bets.length === 0 || isSavingToSheets}
+                >
+                    {#if isSavingToSheets}
+                        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    {:else}
+                        💾
+                    {/if}
+                </button>
+
+                <button
+                    class="hidden md:flex px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-500/20 min-h-11 disabled:opacity-50"
+                    onclick={() => {
+                        if (isDev) {
+                            showAdminUploadModal = true;
+                        } else {
+                            adminAction = () => {
+                                showAdminUploadModal = true;
+                            };
+                            adminTitle = "Cargar JSON";
+                            adminMessage = "Se requiere acceso administrativo para cargar un archivo JSON.";
+                            showAdminModal = true;
+                        }
+                    }}
+                    disabled={appState.isLoading}
+                >
+                    📁
+                </button>
+
+                <button
+                    class="md:hidden w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
+                    onclick={() => mobileMenuOpen = true}
+                >
+                    ☰
+                </button>
             </div>
         </div>
     </header>
 
-    <div class="max-w-7xl mx-auto px-6 py-10">
+    <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {#if isLoadingFromSheets}
             <div class="flex flex-col items-center justify-center py-20">
                 <div class="text-6xl mb-6 animate-spin">⚙️</div>
@@ -402,6 +451,92 @@
         />
     {/if}
 
+    {#if showAdminUploadModal}
+        <AdminUploadModal
+            onConfirm={async (file) => {
+                showAdminUploadModal = false;
+                isSavingToSheets = true;
+                try {
+                    const text = await file.text();
+                    const rawMessages = JSON.parse(text);
+                    if (!Array.isArray(rawMessages)) throw new Error('El JSON debe ser un arreglo de mensajes');
+
+                    const parsedBets = parseWhatsAppExport(rawMessages);
+                    alert(`DEBUG: parsedBets=${parsedBets.length}, appState=${appState.bets.length}`);
+
+                    // Sin filtro de fecha por ahora - cargar todos
+                    const betMap = new Map();
+                    for (const bet of appState.bets) {
+                        const key = bet.id || '';
+                        betMap.set(key, bet);
+                    }
+                    for (const newBet of parsedBets) {
+                        const key = newBet.id || '';
+                        const existing = betMap.get(key);
+                        if (existing) {
+                            const merged = { ...existing };
+                            for (const [k, v] of Object.entries(newBet)) {
+                                if (v !== undefined && v !== null && v !== '') {
+                                    if (['status', 'points', 'real_result', 'realResult'].includes(k)) {
+                                        if (v !== undefined && v !== null && v !== '') {
+                                            merged[k] = v;
+                                        }
+                                    } else {
+                                        merged[k] = v;
+                                    }
+                                }
+                            }
+                            betMap.set(key, merged);
+                        } else {
+                            betMap.set(key, newBet);
+                        }
+                    }
+                    appState.bets = Array.from(betMap.values());
+                    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+
+                    // Subir JSON original al servidor
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('token', 'polla2026');
+                    let uploadResult = null;
+                    try {
+                        const uploadRes = await fetch('https://app.iedeoccidente.com/polla/upload_json.php', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        uploadResult = await uploadRes.json();
+                    } catch (/** @type {any} */ uploadErr) {
+                        console.warn('Upload JSON failed:', uploadErr.message);
+                    }
+
+                    await analyzeBets(true);
+                    const result = await saveBetsToSheets(appState.bets);
+
+                    // Recargar desde Sheets y reprocesar para mostrar resultados actualizados
+                    isLoadingFromSheets = true;
+                    const sheetsBets = await loadBetsFromSheets();
+                    appState.bets = sheetsBets;
+                    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+                    await analyzeBets(true);
+                    isLoadingFromSheets = false;
+
+                    messageModalContent = `¡Éxito!\nJSON fusionado (${parsedBets.length} apuestas) y guardado en Google Sheets.\nActualizadas: ${result.updated}, insertadas: ${result.inserted}${uploadResult?.success ? '\nJSON subido: ' + uploadResult.filename : ''}`;
+                    messageModalType = 'success';
+                    showMessageModal = true;
+                } catch (/** @type {any} */ err) {
+                    messageModalContent = 'Error al procesar:\n' + (err.message || err);
+                    messageModalType = 'error';
+                    showMessageModal = true;
+                } finally {
+                    isSavingToSheets = false;
+                }
+            }}
+            onClose={() => {
+                showAdminUploadModal = false;
+            }}
+        />
+    {/if}
+
     {#if showMessageModal}
         <MessageModal
             message={messageModalContent}
@@ -409,6 +544,45 @@
             onClose={() => showMessageModal = false}
         />
     {/if}
+
+    <MobileMenu
+        bind:isOpen={mobileMenuOpen}
+        hasBets={appState.bets.length > 0}
+        isLoading={appState.isLoading}
+        isSavingToSheets={isSavingToSheets}
+        onReset={() => {
+            if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
+                appState.bets = [];
+                localStorage.removeItem('polla_bets');
+            }
+        }}
+        onAnalyze={() => {
+            adminAction = () => analyzeBets(true);
+            adminTitle = "Análisis con GitHub";
+            adminMessage = "Se requiere acceso administrativo para realizar el análisis utilizando los datos de GitHub.";
+            showAdminModal = true;
+        }}
+        onSaveSheets={() => {
+            adminAction = async () => {
+                isSavingToSheets = true;
+                try {
+                    const result = await saveBetsToSheets(appState.bets);
+                    messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
+                    messageModalType = 'success';
+                    showMessageModal = true;
+                } catch (/** @type {any} */ err) {
+                    messageModalContent = 'Error al guardar:\n' + (err.message || err);
+                    messageModalType = 'error';
+                    showMessageModal = true;
+                } finally {
+                    isSavingToSheets = false;
+                }
+            };
+            adminTitle = "Guardar en Sheets";
+            adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
+            showAdminModal = true;
+        }}
+    />
 </main>
 
 <style>

@@ -86,18 +86,19 @@
             );
         }
 
-        // Sort: finished matches first (by date desc), then pending (by date asc)
+        // Sort: finished matches first (descending by date/time), then pending (also descending by date/time)
         result.sort((a, b) => {
             const aFinished = a.score?.ft != null;
             const bFinished = b.score?.ft != null;
+            
             if (aFinished && !bFinished) return -1;
             if (!aFinished && bFinished) return 1;
 
-            // Both finished or both pending - sort by date
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            if (aFinished) return dateB - dateA; // finished: newest first
-            return dateA - dateB; // pending: oldest first
+            const dateTimeA = new Date(`${a.date}T${(a.time || '00:00').split(' ')[0]}`).getTime();
+            const dateTimeB = new Date(`${b.date}T${(b.time || '00:00').split(' ')[0]}`).getTime();
+
+            // All sections descending (newest/latest first)
+            return dateTimeB - dateTimeA;
         });
 
         return result;
@@ -225,7 +226,11 @@
                 return m.score.ft[1] > m.score.ft[0];
             }
             return false;
-        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }).sort((a, b) => {
+            const dateTimeA = new Date(`${a.date}T${a.time || '00:00'}`).getTime();
+            const dateTimeB = new Date(`${b.date}T${b.time || '00:00'}`).getTime();
+            return dateTimeB - dateTimeA;
+        });
     });
 
     const selectedTeamStats = $derived.by(() => {
@@ -318,7 +323,7 @@
 
         <!-- Filter Tabs -->
         <div class="border-b border-white/10 flex-shrink-0">
-            <div class="flex items-center justify-center gap-1 p-2 bg-black/20">
+            <div class="hidden md:flex items-center justify-center gap-1 p-2 bg-black/20">
                 <button
                     class="px-4 py-2 rounded-lg text-sm font-medium transition-all {selectedFilter === 'all' ? 'bg-cyan-600 text-white' : 'bg-transparent text-gray-400 hover:text-white hover:bg-white/10'}"
                     onclick={() => selectedFilter = 'all'}
@@ -346,6 +351,28 @@
                         {kf.label}
                     </button>
                 {/each}
+            </div>
+
+            <div class="flex md:hidden items-center gap-2 p-3 bg-black/20">
+                <select
+                    class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-500 text-sm"
+                    bind:value={selectedFilter}
+                >
+                    <option value="all">🌐 Todos los partidos</option>
+                    <optgroup label="Grupos">
+                        {#each groupFilters as gf}
+                            <option value={gf.key}>Grupo {gf.label}</option>
+                        {/each}
+                    </optgroup>
+                    <optgroup label="Eliminatorias">
+                        {#each knockoutFilters.filter(f => f.key !== 'all') as kf}
+                            <option value={kf.key}>{kf.label}</option>
+                        {/each}
+                    </optgroup>
+                </select>
+                <div class="text-sm text-gray-400 whitespace-nowrap">
+                    {filteredMatches().length}
+                </div>
             </div>
 
             <!-- Team Search -->

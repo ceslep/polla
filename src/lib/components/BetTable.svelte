@@ -1,10 +1,12 @@
 <script>
     import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
+    import FilterSheet from './FilterSheet.svelte';
 
-    let { onSelectBet, onParticipantClick } = $props();
+    let { onSelectBet, onParticipantClick = () => {} } = $props();
 
     let activeTab = $state('grouped');
+    let filterSheetOpen = $state(false);
 
     const currentBets = $derived(filteredBets());
     const currentParticipants = $derived(participants());
@@ -13,7 +15,8 @@
     const finishedMatchesMap = $derived(finishedMatchesPerDate());
     const dateValidation = $derived(appState.filters.date ? validateDateBets(appState.filters.date) : null);
 
-    /** Parse date string as local time (not UTC) to avoid timezone shifts */
+    /** Parse date string as local time (not UTC) to avoid timezone shifts
+     * @param {string} dateStr */
     function parseLocalDate(dateStr) {
         if (!dateStr) return null;
         const [year, month, day] = dateStr.split('-').map(Number);
@@ -231,110 +234,292 @@
 </script>
 
 <div class="bg-white/5 rounded-2xl overflow-hidden border border-white/10">
-    <div class="p-6 border-b border-white/10 flex flex-wrap gap-4 items-center justify-between">
-        <div class="flex gap-4 items-center flex-wrap">
-            <select
-                class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
-                bind:value={appState.filters.date}
-            >
-                <option value="">Todas las fechas</option>
-                {#each availableDates as d}
-                    {@const totalMatchCount = totalMatchesMap.get(d) || 0}
-                    {@const finishedCount = finishedMatchesMap.get(d) || 0}
-                    <option value={d}>{formatDateShort(d)} ({totalMatchCount} partidos{finishedCount < totalMatchCount ? `, ${finishedCount} jugados` : ''})</option>
-                {/each}
-            </select>
+    <div class="p-4 md:p-6 border-b border-white/10">
+        <div class="hidden md:flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex gap-4 items-center flex-wrap">
+                <select
+                    class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
+                    bind:value={appState.filters.date}
+                >
+                    <option value="">Todas las fechas</option>
+                    {#each availableDates as d}
+                        {@const totalMatchCount = totalMatchesMap.get(d) || 0}
+                        {@const finishedCount = finishedMatchesMap.get(d) || 0}
+                        <option value={d}>{formatDateShort(d)} ({totalMatchCount} partidos{finishedCount < totalMatchCount ? `, ${finishedCount} jugados` : ''})</option>
+                    {/each}
+                </select>
 
-            {#if appState.filters.date && dateValidation}
-                <div class="flex items-center gap-2 px-3 py-2 rounded-lg {dateValidation.hasAllBets ? 'bg-emerald-500/20' : 'bg-red-500/20'}">
-                    {#if dateValidation.hasAllBets}
-                        <span class="text-emerald-400 text-sm">✓ {dateValidation.participants.length}×{dateValidation.totalMatches} = {dateValidation.participants.length * dateValidation.totalMatches} apuestas</span>
-                    {:else}
-                        <span class="text-red-400 text-sm">
-                            {#if dateValidation.missing.length > 0}
-                                ⚠ Faltan: {dateValidation.missing.length} participantes
-                            {/if}
-                            {#if dateValidation.malformed.length > 0}
-                                {dateValidation.missing.length > 0 ? ' | ' : ''}Parseo errado: {dateValidation.malformed.length}
-                            {/if}
-                        </span>
-                    {/if}
-                    {#if dateValidation.finishedMatches > 0}
-                        <span class="text-gray-400 text-xs">({dateValidation.finishedMatches} jugados)</span>
-                    {/if}
+                {#if appState.filters.date && dateValidation}
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg {dateValidation.hasAllBets ? 'bg-emerald-500/20' : 'bg-red-500/20'}">
+                        {#if dateValidation.hasAllBets}
+                            <span class="text-emerald-400 text-sm">✓ {dateValidation.participants.length}×{dateValidation.totalMatches} = {dateValidation.participants.length * dateValidation.totalMatches} apuestas</span>
+                        {:else}
+                            <span class="text-red-400 text-sm">
+                                {#if dateValidation.missing.length > 0}
+                                    ⚠ Faltan: {dateValidation.missing.length} participantes
+                                {/if}
+                                {#if dateValidation.malformed.length > 0}
+                                    {dateValidation.missing.length > 0 ? ' | ' : ''}Parseo errado: {dateValidation.malformed.length}
+                                {/if}
+                            </span>
+                        {/if}
+                        {#if dateValidation.finishedMatches > 0}
+                            <span class="text-gray-400 text-xs">({dateValidation.finishedMatches} jugados)</span>
+                        {/if}
+                    </div>
+                {/if}
+
+                <select
+                    class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
+                    bind:value={appState.filters.participant}
+                >
+                    <option value="">Todos los participantes</option>
+                    {#each currentParticipants as p}
+                        <option value={p}>{p}</option>
+                    {/each}
+                </select>
+
+                <select
+                    class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
+                    bind:value={appState.filters.type}
+                >
+                    <option value="score">Partidos</option>
+                    <option value="champion">Campeón</option>
+                    <option value="runnerup">Subcampeón</option>
+                    <option value="topscorer">Goleador</option>
+                    <option value="">Todos los tipos</option>
+                </select>
+
+                <select
+                    class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
+                    bind:value={appState.filters.status}
+                >
+                    <option value="">Todos los estados</option>
+                    <option value="pending">Pendientes</option>
+                    <option value="exact">Exactas</option>
+                    <option value="correct">Correctas</option>
+                    <option value="incorrect">Erradas</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="flex gap-1 bg-white/10 rounded-lg p-1">
+                    <button
+                        class="px-4 py-2 rounded-md text-sm font-medium transition-all
+                        {activeTab === 'grouped' ? 'bg-cyan-600 text-white' : 'bg-transparent text-gray-400 hover:text-white'}"
+                        onclick={() => activeTab = 'grouped'}
+                    >
+                        📋 Mensaje
+                    </button>
+                    <button
+                        class="px-4 py-2 rounded-md text-sm font-medium transition-all
+                        {activeTab === 'rows' ? 'bg-cyan-600 text-white' : 'bg-transparent text-gray-400 hover:text-white'}"
+                        onclick={() => activeTab = 'rows'}
+                    >
+                        📝 Filas
+                    </button>
                 </div>
-            {/if}
 
-            <select
-                class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
-                bind:value={appState.filters.participant}
-            >
-                <option value="">Todos los participantes</option>
-                {#each currentParticipants as p}
-                    <option value={p}>{p}</option>
-                {/each}
-            </select>
-
-            <select
-                class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
-                bind:value={appState.filters.type}
-            >
-                <option value="score">Partidos</option>
-                <option value="champion">Campeón</option>
-                <option value="runnerup">Subcampeón</option>
-                <option value="topscorer">Goleador</option>
-                <option value="">Todos los tipos</option>
-            </select>
-
-            <select
-                class="bg-white/10 border-white/20 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-500 text-white"
-                bind:value={appState.filters.status}
-            >
-                <option value="">Todos los estados</option>
-                <option value="pending">Pendientes</option>
-                <option value="exact">Exactas</option>
-                <option value="correct">Correctas</option>
-                <option value="incorrect">Erradas</option>
-            </select>
+                <input
+                    type="text"
+                    placeholder="Buscar..."
+                    class="bg-white/10 border-white/20 rounded-lg px-4 py-2 text-sm w-48 outline-none focus:border-cyan-500 text-white"
+                    bind:value={appState.filters.search}
+                />
+            </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex md:hidden items-center justify-between gap-3">
+            <button
+                class="flex-1 py-3 bg-white/10 hover:bg-white/15 rounded-xl text-sm font-medium transition-all border border-white/10 flex items-center justify-center gap-2"
+                onclick={() => filterSheetOpen = true}
+            >
+                <span>🔍</span> Filtros
+                {#if appState.filters.date || appState.filters.participant || appState.filters.type || appState.filters.status || appState.filters.search}
+                    <span class="w-2 h-2 bg-cyan-500 rounded-full"></span>
+                {/if}
+            </button>
+
             <div class="flex gap-1 bg-white/10 rounded-lg p-1">
                 <button
-                    class="px-4 py-2 rounded-md text-sm font-medium transition-all
+                    class="px-4 py-2 rounded-md text-sm font-medium transition-all min-h-11
                     {activeTab === 'grouped' ? 'bg-cyan-600 text-white' : 'bg-transparent text-gray-400 hover:text-white'}"
                     onclick={() => activeTab = 'grouped'}
                 >
-                    📋 Por Mensaje
+                    📋
                 </button>
                 <button
-                    class="px-4 py-2 rounded-md text-sm font-medium transition-all
+                    class="px-4 py-2 rounded-md text-sm font-medium transition-all min-h-11
                     {activeTab === 'rows' ? 'bg-cyan-600 text-white' : 'bg-transparent text-gray-400 hover:text-white'}"
                     onclick={() => activeTab = 'rows'}
                 >
-                    📝 Filas
+                    📝
                 </button>
             </div>
-
-            <input
-                type="text"
-                placeholder="Buscar..."
-                class="bg-white/10 border-white/20 rounded-lg px-4 py-2 text-sm w-48 outline-none focus:border-cyan-500 text-white"
-                bind:value={appState.filters.search}
-            />
         </div>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="w-full text-left">
+    <FilterSheet
+        bind:isOpen={filterSheetOpen}
+        {availableDates}
+        {totalMatchesMap}
+        {finishedMatchesMap}
+        currentParticipants={currentParticipants}
+        {activeTab}
+    />
+
+    <!-- Mobile: Card view for grouped messages -->
+    {#if activeTab === 'grouped'}
+        <div class="block md:hidden space-y-3 px-1">
+            {#each groupedByMessage() as msg}
+                {@const allBets = msg.bets}
+                {@const totalPts = calculateTotalPoints(allBets)}
+                {@const needsAttention = msg.hasMalformed || (!msg.hasManuallyEdited && msg.scoreBetCount === 0)}
+                {@const scoreBetCount = msg.bets.filter((/** @type {any} */ b) => b.type === 'score').length}
+
+                <div class="bg-gray-800/80 rounded-2xl border border-white/10 overflow-hidden">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-cyan-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl">
+                                    {msg.participant}
+                                </span>
+                                {#if msg.hasManuallyEdited}
+                                    <span class="text-cyan-400 text-xs">ℹ️</span>
+                                {/if}
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400 uppercase">Total</div>
+                                <div class="text-2xl font-black text-yellow-400">{totalPts} pts</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 mb-3 text-sm text-gray-400">
+                            <span class="text-white font-medium">{allBets.length} apuestas</span>
+                            <span class="flex items-center gap-1">
+                                {#if msg.bets.some(b => b.type === 'champion')}<span>🏆</span>{/if}
+                                {#if msg.bets.some(b => b.type === 'runnerup')}<span>🥈</span>{/if}
+                                {#if msg.bets.some(b => b.type === 'topscorer')}<span>👟</span>{/if}
+                                <span>⚽×{scoreBetCount}</span>
+                            </span>
+                        </div>
+
+                        {#if needsAttention}
+                            <div class="flex items-center gap-2 p-2 bg-red-500/10 rounded-lg border border-red-500/20 mb-3 text-xs text-red-400">
+                                <span>⚠️</span>
+                                {#if msg.scoreBetCount === 0}
+                                    Sin apuestas de partidos
+                                {:else}
+                                    {msg.bets.filter((/** @type {any} */ b) => isBetPotentiallyMalformed(b)).length} parseo(s) errado(s)
+                                {/if}
+                            </div>
+                        {/if}
+
+                        <div class="space-y-2">
+                            {#each allBets as bet}
+                                {@const malformed = isBetPotentiallyMalformed(bet)}
+                                <div class="bg-white/5 rounded-xl p-3 {malformed ? 'border border-red-500/30' : ''}">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                                            <span class="text-xl flex-shrink-0">{getTypeIcon(bet)}</span>
+                                            <div class="min-w-0">
+                                                <div class="text-white text-sm font-medium {malformed ? 'text-red-400' : ''} truncate">
+                                                    {@html formatBetText(bet)}
+                                                </div>
+                                                <div class="flex items-center gap-2 text-xs {getStatusColor(bet.status)}">
+                                                    <span>{getStatusIcon(bet.status)}</span>
+                                                    <span>{getStatusText(bet.status)}</span>
+                                                    {#if bet.real_result}<span class="text-gray-500">| {bet.real_result}</span>{/if}
+                                                    {#if malformed}<span>⚠️</span>{/if}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 flex-shrink-0">
+                                            <span class="text-lg font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+
+                    <div class="px-4 pb-4 flex items-center justify-between gap-2 border-t border-white/5 pt-3">
+                        <button
+                            class="px-4 py-2 bg-cyan-600/80 hover:bg-cyan-500 text-white text-sm rounded-lg flex items-center gap-2 min-h-11 flex-1 justify-center"
+                            onclick={() => onSelectBet(msg.bets[0])}
+                        >
+                            <span>✏️</span> Ver/Editar
+                        </button>
+                        <details class="group">
+                            <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-400 list-none px-2 py-2">
+                                <span class="underline">Msg</span>
+                            </summary>
+                            <p class="mt-2 text-gray-400 text-xs italic whitespace-pre-wrap bg-black/30 p-2 rounded-lg max-h-24 overflow-y-auto">
+                                "{msg.bets[0]?.originalMessage || msg.bets[0]?.original_message || 'Sin mensaje'}"
+                            </p>
+                        </details>
+                    </div>
+                </div>
+            {/each}
+            {#if groupedByMessage().length === 0}
+                <p class="text-center text-gray-500 py-8 text-sm">No se encontraron apuestas</p>
+            {/if}
+        </div>
+    {/if}
+
+    <!-- Mobile: Simple rows table -->
+    {#if activeTab === 'rows'}
+        <div class="block md:hidden">
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-white/5">
+                    {#each currentBets as bet}
+                        {@const malformed = isBetPotentiallyMalformed(bet)}
+                        <tr
+                            class="hover:bg-white/5 cursor-pointer transition-colors {malformed ? 'bg-red-500/5' : ''}"
+                            onclick={() => onSelectBet(bet)}
+                        >
+                            <td class="px-3 py-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg">{getTypeIcon(bet)}</span>
+                                    <div>
+                                        <div class="text-white text-sm font-medium truncate max-w-[180px]">
+                                            {@html formatBetText(bet)}
+                                        </div>
+                                        <div class="flex items-center gap-1 text-xs {getStatusColor(bet.status)}">
+                                            <span>{getStatusIcon(bet.status)}</span>
+                                            <span class="hidden sm:inline">{getStatusText(bet.status)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-3 py-3 text-right font-bold text-yellow-400 whitespace-nowrap">
+                                +{Number(bet.points) || 0}
+                            </td>
+                        </tr>
+                    {/each}
+                    {#if currentBets.length === 0}
+                        <tr>
+                            <td colspan="2" class="px-3 py-8 text-center text-gray-500 italic text-sm">
+                                No se encontraron apuestas
+                            </td>
+                        </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    {/if}
+
+    <!-- Desktop: Full table -->
+    <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-left min-w-[640px] md:min-w-0">
             <thead>
                 <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-white/5">
-                    <th class="px-6 py-4 font-semibold">Fecha</th>
-                    <th class="px-6 py-4 font-semibold">Participante</th>
-                    <th class="px-6 py-4 font-semibold">Tipo</th>
-                    <th class="px-6 py-4 font-semibold">Apuesta</th>
-                    <th class="px-6 py-4 font-semibold">Estado</th>
-                    <th class="px-6 py-4 font-semibold">Puntos</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold">Fecha</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold">Participante</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold">Apuesta</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold">Estado</th>
+                    <th class="px-3 md:px-6 py-3 md:py-4 font-semibold">Pts</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-white/5">
@@ -346,40 +531,40 @@
                             {@const needsAttention = msg.hasMalformed || (!msg.hasManuallyEdited && msg.scoreBetCount === 0)}
 
                             <tr class="bg-gradient-to-r from-cyan-900/20 to-transparent">
-                                <td colspan="6" class="px-6 py-4">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <div class="flex items-center gap-4">
-                                            <div class="bg-cyan-600 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg">
+                                <td colspan="6" class="px-3 md:px-6 py-3 md:py-4">
+                                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+                                        <div class="flex items-center gap-2 md:gap-4">
+                                            <div class="bg-cyan-600 text-white text-sm font-bold px-3 md:px-4 py-2 rounded-xl shadow-lg">
                                                 {msg.participant}
                                             </div>
                                             {#if msg.hasManuallyEdited}
-                                                <span class="px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs rounded-full" title="Tiene apuestas editadas">ℹ️ Editado</span>
+                                                <span class="px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs rounded-full hidden sm:inline" title="Tiene apuestas editadas">ℹ️ Editado</span>
                                             {/if}
                                         </div>
                                         <div class="text-right">
-                                            <div class="text-xs text-gray-400 uppercase">Total</div>
-                                            <div class="text-3xl font-black text-yellow-400">{totalPts} PTS</div>
+                                            <div class="text-xs text-gray-400 uppercase hidden sm:block">Total</div>
+                                            <div class="text-2xl md:text-3xl font-black text-yellow-400">{totalPts} PTS</div>
                                         </div>
                                     </div>
 
-                                    <div class="flex items-center gap-6 mb-4 p-3 bg-black/20 rounded-xl">
-                                        <div class="flex items-center gap-3">
-                                            <span class="text-5xl font-black text-white">{allBets.length}</span>
+                                    <div class="flex items-center gap-3 md:gap-6 mb-3 md:mb-4 p-2 md:p-3 bg-black/20 rounded-xl">
+                                        <div class="flex items-center gap-2 md:gap-3">
+                                            <span class="text-3xl md:text-5xl font-black text-white">{allBets.length}</span>
                                             <div>
-                                                <div class="text-xs text-gray-400 uppercase tracking-wider">APUESTAS</div>
-                                                <div class="flex items-center gap-2 mt-1">
-                                                    {#if msg.bets.some(b => b.type === 'champion')}<span class="text-xl">🏆</span>{/if}
-                                                    {#if msg.bets.some(b => b.type === 'runnerup')}<span class="text-xl">🥈</span>{/if}
-                                                    {#if msg.bets.some(b => b.type === 'topscorer')}<span class="text-xl">👟</span>{/if}
-                                                    <span class="text-lg text-gray-300">⚽×{msg.bets.filter(b => b.type === 'score').length}</span>
+                                                <div class="text-xs text-gray-400 uppercase tracking-wider hidden sm:block">APUESTAS</div>
+                                                <div class="flex items-center gap-1 md:gap-2 mt-1">
+                                                    {#if msg.bets.some(b => b.type === 'champion')}<span class="text-lg md:text-xl">🏆</span>{/if}
+                                                    {#if msg.bets.some(b => b.type === 'runnerup')}<span class="text-lg md:text-xl">🥈</span>{/if}
+                                                    {#if msg.bets.some(b => b.type === 'topscorer')}<span class="text-lg md:text-xl">👟</span>{/if}
+                                                    <span class="text-base md:text-lg text-gray-300">⚽×{msg.bets.filter(b => b.type === 'score').length}</span>
                                                 </div>
                                             </div>
                                         </div>
                                         {#if needsAttention}
-                                            <div class="flex items-center gap-2 text-red-400 text-sm">
+                                            <div class="flex items-center gap-2 text-red-400 text-xs md:text-sm">
                                                 <span>⚠️</span>
                                                 {#if msg.scoreBetCount === 0}
-                                                    Sin apuestas de partidos
+                                                    Sin partidos
                                                 {:else}
                                                     {msg.bets.filter((/** @type {any} */ b) => isBetPotentiallyMalformed(b)).length} parseo(s) errado(s)
                                                 {/if}
@@ -387,36 +572,37 @@
                                         {/if}
                                     </div>
 
-                                    <div class="space-y-2 mb-4">
+                                    <div class="space-y-2 mb-3 md:mb-4">
                                         {#each allBets as bet}
                                             {@const malformed = isBetPotentiallyMalformed(bet)}
-                                            <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg {malformed ? 'border border-red-500/30' : ''}">
-                                                <div class="flex items-center gap-3">
-                                                    <span class="text-2xl">{getTypeIcon(bet)}</span>
-                                                    <div>
-                                                        <div class="text-white font-medium text-sm {malformed ? 'text-red-400' : ''}">
+                                            <div class="flex items-center justify-between p-2 md:p-3 bg-white/5 rounded-lg {malformed ? 'border border-red-500/30' : ''}">
+                                                <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                                                    <span class="text-xl md:text-2xl flex-shrink-0">{getTypeIcon(bet)}</span>
+                                                    <div class="min-w-0">
+                                                        <div class="text-white font-medium text-xs md:text-sm {malformed ? 'text-red-400' : ''} truncate">
                                                             {@html formatBetText(bet)}
                                                         </div>
-                                                        <div class="text-xs {getStatusColor(bet.status)}">
-                                                            {getStatusText(bet.status)}
-                                                            {#if bet.real_result}│ Real: {bet.real_result}{/if}
-                                                            {#if malformed}⚠️{/if}
-                                                            {#if bet.manuallyEdited}ℹ️{/if}
+                                                        <div class="text-xs {getStatusColor(bet.status)} flex items-center gap-1">
+                                                            <span class="hidden sm:inline">{getStatusText(bet.status)}</span>
+                                                            <span class="sm:hidden">{getStatusIcon(bet.status)}</span>
+                                                            {#if bet.real_result}<span class="hidden sm:inline">│ Real: {bet.real_result}</span>{/if}
+                                                            {#if malformed}<span>⚠️</span>{/if}
+                                                            {#if bet.manuallyEdited}<span class="hidden sm:inline">ℹ️</span>{/if}
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div class="flex items-center gap-2">
-                                                    <span class="text-xl">{getStatusIcon(bet.status)}</span>
-                                                    <span class="text-xl font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
+                                                <div class="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                                                    <span class="text-lg md:text-xl">{getStatusIcon(bet.status)}</span>
+                                                    <span class="text-lg md:text-xl font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
                                                 </div>
                                             </div>
                                         {/each}
                                     </div>
 
                                     {#if needsAttention}
-                                        <div class="flex items-center gap-2 p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-4">
-                                            <span class="text-red-400">⚠️</span>
-                                            <span class="text-red-300 text-sm flex-1">
+                                        <div class="flex items-center gap-2 p-2 md:p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-3 md:mb-4">
+                                            <span class="text-red-400 flex-shrink-0">⚠️</span>
+                                            <span class="text-red-300 text-xs md:text-sm flex-1">
                                                 {#if msg.scoreBetCount === 0}
                                                     No se detectaron apuestas de partidos.
                                                 {:else}
@@ -428,16 +614,16 @@
 
                                     <div class="flex items-center justify-between">
                                         <button
-                                            class="px-4 py-2 bg-cyan-600/80 hover:bg-cyan-500 text-white text-sm rounded-lg flex items-center gap-2"
+                                            class="px-3 md:px-4 py-2 bg-cyan-600/80 hover:bg-cyan-500 text-white text-xs md:text-sm rounded-lg flex items-center gap-2 min-h-11"
                                             onclick={() => onSelectBet(msg.bets[0])}
                                         >
-                                            <span>✏️</span> Ver/Editar
+                                            <span>✏️</span> <span class="hidden sm:inline">Ver/Editar</span>
                                         </button>
                                         <details class="group">
                                             <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-400 list-none">
-                                                <span class="underline">Ver mensaje original</span>
+                                                <span class="underline">Msg original</span>
                                             </summary>
-                                            <p class="mt-2 text-gray-400 text-sm italic whitespace-pre-wrap bg-black/20 p-3 rounded-lg">
+                                            <p class="mt-2 text-gray-400 text-xs md:text-sm italic whitespace-pre-wrap bg-black/20 p-2 md:p-3 rounded-lg max-h-32 overflow-y-auto">
                                                 "{msg.bets[0]?.originalMessage || msg.bets[0]?.original_message || 'Sin mensaje'}"
                                             </p>
                                         </details>
@@ -447,8 +633,8 @@
                         {/each}
                     {:else}
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-gray-500 italic">
-                                No se encontraron apuestas con los filtros seleccionados
+                            <td colspan="6" class="px-3 md:px-6 py-8 md:py-12 text-center text-gray-500 italic text-sm">
+                                No se encontraron apuestas
                             </td>
                         </tr>
                     {/if}
@@ -459,47 +645,47 @@
                             class="hover:bg-white/5 cursor-pointer transition-colors {malformed ? 'bg-red-500/5' : ''}"
                             onclick={() => onSelectBet(bet)}
                         >
-                            <td class="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">
+                            <td class="px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-400 whitespace-nowrap">
                                 {bet.timestamp ? formatTimestamp(bet.timestamp) : '-'}
                             </td>
-                            <td class="px-6 py-4">
+                            <td class="px-3 md:px-6 py-3 md:py-4">
                                 <a
                                     href="#/participant/{encodeURIComponent(bet.participant)}"
                                     onclick={(e) => e.stopPropagation()}
-                                    class="px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                                    class="px-2 md:px-3 py-1 bg-cyan-500/10 text-cyan-400 rounded-full text-xs font-medium hover:bg-cyan-500/20 transition-colors cursor-pointer"
                                 >
                                     {bet.participant}
                                 </a>
                                 {#if malformed}
-                                    <span class="ml-2 text-red-400 text-xs" title="Esta apuesta puede tener problemas de parseo">⚠️</span>
+                                    <span class="ml-1 md:ml-2 text-red-400 text-xs" title="Problema parseo">⚠️</span>
                                 {/if}
                                 {#if bet.manuallyEdited}
-                                    <span class="ml-2 text-cyan-400 text-xs" title="Editado manualmente">ℹ️</span>
+                                    <span class="ml-1 md:ml-2 text-cyan-400 text-xs" title="Editado">ℹ️</span>
                                 {/if}
                             </td>
-                            <td class="px-6 py-4">
+                            <td class="px-3 md:px-6 py-3 md:py-4 hidden sm:table-cell">
                                 <span class="flex items-center gap-1.5">
-                                    <span class="text-lg">{getTypeIcon(bet)}</span>
+                                    <span class="text-base md:text-lg">{getTypeIcon(bet)}</span>
                                     <span class="text-sm text-gray-300">{getTypeLabel(bet)}</span>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-sm font-medium text-white">
+                            <td class="px-3 md:px-6 py-3 md:py-4 text-sm font-medium text-white">
                                 {@html formatBetText(bet)}
                             </td>
-                            <td class="px-6 py-4">
-                                <span class="px-3 py-1 rounded-full text-xs font-bold {getStatusClass(bet)}">
+                            <td class="px-3 md:px-6 py-3 md:py-4">
+                                <span class="px-2 md:px-3 py-1 rounded-full text-xs font-bold {getStatusClass(bet)}">
                                     {getStatusLabel(bet)}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 font-bold text-yellow-500">
+                            <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-yellow-500">
                                 {Number(bet.points) || 0}
                             </td>
                         </tr>
                     {/each}
                     {#if currentBets.length === 0}
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-gray-500 italic">
-                                No se encontraron apuestas con los filtros seleccionados
+                            <td colspan="6" class="px-3 md:px-6 py-8 md:py-12 text-center text-gray-500 italic text-sm">
+                                No se encontraron apuestas
                             </td>
                         </tr>
                     {/if}

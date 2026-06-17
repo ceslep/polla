@@ -114,59 +114,59 @@
         </div>
 
         <div class="p-4 border-b border-white/10">
-            <div class="grid grid-cols-5 gap-4 text-center">
-                <div class="bg-cyan-500/10 rounded-lg p-3">
-                    <div class="text-2xl font-bold text-cyan-400">{stats().exact}</div>
+            <div class="grid grid-cols-3 md:grid-cols-5 gap-3 text-center">
+                <div class="bg-cyan-500/10 rounded-lg p-2 md:p-3">
+                    <div class="text-xl md:text-2xl font-bold text-cyan-400">{stats().exact}</div>
                     <div class="text-xs text-gray-400">Exactas</div>
                 </div>
-                <div class="bg-emerald-500/10 rounded-lg p-3">
-                    <div class="text-2xl font-bold text-emerald-400">{stats().correct}</div>
+                <div class="bg-emerald-500/10 rounded-lg p-2 md:p-3">
+                    <div class="text-xl md:text-2xl font-bold text-emerald-400">{stats().correct}</div>
                     <div class="text-xs text-gray-400">Aciertos</div>
                 </div>
-                <div class="bg-red-500/10 rounded-lg p-3">
-                    <div class="text-2xl font-bold text-red-400">{stats().incorrect}</div>
+                <div class="bg-red-500/10 rounded-lg p-2 md:p-3">
+                    <div class="text-xl md:text-2xl font-bold text-red-400">{stats().incorrect}</div>
                     <div class="text-xs text-gray-400">Erradas</div>
                 </div>
-                <div class="bg-orange-500/10 rounded-lg p-3">
-                    <div class="text-2xl font-bold text-orange-400">{stats().pending}</div>
+                <div class="bg-orange-500/10 rounded-lg p-2 md:p-3">
+                    <div class="text-xl md:text-2xl font-bold text-orange-400">{stats().pending}</div>
                     <div class="text-xs text-gray-400">Pendientes</div>
                 </div>
-                <div class="bg-yellow-500/20 rounded-lg p-3 border border-yellow-500/30">
-                    <div class="text-2xl font-black text-yellow-400">{stats().points}</div>
+                <div class="col-span-1 md:col-span-1 bg-yellow-500/20 rounded-lg p-2 md:p-3 border border-yellow-500/30">
+                    <div class="text-xl md:text-2xl font-black text-yellow-400">{stats().points}</div>
                     <div class="text-xs text-yellow-400/70 uppercase font-bold">Puntos</div>
                 </div>
             </div>
         </div>
 
         <div class="p-4 border-b border-white/10">
-            <div class="flex gap-2 flex-wrap">
+            <div class="flex gap-2 flex-wrap overflow-x-auto pb-1 -mx-1 px-1">
                 <button
                     onclick={() => activeTab = 'all'}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap {activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
                 >
                     Todas
                 </button>
                 <button
                     onclick={() => activeTab = 'exact'}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {activeTab === 'exact' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap {activeTab === 'exact' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
                 >
                     Exactas
                 </button>
                 <button
                     onclick={() => activeTab = 'correct'}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {activeTab === 'correct' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap {activeTab === 'correct' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
                 >
                     Aciertos
                 </button>
                 <button
                     onclick={() => activeTab = 'incorrect'}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {activeTab === 'incorrect' ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap {activeTab === 'incorrect' ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
                 >
                     Erradas
                 </button>
                 <button
                     onclick={() => activeTab = 'pending'}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {activeTab === 'pending' ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap {activeTab === 'pending' ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}"
                 >
                     Pendientes
                 </button>
@@ -177,31 +177,33 @@
             {#if filteredBets().length === 0}
                 <p class="text-gray-500 text-center py-8">No hay apuestas en esta categoría</p>
             {:else}
-                <table class="w-full text-sm">
-                    <thead class="text-left text-gray-400">
-                        <tr>
-                            <th class="pb-2">Fecha</th>
-                            <th class="pb-2">Apuesta</th>
-                            <th class="pb-2">Resultado</th>
-                            <th class="pb-2 text-right">Pts</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each filteredBets() as bet}
-                            {@const badge = getStatusBadge(bet.status)}
-                            <tr class="border-t border-white/5">
-                                <td class="py-2 text-gray-400">{bet.timestamp ? bet.timestamp.split(' ')[0] : '-'}</td>
-                                <td class="py-2">{bet.bet_text}</td>
-                                <td class="py-2">
-                                    <span class="px-2 py-0.5 rounded text-xs {badge.class}">{badge.label}</span>
-                                </td>
-                                <td class="py-2 text-right font-medium {bet.points > 0 ? 'text-yellow-400' : 'text-gray-500'}">
-                                    {Number(bet.points) || 0}
-                                </td>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm min-w-[400px]">
+                        <thead class="text-left text-gray-400">
+                            <tr>
+                                <th class="pb-2">Fecha</th>
+                                <th class="pb-2">Apuesta</th>
+                                <th class="pb-2">Resultado</th>
+                                <th class="pb-2 text-right">Pts</th>
                             </tr>
-                        {/each}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {#each filteredBets() as bet}
+                                {@const badge = getStatusBadge(bet.status)}
+                                <tr class="border-t border-white/5">
+                                    <td class="py-2 text-gray-400 whitespace-nowrap">{bet.timestamp ? bet.timestamp.split(' ')[0] : '-'}</td>
+                                    <td class="py-2">{bet.bet_text}</td>
+                                    <td class="py-2">
+                                        <span class="px-2 py-0.5 rounded text-xs {badge.class}">{badge.label}</span>
+                                    </td>
+                                    <td class="py-2 text-right font-medium {bet.points > 0 ? 'text-yellow-400' : 'text-gray-500'}">
+                                        {Number(bet.points) || 0}
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                </div>
             {/if}
         </div>
 

@@ -300,4 +300,12 @@ export async function loadBetsFromSheets() {
             originalMessage: typeof row.originalMessage === 'string' ? row.originalMessage : (row.original_message ? String(row.original_message) : '')
         };
     });
+
+    const seen = new Set();
+    return bets.filter(bet => {
+        const key = (bet.messageId || '').toLowerCase().trim() + '|' + (bet.timestamp || '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }

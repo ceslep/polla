@@ -196,6 +196,8 @@ export const TEAM_ALIASES = {
     'rd Congo': 'DR Congo',
     'congo': 'DR Congo',
     'uzbekistan': 'Uzbekistan',
+    'usbekistan': 'Uzbekistan',
+    'uzbékistan': 'Uzbekistan',
     'uzbek': 'Uzbekistan',
     'croacia': 'Croatia',
     'croatia': 'Croatia',
@@ -625,6 +627,7 @@ export function parseAllScoreBets(text) {
  */
 export function parseScoreBet(text) {
     const allScores = parseAllScoreBets(text);
+    console.log('parseAllScoreBets:', allScores);
 
     if (allScores.length > 0) {
         return allScores.map(s => ({
@@ -719,6 +722,7 @@ export function parseMessage(message) {
     }
 
     const scoreBets = parseScoreBet(text);
+    console.log('parseScoreBet:', text.substring(0, 50), '→', scoreBets?.length, 'bets');
     if (scoreBets && scoreBets.length > 0) {
         for (const scoreBet of scoreBets) {
             bets.push({

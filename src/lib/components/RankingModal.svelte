@@ -45,45 +45,47 @@
             <button onclick={() => onClose()} class="text-gray-400 hover:text-white text-2xl cursor-pointer">&times;</button>
         </div>
         <div class="p-4 overflow-y-auto max-h-[75vh]">
-            <table class="w-full text-sm">
-                <thead class="text-left text-gray-400 border-b border-white/10">
-                    <tr>
-                        <th class="pb-3 pr-4">#</th>
-                        <th class="pb-3 pr-4">Participante</th>
-                        <th class="pb-3 pr-4 text-center">Puntos</th>
-                        <th class="pb-3 pr-4 text-center">Exactas</th>
-                        <th class="pb-3 pr-4 text-center">Aciertos</th>
-                        <th class="pb-3 pr-4 text-center">Erradas</th>
-                        <th class="pb-3 pr-4 text-center">Pendientes</th>
-                        <th class="pb-3 text-center">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each participantStats() as p, i}
-                        <tr
-                            class="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
-                            onclick={() => window.location.hash = `/participant/${encodeURIComponent(p.name)}`}
-                        >
-                            <td class="py-3 pr-4">
-                                <span class="font-bold {
-                                    i === 0 ? 'text-yellow-400' :
-                                    i === 1 ? 'text-gray-300' :
-                                    i === 2 ? 'text-orange-400' : 'text-gray-500'
-                                }">
-                                    {getPosition(i)}
-                                </span>
-                            </td>
-                            <td class="py-3 pr-4 font-medium">{p.name}</td>
-                            <td class="py-3 pr-4 text-center font-bold text-yellow-400">{p.points}</td>
-                            <td class="py-3 pr-4 text-center text-cyan-400">{p.exact}</td>
-                            <td class="py-3 pr-4 text-center text-emerald-400">{p.correct}</td>
-                            <td class="py-3 pr-4 text-center text-red-400">{p.incorrect}</td>
-                            <td class="py-3 pr-4 text-center text-orange-400">{p.pending}</td>
-                            <td class="py-3 text-center text-gray-400">{p.total}</td>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm min-w-[500px]">
+                    <thead class="text-left text-gray-400 border-b border-white/10">
+                        <tr>
+                            <th class="pb-3 pr-2 md:pr-4">#</th>
+                            <th class="pb-3 pr-4">Participante</th>
+                            <th class="pb-3 pr-2 md:pr-4 text-center">Pts</th>
+                            <th class="pb-3 pr-2 md:pr-4 text-center hidden sm:table-cell">Exactas</th>
+                            <th class="pb-3 pr-2 md:pr-4 text-center hidden sm:table-cell">Aciertos</th>
+                            <th class="pb-3 pr-2 md:pr-4 text-center hidden sm:table-cell">Erradas</th>
+                            <th class="pb-3 pr-2 md:pr-4 text-center hidden md:table-cell">Pendientes</th>
+                            <th class="pb-3 text-center hidden md:table-cell">Total</th>
                         </tr>
-                    {/each}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {#each participantStats() as p, i}
+                            <tr
+                                class="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
+                                onclick={() => window.location.hash = `/participant/${encodeURIComponent(p.name)}`}
+                            >
+                                <td class="py-2 md:py-3 pr-2 md:pr-4">
+                                    <span class="font-bold text-sm md:text-base {
+                                        i === 0 ? 'text-yellow-400' :
+                                        i === 1 ? 'text-gray-300' :
+                                        i === 2 ? 'text-orange-400' : 'text-gray-500'
+                                    }">
+                                        {getPosition(i)}
+                                    </span>
+                                </td>
+                                <td class="py-2 md:py-3 pr-4 font-medium text-sm md:text-base">{p.name}</td>
+                                <td class="py-2 md:py-3 pr-2 md:pr-4 text-center font-bold text-yellow-400">{p.points}</td>
+                                <td class="py-2 md:py-3 pr-2 md:pr-4 text-center text-cyan-400 hidden sm:table-cell">{p.exact}</td>
+                                <td class="py-2 md:py-3 pr-2 md:pr-4 text-center text-emerald-400 hidden sm:table-cell">{p.correct}</td>
+                                <td class="py-2 md:py-3 pr-2 md:pr-4 text-center text-red-400 hidden sm:table-cell">{p.incorrect}</td>
+                                <td class="py-2 md:py-3 pr-2 md:pr-4 text-center text-orange-400 hidden md:table-cell">{p.pending}</td>
+                                <td class="py-2 md:py-3 text-center text-gray-400 hidden md:table-cell">{p.total}</td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
