@@ -4,11 +4,17 @@ const tests = [
     'Qatar 1 zuisa 1',
     'Brasil 3 Marruecos 1',
     'Haití 1escocia 1',
-    'Austria 2 Turquía 1'
+    'Austria 2 Turquía 1',
+    'Canadá 2 catar o',
+    'México 1 Corea del Sur 1',
+    'R checa 1 Sudáfrica 1',
+    'Suiza 2 bosnia 1',
+    'Canadá 2 catar o\nMéxico 1 Corea del Sur 1',
+    'Portugal 3\nCongo 1\n\nInglaterra 2\nCroacia 2\n\nGhana 2\nPanamá 1\n\nColombia 4 \nUzbequistan 1'
 ];
 
 for (const text of tests) {
-    console.log('\\nInput:', text);
+    console.log('\\nInput:', JSON.stringify(text));
     try {
         const result = parseMessage({
             Message: text,

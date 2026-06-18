@@ -73,8 +73,8 @@ try {
         throw new Exception("No se encontró la hoja '{$worksheetTitle}'.");
     }
 
-    // Leer cuántas filas tienen datos
-    $range = $worksheetTitle . '!A1:T1';
+    // Leer cuántas filas tienen datos (rango abierto hasta la última fila con datos)
+    $range = $worksheetTitle . '!A1:T';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $values = $response->getValues() ?: [];
     $rowCount = count($values);

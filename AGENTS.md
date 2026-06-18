@@ -6,10 +6,12 @@ results, scores each bet, and ranks participants. UI strings are Spanish.
 
 ## Stack
 
-- **Svelte 5 + Vite + Tailwind 4** (frontend-only SPA; no Python here)
+- **Svelte 5 + Vite + Tailwind 4** (frontend-only SPA)
 - **PHP** backend in `src/assets/` (Google Sheets read/write; deployed by
   hand to `https://app.iedeoccidente.com/gs/`)
-- **JSDoc** for typing — there are no `.ts` source files in `src/`
+- **JSDoc** for typing — there are no `.ts` source files in `src/`;
+  `tsconfig.app.json` sets `allowJs: true, checkJs: true` so `npm run check`
+  validates JSDoc types against `src/`.
 
 ## Commands
 
@@ -20,14 +22,26 @@ npm run preview   # serve dist/
 npm run check     # svelte-check + tsc (validates JSDoc types) — run before commit
 npm run deploy    # build + publish to gh-pages
 
-node test_parse.js   # smoke test for src/lib/parser.js
-node test_match.js   # smoke test for match loading + findMatchForBet
+node test_parse.js        # smoke test for src/lib/parser.js
+node test_match.js        # smoke test for match loading + findMatchForBet
+node test_sort.mjs        # smoke test for sortByTimestampDesc in stores.svelte.js
+node test_unique_bets.mjs # smoke test for uniqueBets dedup logic
+node test_fuzzy.mjs       # smoke test for findMatchSuggestion (Levenshtein fallback)
 ```
 
-No automated test suite — `node test_*.js` are manual sanity checks. Sample
-WhatsApp export lives at `polla.json` in repo root.
+Refrescar ranking FIFA (mensual): abrir en navegador
+`https://app.iedeoccidente.com/gs/fetch_fifa_rankings.php`, pegar la tabla
+de `https://www.fifa.com/es/world-rankings` y guardar. El JSON se cachea en
+el host (`gs/fifa_cache.json`) y `loadFifaRankings()` en `src/lib/fifa.js`
+lo consume en runtime. `public/fifa_rankings.json` queda como fallback
+offline. El PHP vive en `src/assets/fetch_fifa_rankings.php`.
 
-## Scoring (src/lib/api.js:108 `compareBetWithMatch`)
+No automated test suite — `node test_*` are manual sanity checks. The
+`test_*.mjs` ones shim `globalThis.$state = (o) => o` because they import
+`stores.svelte.js`, which uses Svelte 5 runes unavailable outside the
+Svelte runtime. Sample WhatsApp export lives at `polla.json` in repo root.
+
+## Scoring (src/lib/api.js `compareBetWithMatch`)
 
 | Status     | Points |
 |------------|--------|
@@ -36,7 +50,7 @@ WhatsApp export lives at `polla.json` in repo root.
 | `incorrect`| 0      |
 
 The only valid `status` values are `'pending' | 'exact' | 'correct' | 'incorrect'`
-(`src/lib/types.js:23`). `ResultsModal.svelte` has a "Empates" section
+(`src/lib/types.js:23`). `ResultsModal.svelte` has an "Empates (2pt)" section
 filtered on `b.points === 2`, but the scorer never assigns 2 — that branch
 is dead UI, do not add a 2-pt tier.
 
@@ -51,17 +65,30 @@ is dead UI, do not add a 2-pt tier.
 2. **State** — `src/lib/stores.svelte.js`. Svelte 5 runes; `appState` is
    one `$state` object. Derived data are plain exported **functions**
    (`stats()`, `filteredBets()`, `participants()`, `uniqueDates()`), not
-   `$derived` — call them in markup.
+   `$derived` — call them in markup. `uniqueBets()` runs `betKey` +
+   `shouldReplace` to dedup overlapping score bets per (participant, match)
+   key, preferring `manuallyEdited` > higher `points` > newer. Also
+   `participantAliases` (real name → display alias) lives on `appState`
+   and is editable via `AliasModal`.
 3. **Fetch + score** — `src/lib/api.js`. Match sources: `loadMatchesFromGitHub()`
    (openfootball `worldcup.json`, default) and `loadMatches()`
    (football-data.org; api key fetched at runtime from
    `https://app.iedeoccidente.com/pollaweb/config.php`, never in source).
+   Match lookup is `findMatchForBet` in `stores.svelte.js` (exact teams
+   + same date). When that returns null, `findMatchSuggestion` does a
+   Levenshtein ≤ 2 fallback (e.g. `austria`→`australia`); the suggestion
+   is attached to the bet as `suggestedMatch` and surfaced in the UI
+   with "Aplicar / Descartar" buttons. `applyMatchSuggestion` /
+   `dismissMatchSuggestion` in `stores.svelte.js` mutate the bet.
 4. **Persistence** — `localStorage` key `polla_bets`. Optional Google
-   Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get}_bets.php`
-   (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:8`).
-5. **Orchestration** — `src/App.svelte`. `analyzeBets(useGitHub)` loads
+   Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
+   (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:9`). Aliases use the
+   same endpoints with `worksheetTitle: 'alias'`.
+5. **Orchestration** — `src/App.svelte:103 analyzeBets(useGitHub)`. Loads
    matches, maps each bet through `findMatchForBet` + `compareBetWithMatch`,
-   persists, and computes the winner ranking.
+   persists, and computes the winner ranking. Note: the parameter defaults
+   to `false` but every call site in `App.svelte` passes `true` — do not
+   "fix" that to `useGitHub = true` without auditing callers.
 
 ## Conventions
 
@@ -71,20 +98,23 @@ is dead UI, do not add a 2-pt tier.
 - Types via JSDoc `@typedef` in `src/lib/types.js`; reference as
   `/** @type {import('./types.js').Bet} */`.
 - Router: `svelte-spa-router` (hash-based).
-- Heavy `console.log` debug output is left in `parser.js` and `api.js` for
-  match-debugging — do not strip without a reason.
+- Heavy `console.log` debug output is left in `parser.js`, `api.js`, and
+  `App.svelte` for match-debugging — do not strip without a reason.
 
 ## Gotchas
 
 - **Single canonical team-alias map** lives in `parser.js`
-  (`TEAM_ALIASES`, `normalizeTeamName`). Both `api.js` and `flags.js`
-  import it. Add new teams there only, and keep it idempotent:
+  (`TEAM_ALIASES`, `normalizeTeamName`). `api.js`, `flags.js`, and
+  `stores.svelte.js` all import `normalizeTeamName` from there. Add new
+  teams there only, and keep it idempotent:
   `normalizeTeamName(canonical) === canonical` for every openfootball name
   (`Czech Republic`, `USA`, `Bosnia & Herzegovina`, `Curaçao`, …).
 - **`src/lib/parser2.js` is dead code** (`// @ts-nocheck`, not imported
-  anywhere). It is an alternate parser draft — edit `parser.js` for real
-  changes. CLAUDE.md / GEMINI.md are mirrored instruction files; they
-  may contain overlapping or stale facts.
+  anywhere in `src/`). It is an alternate parser draft — edit `parser.js`
+  for real changes.
+- **CLAUDE.md and GEMINI.md are stale** (they were copied from an older
+  state and still claim the Vite base is `/polla2026/`; it is actually
+  `/polla/`). Prefer this file.
 - **Three flag/alias maps diverge** and must be kept in sync when adding
   a country: `parser.js` `FLAG_MAP` (parser-time emoji lookup),
   `parser2.js` `FLAG_MAP` (dead, but has the `🇨🇱 = Chile` fix), and
@@ -101,3 +131,6 @@ is dead UI, do not add a 2-pt tier.
   `assets/serviceaccount.json` (service-account key, not in repo) on the
   server. The `*_horas_extras.php` files belong to an unrelated app
   sharing the same host — leave them alone.
+- **`cruces-no-calificables.md`** in the repo root is a one-off parser
+  smoke-test report (manually checked on `polla.json`); not part of the
+  app. **`consola.log`** is untracked debug stdout; do not commit.

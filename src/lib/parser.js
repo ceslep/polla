@@ -88,6 +88,7 @@ export const TEAM_ALIASES = {
     'francia': 'France',
     'france': 'France',
     'argentina': 'Argentina',
+    'arg': 'Argentina',
     'inglaterra': 'England',
     'england': 'England',
     'uk': 'United Kingdom',
@@ -135,6 +136,7 @@ export const TEAM_ALIASES = {
     'marruecos': 'Morocco',
     'morocco': 'Morocco',
     'senegal': 'Senegal',
+    'sénegal': 'Senegal',
     'ghana': 'Ghana',
     'camerún': 'Cameroon',
     'cameroon': 'Cameroon',
@@ -406,7 +408,10 @@ export function parseAllScoreBets(text) {
     const results = [];
     const seen = new Set();
 
-    const textWithNames = replaceFlags(text)
+    // "o" aislado → "0" (typo frecuente de teclado en WhatsApp: "Canadá 2 catar o")
+    const textWithZeros = text.replace(/(?<=\s|^)(o|O)(?=\s|$|[.,;:])/g, '0');
+
+    const textWithNames = replaceFlags(textWithZeros)
         // Cualquier emoji no mapeado en FLAG_MAP queda pegado al número (ej. "Usa🇺🇲1");
         // lo convertimos en separador para no perder la apuesta al tokenizar.
         // Importante: las banderas son dos Regional_Indicator seguidos (no son

@@ -1,11 +1,12 @@
 <script>
-    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, onStats?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
         onReset = () => {},
         onResetAll = () => {},
         onAnalyze = () => {},
         onSaveSheets = () => {},
+        onStats = () => {},
         isLoading = false,
         isSavingToSheets = false,
         hasBets = false
@@ -27,6 +28,13 @@
             <h3 class="text-lg font-bold text-white mb-6 text-center">Menú</h3>
             <div class="space-y-3">
                 {#if hasBets}
+                    <button
+                        class="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"
+                        onclick={() => handleAction(onStats)}
+                    >
+                        <span class="text-2xl">📊</span>
+                        Estadísticas
+                    </button>
                     <button
                         class="w-full py-4 px-6 bg-orange-600 hover:bg-orange-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"
                         onclick={() => handleAction(onAnalyze)}

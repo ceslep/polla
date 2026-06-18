@@ -1,10 +1,10 @@
 <script>
     import { FLAG_MAP } from '../parser.js';
     import Flag from './Flag.svelte';
-    import { sortByTimestampDesc } from '../stores.svelte.js';
+    import { sortByTimestampDesc, computeMovement, getLatestFinishedDate } from '../stores.svelte.js';
 
-    /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], onClose: () => void }} */
-    let { summary, errors = [], winners = [], bets = [], onClose } = $props();
+    /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], matches?: any[], onClose: () => void }} */
+    let { summary, errors = [], winners = [], bets = [], matches = [], onClose } = $props();
 
     /** @param {number} n */
     function formatNumber(n) {
@@ -141,6 +141,91 @@ ${rows.join('\n')}`;
         navigator.clipboard.writeText(text).then(() => {
             exportMessage = '¡Copiado!';
             setTimeout(() => { exportMessage = null; }, 2000);
+        });
+    }
+
+    /** @type {string | null} */
+    let exportMovementMessage = $state(null);
+
+    /** @param {string} dateStr */
+    function formatDateShort(dateStr) {
+        if (!dateStr) return '';
+        const [y, m, d] = dateStr.split('-');
+        return `${d}/${m}`;
+    }
+
+    function exportMovementToWhatsApp() {
+        const movement = computeMovement(bets, matches, winners);
+        if (movement.length === 0) return;
+
+        const yesterday = getLatestFinishedDate(matches);
+        const today = new Date();
+        const todayStr = `${today.getDate()}/${today.getMonth() + 1}`;
+
+        const up = movement.filter(m => m.kind === 'up');
+        const down = movement.filter(m => m.kind === 'down');
+        const same = movement.filter(m => m.kind === 'same');
+        const fresh = movement.filter(m => m.kind === 'new');
+
+        /** @param {string} name */
+        function cleanName(name) {
+            const clean = name
+                .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+                .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+                .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+                .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+                .replace(/[\u{2600}-\u{26FF}]/gu, '')
+                .replace(/[\u{2700}-\u{27BF}]/gu, '')
+                .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+                .replace(/[^a-zA-Z0-9ñÑ\s]/g, '')
+                .replace(/\s+/g, ' ').trim();
+            return clean.length === 0 ? 'sin nombre' : clean;
+        }
+
+        const lines = [];
+        lines.push('📊 MOVIMIENTO — Mundial 2026');
+        lines.push(`(corte: ${formatDateShort(yesterday)}, hoy ${todayStr})`);
+        lines.push('');
+
+        if (up.length > 0) {
+            lines.push(`⬆️ SUBIERON (${up.length}):`);
+            for (const m of up) {
+                const delta = (m.prevRank || 0) - m.currRank;
+                const ptsDelta = m.currPoints - m.prevPoints;
+                const ptsStr = ptsDelta > 0 ? ` · +${ptsDelta} pts` : '';
+                lines.push(`• ${cleanName(m.participant)}: ${m.prevRank}° → ${m.currRank}° (+${delta})${ptsStr}`);
+            }
+            lines.push('');
+        }
+        if (down.length > 0) {
+            lines.push(`⬇️ BAJARON (${down.length}):`);
+            for (const m of down) {
+                const delta = m.currRank - (m.prevRank || 0);
+                const ptsDelta = m.currPoints - m.prevPoints;
+                const ptsStr = ptsDelta < 0 ? ` · ${ptsDelta} pts` : '';
+                lines.push(`• ${cleanName(m.participant)}: ${m.prevRank}° → ${m.currRank}° (-${delta})${ptsStr}`);
+            }
+            lines.push('');
+        }
+        if (same.length > 0) {
+            lines.push(`= MANTUVIERON (${same.length}):`);
+            for (const m of same) {
+                lines.push(`• ${cleanName(m.participant)}: ${m.currRank}° → ${m.currRank}°`);
+            }
+            lines.push('');
+        }
+        if (fresh.length > 0) {
+            lines.push(`🆕 NUEVOS (${fresh.length}):`);
+            for (const m of fresh) {
+                lines.push(`• ${cleanName(m.participant)} entró en ${m.currRank}°`);
+            }
+            lines.push('');
+        }
+
+        const text = lines.join('\n').trimEnd();
+        navigator.clipboard.writeText(text).then(() => {
+            exportMovementMessage = '¡Copiado!';
+            setTimeout(() => { exportMovementMessage = null; }, 2000);
         });
     }
 </script>
@@ -444,15 +529,23 @@ ${rows.join('\n')}`;
                             <h3 class="text-yellow-400 font-bold text-sm uppercase flex items-center gap-2">
                                 <span>🏆</span> Clasificación Actual
                             </h3>
-                            {#if exportMessage}
-                                <span class="text-emerald-400 text-sm font-medium">{exportMessage}</span>
+                            {#if exportMessage || exportMovementMessage}
+                                <span class="text-emerald-400 text-sm font-medium">{exportMessage || exportMovementMessage}</span>
                             {:else}
-                                <button
-                                    class="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-lg transition-colors"
-                                    onclick={exportToWhatsApp}
-                                >
-                                    📋 Copiar
-                                </button>
+                                <div class="flex gap-2">
+                                    <button
+                                        class="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-lg transition-colors"
+                                        onclick={exportMovementToWhatsApp}
+                                    >
+                                        📊 Movimiento
+                                    </button>
+                                    <button
+                                        class="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-lg transition-colors"
+                                        onclick={exportToWhatsApp}
+                                    >
+                                        📋 Copiar
+                                    </button>
+                                </div>
                             {/if}
                         </div>
                         <div class="space-y-2">
@@ -500,12 +593,23 @@ ${rows.join('\n')}`;
 
         <div class="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center flex-shrink-0">
             {#if !selectedParticipant}
-                <button
-                    class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
-                    onclick={exportToWhatsApp}
-                >
-                    📋 Exportar para WhatsApp
-                </button>
+                <div class="flex gap-2 items-center flex-wrap">
+                    {#if exportMovementMessage}
+                        <span class="text-emerald-400 text-sm font-medium">{exportMovementMessage}</span>
+                    {/if}
+                    <button
+                        class="px-4 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
+                        onclick={exportMovementToWhatsApp}
+                    >
+                        📊 Movimiento
+                    </button>
+                    <button
+                        class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
+                        onclick={exportToWhatsApp}
+                    >
+                        📋 Exportar para WhatsApp
+                    </button>
+                </div>
             {:else}
                 <div></div>
             {/if}

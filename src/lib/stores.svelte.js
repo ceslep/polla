@@ -362,6 +362,80 @@ export function findMatchForBet(bet, matches) {
     return null;
 }
 
+const FUZZY_MAX_DISTANCE = 2;
+
+/** @param {string} a @param {string} b @returns {number} */
+function levenshtein(a, b) {
+    const sa = (a || '').toLowerCase();
+    const sb = (b || '').toLowerCase();
+    if (sa === sb) return 0;
+    if (!sa.length) return sb.length;
+    if (!sb.length) return sa.length;
+    const m = sa.length;
+    const n = sb.length;
+    const prev = new Array(n + 1);
+    /** @type {number[]} */
+    const curr = new Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
+    for (let i = 1; i <= m; i++) {
+        curr[0] = i;
+        for (let j = 1; j <= n; j++) {
+            const cost = sa[i - 1] === sb[j - 1] ? 0 : 1;
+            curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+        }
+        for (let j = 0; j <= n; j++) prev[j] = curr[j];
+    }
+    return prev[n];
+}
+
+/**
+ * Fallback cuando findMatchForBet devuelve null: busca un partido del mismo
+ * día cuyos nombres de equipo estén a distancia Levenshtein ≤ FUZZY_MAX_DISTANCE
+ * de los de la apuesta. Sirve para sugerir "Austria 2 - Turkey 1" → "Australia
+ * 2 - 0 Turkey" cuando el participante omitió letras al escribir.
+ * Sólo sugiere si AMBOS equipos emparejan dentro del umbral; si hay varios
+ * candidatos, devuelve el de menor suma de distancias. No muta nada.
+ * @param {Bet} bet
+ * @param {Match[]} matches
+ * @returns {{ match: Match, distance: number } | null}
+ */
+export function findMatchSuggestion(bet, matches) {
+    if (bet.type !== 'score') return null;
+    if (!bet.prediction) return null;
+    const home = bet.prediction.homeTeam || '';
+    const away = bet.prediction.awayTeam || '';
+    if (!home || !away) return null;
+
+    const betDay = safeFormatDate(bet.timestamp);
+    let best = /** @type {Match | null} */ (null);
+    let bestDist = Infinity;
+
+    for (const match of matches) {
+        if (betDay && safeFormatDate(match.date) !== betDay) continue;
+        const homes = [match.homeTeam, match.homeShort].filter(Boolean);
+        const aways = [match.awayTeam, match.awayShort].filter(Boolean);
+        for (const invert of [false, true]) {
+            const candH = invert ? aways : homes;
+            const candA = invert ? homes : aways;
+            for (const ch of candH) {
+                for (const ca of candA) {
+                    const dh = levenshtein(home, ch);
+                    const da = levenshtein(away, ca);
+                    if (dh <= FUZZY_MAX_DISTANCE && da <= FUZZY_MAX_DISTANCE) {
+                        const total = dh + da;
+                        if (total < bestDist) {
+                            bestDist = total;
+                            best = match;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return best ? { match: best, distance: bestDist } : null;
+}
+
 /**
  * ¿Los equipos de la apuesta forman un partido real del calendario, en cualquier
  * fecha? Sirve para distinguir "cruce equivocado de fecha" (existe pero otro día →
@@ -413,6 +487,38 @@ export function setParticipantAlias(original, alias) {
     }
 }
 
+/**
+ * Aplica la sugerencia fuzzy de un bet: reemplaza homeTeam/awayTeam por los
+ * del partido sugerido, marca manuallyEdited y limpia la sugerencia. NO
+ * re-analiza — el caller debe invocar analyzeBets() si quiere recalcular
+ * el status contra el resultado real.
+ * @param {string} betId
+ */
+export function applyMatchSuggestion(betId) {
+    const bet = appState.bets.find(b => b.id === betId);
+    if (!bet || !bet.suggestedMatch) return;
+    const updated = {
+        ...bet,
+        prediction: {
+            ...bet.prediction,
+            homeTeam: bet.suggestedMatch.homeTeam,
+            awayTeam: bet.suggestedMatch.awayTeam
+        },
+        manuallyEdited: true,
+        suggestedMatch: null
+    };
+    appState.bets = appState.bets.map(b => b.id === betId ? updated : b);
+    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+}
+
+/** @param {string} betId */
+export function dismissMatchSuggestion(betId) {
+    const bet = appState.bets.find(b => b.id === betId);
+    if (!bet || !bet.suggestedMatch) return;
+    appState.bets = appState.bets.map(b => b.id === betId ? { ...b, suggestedMatch: null } : b);
+    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+}
+
 /** @param {string} original @returns {string} */
 export function getParticipantAlias(original) {
     return appState.participantAliases[original] || original;
@@ -421,4 +527,77 @@ export function getParticipantAlias(original) {
 /** @returns {Record<string, string>} */
 export function getAllParticipantAliases() {
     return { ...appState.participantAliases };
+}
+
+/**
+ * Fecha más reciente con partidos finalizados (o null si no hay ninguno).
+ * @param {Match[]} matches
+ * @returns {string | null}
+ */
+export function getLatestFinishedDate(matches) {
+    const finished = matches.filter(m => m.homeScore !== null && m.awayScore !== null);
+    if (finished.length === 0) return null;
+    return finished.map(m => m.date).sort().reverse()[0];
+}
+
+/**
+ * @typedef {{ participant: string, prevRank: number|null, currRank: number,
+ *              prevPoints: number, currPoints: number,
+ *              kind: 'up'|'down'|'same'|'new' }} Movement
+ */
+
+/**
+ * Calcula el movimiento de cada participante comparando el ranking "antes de
+ * ayer" (snapshot A: solo apuestas cuyo partido es anterior a la última fecha
+ * con resultados) contra el ranking actual (snapshot B = currentWinners).
+ * "Ayer" = última fecha con partidos finalizados.
+ * @param {Bet[]} bets
+ * @param {Match[]} matches
+ * @param {Array<{participant: string, points: number, rank: number}>} currentWinners
+ * @returns {Movement[]}
+ */
+export function computeMovement(bets, matches, currentWinners) {
+    const yesterday = getLatestFinishedDate(matches);
+    if (!yesterday) return [];
+
+    /** @type {Map<string, number>} */
+    const pointsBefore = new Map();
+    for (const bet of bets) {
+        if (bet.type !== 'score' || bet.status === 'pending') continue;
+        const points = Number(bet.points) || 0;
+        if (points === 0) continue;
+        const pred = bet.prediction || {};
+        const h = pred.homeTeam, a = pred.awayTeam;
+        if (!h || !a) continue;
+        const match = matches.find(m =>
+            (m.homeTeam === h && m.awayTeam === a) ||
+            (m.homeTeam === a && m.awayTeam === h));
+        if (!match || !match.date) continue;
+        if (match.date >= yesterday) continue;
+        pointsBefore.set(bet.participant, (pointsBefore.get(bet.participant) || 0) + points);
+    }
+
+    const sortedA = [...pointsBefore.entries()].sort((a, b) => b[1] - a[1]);
+    /** @type {Map<string, number>} */
+    const rankA = new Map();
+    sortedA.forEach(([p], i) => rankA.set(p, i + 1));
+
+    return currentWinners.map(w => {
+        const prevRank = rankA.get(w.participant) ?? null;
+        const prevPoints = pointsBefore.get(w.participant) ?? 0;
+        /** @type {'up'|'down'|'same'|'new'} */
+        let kind;
+        if (prevRank === null) kind = 'new';
+        else if (w.rank < prevRank) kind = 'up';
+        else if (w.rank > prevRank) kind = 'down';
+        else kind = 'same';
+        return {
+            participant: w.participant,
+            prevRank,
+            currRank: w.rank,
+            prevPoints,
+            currPoints: w.points,
+            kind
+        };
+    });
 }

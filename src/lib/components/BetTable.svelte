@@ -3,7 +3,7 @@
     import { getFlagData } from '../flags.js';
     import FilterSheet from './FilterSheet.svelte';
 
-    let { onSelectBet, onParticipantClick = () => {} } = $props();
+    let { onSelectBet, onApplySuggestion = () => {}, onDismissSuggestion = () => {}, onParticipantClick = () => {} } = $props();
 
     let activeTab = $state('grouped');
     let filterSheetOpen = $state(false);
@@ -181,6 +181,19 @@
     /** @param {string} msgId */
     function getBetsForMessage(msgId) {
         return appState.bets.filter((/** @type {any} */ b) => b.messageId === msgId);
+    }
+
+    /** @param {{ homeTeam: string, awayTeam: string, homeScore: number|null, awayScore: number|null, date: string, distance: number }} s */
+    function formatSuggestion(s) {
+        const homeFlag = getFlagData(s.homeTeam);
+        const awayFlag = getFlagData(s.awayTeam);
+        const homeName = homeFlag?.spanishName || s.homeTeam;
+        const awayName = awayFlag?.spanishName || s.awayTeam;
+        const homeImg = homeFlag?.flag ? `<img src="${homeFlag.flag}" class="inline-block h-4 w-4 mr-1" alt="${homeName}" />` : '';
+        const awayImg = awayFlag?.flag ? `<img src="${awayFlag.flag}" class="inline-block h-4 w-4 ml-1" alt="${awayName}" />` : '';
+        const homeScore = s.homeScore ?? '?';
+        const awayScore = s.awayScore ?? '?';
+        return `${homeImg}${homeName} ${homeScore} - ${awayScore} ${awayName}${awayImg}`;
     }
 
     /** @param {any} bet */
@@ -434,6 +447,31 @@
                                             <span class="text-lg font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
                                         </div>
                                     </div>
+                                    {#if bet.suggestedMatch && bet.type === 'score'}
+                                        <div class="mt-2 p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                                            <div class="text-xs text-cyan-300 mb-1">
+                                                💡 ¿Quisiste decir?
+                                            </div>
+                                            <div class="text-sm text-white mb-2">
+                                                {@html formatSuggestion(bet.suggestedMatch)}
+                                                <span class="text-gray-500 text-xs ml-1">(dist {bet.suggestedMatch.distance})</span>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button
+                                                    class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-md min-h-9"
+                                                    onclick={() => onApplySuggestion(bet.id)}
+                                                >
+                                                    Aplicar
+                                                </button>
+                                                <button
+                                                    class="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-md min-h-9"
+                                                    onclick={() => onDismissSuggestion(bet.id)}
+                                                >
+                                                    Descartar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    {/if}
                                 </div>
                             {/each}
                         </div>
@@ -571,26 +609,51 @@
                                     <div class="space-y-2 mb-3 md:mb-4">
                                         {#each allBets as bet}
                                             {@const malformed = isBetPotentiallyMalformed(bet)}
-                                            <div class="flex items-center justify-between p-2 md:p-3 bg-white/5 rounded-lg {malformed ? 'border border-red-500/30' : ''}">
-                                                <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                                                    <span class="text-xl md:text-2xl flex-shrink-0">{getTypeIcon(bet)}</span>
-                                                    <div class="min-w-0">
-                                                        <div class="text-white font-medium text-xs md:text-sm {malformed ? 'text-red-400' : ''} truncate">
-                                                            {@html formatBetText(bet)}
-                                                        </div>
-                                                        <div class="text-xs {getStatusColor(bet.status)} flex items-center gap-1">
-                                                            <span class="hidden sm:inline">{getStatusText(bet.status)}</span>
-                                                            <span class="sm:hidden">{getStatusIcon(bet.status)}</span>
-                                                            {#if bet.real_result}<span class="hidden sm:inline">│ Real: {bet.real_result}</span>{/if}
-                                                            {#if malformed}<span>⚠️</span>{/if}
-                                                            {#if bet.manuallyEdited}<span class="hidden sm:inline">ℹ️</span>{/if}
+                                            <div class="p-2 md:p-3 bg-white/5 rounded-lg {malformed ? 'border border-red-500/30' : ''}">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                                                        <span class="text-xl md:text-2xl flex-shrink-0">{getTypeIcon(bet)}</span>
+                                                        <div class="min-w-0">
+                                                            <div class="text-white font-medium text-xs md:text-sm {malformed ? 'text-red-400' : ''} truncate">
+                                                                {@html formatBetText(bet)}
+                                                            </div>
+                                                            <div class="text-xs {getStatusColor(bet.status)} flex items-center gap-1">
+                                                                <span class="hidden sm:inline">{getStatusText(bet.status)}</span>
+                                                                <span class="sm:hidden">{getStatusIcon(bet.status)}</span>
+                                                                {#if bet.real_result}<span class="hidden sm:inline">│ Real: {bet.real_result}</span>{/if}
+                                                                {#if malformed}<span>⚠️</span>{/if}
+                                                                {#if bet.manuallyEdited}<span class="hidden sm:inline">ℹ️</span>{/if}
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div class="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                                                        <span class="text-lg md:text-xl">{getStatusIcon(bet.status)}</span>
+                                                        <span class="text-lg md:text-xl font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
+                                                    </div>
                                                 </div>
-                                                <div class="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                                                    <span class="text-lg md:text-xl">{getStatusIcon(bet.status)}</span>
-                                                    <span class="text-lg md:text-xl font-bold text-yellow-400">+{Number(bet.points) || 0}</span>
-                                                </div>
+                                                {#if bet.suggestedMatch && bet.type === 'score'}
+                                                    <div class="mt-2 p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-md">
+                                                        <div class="text-xs text-cyan-300 mb-1">💡 ¿Quisiste decir?</div>
+                                                        <div class="text-sm text-white mb-2">
+                                                            {@html formatSuggestion(bet.suggestedMatch)}
+                                                            <span class="text-gray-500 text-xs ml-1">(dist {bet.suggestedMatch.distance})</span>
+                                                        </div>
+                                                        <div class="flex gap-2">
+                                                            <button
+                                                                class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-md min-h-9"
+                                                                onclick={() => onApplySuggestion(bet.id)}
+                                                            >
+                                                                Aplicar
+                                                            </button>
+                                                            <button
+                                                                class="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-md min-h-9"
+                                                                onclick={() => onDismissSuggestion(bet.id)}
+                                                            >
+                                                                Descartar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                {/if}
                                             </div>
                                         {/each}
                                     </div>

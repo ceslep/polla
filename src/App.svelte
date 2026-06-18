@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
+    import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName, parseWhatsAppExport } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
@@ -17,6 +17,7 @@
     import ResetAllModal from './lib/components/ResetAllModal.svelte';
     import MessageModal from './lib/components/MessageModal.svelte';
     import MobileMenu from './lib/components/MobileMenu.svelte';
+    import StatsModal from './lib/components/StatsModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -28,6 +29,7 @@
     let showAdminUploadModal = $state(false);
     let showResetAllModal = $state(false);
     let showMessageModal = $state(false);
+    let showStatsModal = $state(false);
     let isSavingToSheets = $state(false);
     let isLoadingFromSheets = $state(false);
     let loadFromSheetsFailed = $state(false);
@@ -78,6 +80,17 @@
         if (updatedBets.length > 0) {
             selectedBet = updatedBets[0];
         }
+    }
+
+    /** @param {string} betId */
+    async function handleApplySuggestion(betId) {
+        applyMatchSuggestion(betId);
+        await analyzeBets(true);
+    }
+
+    /** @param {string} betId */
+    function handleDismissSuggestion(betId) {
+        dismissMatchSuggestion(betId);
     }
 
     /** @returns {Array<{participant: string, points: number, rank: number}>} */
@@ -179,9 +192,24 @@
                     const result = compareBetWithMatch(effectiveBet, match);
                     console.log('compareBetWithMatch result:', bet.bet_text, '|', JSON.stringify(result));
                     updatedCount++;
-                    return { ...effectiveBet, ...result };
+                    return { ...effectiveBet, ...result, suggestedMatch: null };
                 }
-                return bet;
+                const fuzzy = findMatchSuggestion(effectiveBet, matches);
+                if (fuzzy) {
+                    console.log('fuzzy suggestion:', bet.bet_text, '->', fuzzy.match.homeTeam + ' ' + fuzzy.match.homeScore + '-' + fuzzy.match.awayScore + ' ' + fuzzy.match.awayTeam, '(dist ' + fuzzy.distance + ')');
+                    return {
+                        ...effectiveBet,
+                        suggestedMatch: {
+                            homeTeam: fuzzy.match.homeTeam,
+                            awayTeam: fuzzy.match.awayTeam,
+                            homeScore: fuzzy.match.homeScore,
+                            awayScore: fuzzy.match.awayScore,
+                            date: fuzzy.match.date,
+                            distance: fuzzy.distance
+                        }
+                    };
+                }
+                return { ...effectiveBet, suggestedMatch: null };
             });
 
             console.log('Updated bets:', updatedBets.length);
@@ -272,6 +300,13 @@
                 </button>
 
                 <button
+                    class="hidden md:flex px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-purple-500/20 min-h-11"
+                    onclick={() => showStatsModal = true}
+                >
+                    📊 Estadísticas
+                </button>
+
+                <button
                     class="hidden md:flex px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all border border-white/10 min-h-11"
                     onclick={() => {
                         if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
@@ -286,7 +321,10 @@
                 <button
                     class="hidden md:flex px-4 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-xl text-sm font-semibold transition-all border border-red-500/30 text-red-400 min-h-11"
                     onclick={() => {
-                        showResetAllModal = true;
+                        adminAction = () => { showResetAllModal = true; };
+                        adminTitle = "Reset Total";
+                        adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets y localStorage.";
+                        showAdminModal = true;
                     }}
                 >
                     ⚠️ Reset Total
@@ -407,7 +445,11 @@
             </div>
         {:else}
             <StatsGrid onPendingClick={() => showPendingModal = true} onRankingClick={() => showRankingModal = true} />
-            <BetTable onSelectBet={handleSelectBet} />
+            <BetTable
+                onSelectBet={handleSelectBet}
+                onApplySuggestion={handleApplySuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
+            />
         {/if}
     </div>
 
@@ -421,6 +463,7 @@
             errors={analysisSummary.errors}
             winners={analysisSummary.winners}
             bets={appState.bets}
+            matches={appState.matches}
             onClose={() => showAnalysisModal = false}
         />
     {/if}
@@ -555,6 +598,10 @@
         />
     {/if}
 
+    {#if showStatsModal}
+        <StatsModal onClose={() => showStatsModal = false} />
+    {/if}
+
     {#if showResetAllModal}
         <ResetAllModal
             onConfirm={async () => {
@@ -593,6 +640,7 @@
         hasBets={appState.bets.length > 0}
         isLoading={appState.isLoading}
         isSavingToSheets={isSavingToSheets}
+        onStats={() => showStatsModal = true}
         onReset={() => {
             if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
                 appState.bets = [];
@@ -626,7 +674,10 @@
             showAdminModal = true;
         }}
         onResetAll={() => {
-            showResetAllModal = true;
+            adminAction = () => { showResetAllModal = true; };
+            adminTitle = "Reset Total";
+            adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets y localStorage.";
+            showAdminModal = true;
         }}
     />
 </main>
