@@ -139,6 +139,25 @@
     }
 
     /** @param {string} teamName */
+    function getShortTeamName(teamName) {
+        if (!teamName || isTbd(teamName)) return teamName;
+        const data = getFlagData(teamName);
+        if (!data) return teamName;
+        const english = data.englishName || teamName;
+        const spanish = data.spanishName;
+        return english.length <= spanish.length ? english : spanish;
+    }
+
+    /** @param {string} teamName */
+    function getFlagHtmlShort(teamName) {
+        if (!teamName || isTbd(teamName)) return teamName;
+        const data = getFlagData(teamName);
+        if (!data) return teamName;
+        const shortName = getShortTeamName(teamName);
+        return `<img src="${data.flag}" class="inline-block h-5 w-7 mr-1" alt="${shortName}" title="${shortName}" />${shortName}`;
+    }
+
+    /** @param {string} teamName */
     function getSpanishTeamName(teamName) {
         if (!teamName) return '';
         const data = getFlagData(teamName);
@@ -303,21 +322,21 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onclick={onClose}>
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
-        <div class="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
-            <div class="flex items-center gap-4">
-                <h2 class="text-xl font-bold text-cyan-400">🌍 Resultados Mundial 2026</h2>
-                <div class="text-sm text-gray-400">
+        <div class="p-3 md:p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
+            <div class="flex items-center gap-2 md:gap-4">
+                <h2 class="text-lg md:text-xl font-bold text-cyan-400">🌍 Mundial 2026</h2>
+                <div class="text-xs md:text-sm text-gray-400 hidden sm:block">
                     {matches.length} partidos
                 </div>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 md:gap-3">
                 <button
-                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-bold transition-all"
+                    class="px-3 py-2 md:px-4 md:py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs md:text-sm font-bold transition-all"
                     onclick={() => showStandings = !showStandings}
                 >
                     📊 {showStandings ? 'Ver Partidos' : 'Ver Posiciones'}
                 </button>
-                <button class="text-gray-400 hover:text-white text-2xl" onclick={onClose}>&times;</button>
+                <button class="text-gray-400 hover:text-white text-xl md:text-2xl" onclick={onClose}>&times;</button>
             </div>
         </div>
 
@@ -401,7 +420,7 @@
 
                 <!-- Team quick filters -->
                 {#if teamSearch.length === 0 && uniqueTeams().length > 0}
-                    <div class="flex flex-wrap gap-1 mt-2">
+                    <div class="hidden md:flex flex-wrap gap-1 mt-2">
                         {#each uniqueTeams().slice(0, 20) as team}
                             <button
                                 class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-gray-300 transition-all flex items-center gap-1"
@@ -461,42 +480,43 @@
                                 <div class="p-3 bg-emerald-900/30 border-b border-white/10">
                                     <h3 class="font-bold text-emerald-400">{group}</h3>
                                 </div>
-                                <table class="w-full text-sm">
-                                    <thead>
-                                        <tr class="text-gray-400 text-xs">
-                                            <th class="text-left p-3">Selección</th>
-                                            <th class="p-2">PJ</th>
-                                            <th class="p-2">PG</th>
-                                            <th class="p-2">PP</th>
-                                            <th class="p-2">PE</th>
-                                            <th class="p-2">GF</th>
-                                            <th class="p-2">GC</th>
-                                            <th class="p-2">GD</th>
-                                            <th class="p-2 font-bold text-emerald-400">Pts</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {#each sorted as [team, stats], idx}
-                                            <tr class="border-t border-white/5 {idx < 2 ? 'bg-emerald-900/10' : ''}">
-                                                <td class="p-3">
-                                                    <div class="flex items-center gap-2">
-                                                        <span>{@html getFlagHtml(team)}</span>
-                                                        <span class="font-medium">{team}</span>
-                                                        {#if idx < 2}<span class="text-xs text-emerald-400">▶</span>{/if}
-                                                    </div>
-                                                </td>
-                                                <td class="p-2 text-center text-gray-300">{stats.pj}</td>
-                                                <td class="p-2 text-center text-gray-300">{stats.pg}</td>
-                                                <td class="p-2 text-center text-gray-300">{stats.pp}</td>
-                                                <td class="p-2 text-center text-gray-300">{stats.pe}</td>
-                                                <td class="p-2 text-center text-gray-300">{stats.gf}</td>
-                                                <td class="p-2 text-center text-gray-300">{stats.gc}</td>
-                                                <td class="p-2 text-center {stats.gd > 0 ? 'text-emerald-400' : stats.gd < 0 ? 'text-red-400' : 'text-gray-400'}">{stats.gd > 0 ? '+' : ''}{stats.gd}</td>
-                                                <td class="p-2 text-center font-bold text-emerald-400">{stats.pts}</td>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm min-w-[500px]">
+                                        <thead>
+                                            <tr class="text-gray-400 text-xs">
+                                                <th class="text-left p-3">Selección</th>
+                                                <th class="p-2">PJ</th>
+                                                <th class="p-2">PG</th>
+                                                <th class="p-2">PP</th>
+                                                <th class="p-2">PE</th>
+                                                <th class="p-2">GF</th>
+                                                <th class="p-2">GC</th>
+                                                <th class="p-2">GD</th>
+                                                <th class="p-2 font-bold text-emerald-400">Pts</th>
                                             </tr>
-                                        {/each}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {#each sorted as [team, stats], idx}
+                                                <tr class="border-t border-white/5 {idx < 2 ? 'bg-emerald-900/10' : ''}">
+                                                    <td class="p-3">
+                                                        <div class="flex items-center gap-2">
+                                                            <span>{@html getFlagHtmlShort(team)}</span>
+                                                            {#if idx < 2}<span class="text-xs text-emerald-400">▶</span>{/if}
+                                                        </div>
+                                                    </td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.pj}</td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.pg}</td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.pp}</td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.pe}</td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.gf}</td>
+                                                    <td class="p-2 text-center text-gray-300">{stats.gc}</td>
+                                                    <td class="p-2 text-center {stats.gd > 0 ? 'text-emerald-400' : stats.gd < 0 ? 'text-red-400' : 'text-gray-400'}">{stats.gd > 0 ? '+' : ''}{stats.gd}</td>
+                                                    <td class="p-2 text-center font-bold text-emerald-400">{stats.pts}</td>
+                                                </tr>
+                                            {/each}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         {/each}
                     </div>
@@ -508,11 +528,12 @@
                         {@const team1Tbd = isTbd(match.team1)}
                         {@const team2Tbd = isTbd(match.team2)}
                         <div
-                            class="bg-gradient-to-r {match.score?.ft ? 'from-emerald-900/20 to-transparent' : 'from-white/5 to-transparent'} rounded-2xl border border-white/10 hover:border-white/20 transition-all overflow-hidden"
+                            class="bg-gradient-to-r {match.score?.ft ? 'from-emerald-900/20 to-transparent' : 'from-white/5 to-transparent'} rounded-2xl border border-white/10 hover:border-white/20 transition-all overflow-hidden overflow-x-hidden"
                         >
                             <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                             <div class="w-full text-left p-4 cursor-pointer" onclick={() => toggleMatch(idx)}>
-                                <div class="flex items-center justify-between mb-3">
+                                <!-- Desktop: horizontal tags + meta -->
+                                <div class="hidden md:flex items-center justify-between mb-3">
                                     <div class="flex items-center gap-3">
                                         <span class="bg-cyan-600/20 text-cyan-400 text-xs font-bold px-3 py-1 rounded-full uppercase">
                                             {match.round}
@@ -542,25 +563,79 @@
                                     </div>
                                 </div>
 
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3 flex-1">
-                                        {#if !team1Tbd}
-                                            <span class="text-2xl">{@html getFlagHtml(match.team1)}</span>
+                                <!-- Mobile: stacked tags + meta -->
+                                <div class="flex md:hidden flex-col gap-2 mb-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="bg-cyan-600/20 text-cyan-400 text-xs font-bold px-3 py-1 rounded-full uppercase">
+                                            {match.round}
+                                        </span>
+                                        {#if match.group}
+                                            <span class="bg-white/10 text-gray-300 text-xs font-medium px-2 py-0.5 rounded">
+                                                {match.group}
+                                            </span>
                                         {/if}
-                                        <div>
-                                            <button
-                                                class="font-bold text-xl {team1Tbd ? 'text-yellow-500 cursor-default' : 'text-white hover:text-cyan-400 hover:underline cursor-pointer'}"
-                                                onclick={() => { if (!team1Tbd) showTeamWins(match.team1); }}
-                                            >
-                                                {team1Tbd ? translateTeamCode(match.team1) : match.team1}
-                                            </button>
-                                            {#if teamSearch && teamMatchesSearch(match.team1, teamSearch.toLowerCase())}
-                                                <span class="ml-2 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">Coincidencia</span>
+                                        {#if match.score?.ft}
+                                            <span class="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full">
+                                                ✅ Final
+                                            </span>
+                                        {:else if team1Tbd || team2Tbd}
+                                            <span class="bg-yellow-500/20 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">
+                                                ⏳ Por Definir
+                                            </span>
+                                        {:else}
+                                            <span class="bg-orange-500/20 text-orange-400 text-xs font-bold px-3 py-1 rounded-full">
+                                                🕐 Pendiente
+                                            </span>
+                                        {/if}
+                                    </div>
+                                    <div class="flex items-center gap-4 text-sm text-gray-400">
+                                        <span>{formatDate(match.date)}</span>
+                                        <span>🏟️ {match.ground}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Mobile: stacked layout -->
+                                <div class="flex md:hidden flex-col gap-3 w-full">
+                                    <!-- Row 1: Team names -->
+                                    <div class="flex items-center justify-between w-full">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            {#if !team1Tbd}
+                                                <span class="text-xl flex-shrink-0">{@html getFlagHtmlShort(match.team1)}</span>
+                                            {:else}
+                                                <span class="font-bold text-lg text-yellow-500">{translateTeamCode(match.team1)}</span>
+                                            {/if}
+                                        </div>
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            {#if !team2Tbd}
+                                                <span class="text-xl flex-shrink-0">{@html getFlagHtmlShort(match.team2)}</span>
+                                            {:else}
+                                                <span class="font-bold text-lg text-yellow-500">{translateTeamCode(match.team2)}</span>
                                             {/if}
                                         </div>
                                     </div>
+                                    <!-- Row 2: Scores -->
+                                    <div class="flex items-center justify-center gap-8 w-full">
+                                        {#if match.score?.ft}
+                                            <span class="text-4xl font-black text-cyan-400">{match.score.ft[0]}</span>
+                                            <span class="text-2xl text-gray-600">-</span>
+                                            <span class="text-4xl font-black text-cyan-400">{match.score.ft[1]}</span>
+                                        {:else}
+                                            <span class="text-xl font-light text-gray-500">vs</span>
+                                        {/if}
+                                    </div>
+                                </div>
 
-                                    <div class="flex items-center gap-4 px-6">
+                                <!-- Desktop: horizontal layout -->
+                                <div class="hidden md:flex items-center justify-between overflow-x-hidden">
+                                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                                        {#if !team1Tbd}
+                                            <span class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team1)}</span>
+                                        {:else}
+                                            <span class="font-bold text-xl text-yellow-500">{translateTeamCode(match.team1)}</span>
+                                        {/if}
+                                    </div>
+
+                                    <div class="flex items-center gap-4 px-6 flex-shrink-0">
                                         {#if match.score?.ft}
                                             <span class="text-4xl font-black text-cyan-400">{match.score.ft[0]}</span>
                                             <span class="text-3xl text-gray-600">-</span>
@@ -570,20 +645,11 @@
                                         {/if}
                                     </div>
 
-                                    <div class="flex items-center gap-3 flex-1 justify-end">
-                                        <div class="text-right">
-                                            <button
-                                                class="font-bold text-xl {team2Tbd ? 'text-yellow-500 cursor-default' : 'text-white hover:text-cyan-400 hover:underline cursor-pointer'}"
-                                                onclick={() => { if (!team2Tbd) showTeamWins(match.team2); }}
-                                            >
-                                                {team2Tbd ? translateTeamCode(match.team2) : match.team2}
-                                            </button>
-                                            {#if teamSearch && teamMatchesSearch(match.team2, teamSearch.toLowerCase())}
-                                                <span class="ml-2 text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">Coincidencia</span>
-                                            {/if}
-                                        </div>
+                                    <div class="flex items-center gap-3 flex-1 justify-end min-w-0">
                                         {#if !team2Tbd}
-                                            <span class="text-2xl">{@html getFlagHtml(match.team2)}</span>
+                                            <span class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team2)}</span>
+                                        {:else}
+                                            <span class="font-bold text-xl text-yellow-500">{translateTeamCode(match.team2)}</span>
                                         {/if}
                                     </div>
                                 </div>

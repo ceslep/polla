@@ -1,81 +1,103 @@
-# WhatsApp Bet Scraper - Copa do Mundo 2026
+# pollaweb — Copa del Mundo 2026 betting pool
+
+Single-page Svelte 5 app. Users upload a WhatsApp chat export (JSON); the app
+parses free-text Spanish bets into structured predictions, fetches real match
+results, scores each bet, and ranks participants. UI strings are Spanish.
 
 ## Stack
 
-- **Python**: Main orchestrator, WhatsApp scraping (Playwright), World Cup API
-- **PHP**: Google Sheets writes only (`composer install` required)
-- **Svelte 5 + Vite**: Dashboard frontend (Node.js)
+- **Svelte 5 + Vite + Tailwind 4** (frontend-only SPA; no Python here)
+- **PHP** backend in `src/assets/` (Google Sheets read/write; deployed by
+  hand to `https://app.iedeoccidente.com/gs/`)
+- **JSDoc** for typing — there are no `.ts` source files in `src/`
 
-## Key Commands
+## Commands
 
 ```bash
-# Main menu / orchestrator
-python main.py
+npm run dev       # Vite dev server (default http://localhost:5173)
+npm run build     # production build → dist/
+npm run preview   # serve dist/
+npm run check     # svelte-check + tsc (validates JSDoc types) — run before commit
+npm run deploy    # build + publish to gh-pages
 
-# WhatsApp scraping (Playwright)
-python whatsapp_scraper.py
-
-# World Cup results
-python worldcup_api.py [fecha_inicio] [fecha_fin]
-
-# Google Sheets upload (requires composer install)
-php upload_sheets.php
-
-# Dashboard dev server
-npm run dev
-
-# Dashboard production build
-npm run build
-
-# Serve production build
-npm run preview
-
-# Deploy to GitHub Pages (build + publish)
-npm run deploy
-
-# Type-check Svelte (run before committing)
-npm run check
+node test_parse.js   # smoke test for src/lib/parser.js
+node test_match.js   # smoke test for match loading + findMatchForBet
 ```
 
-Dashboard: http://localhost:5173 (dev) or `php -S localhost:8000` for PHP endpoints
+No automated test suite — `node test_*.js` are manual sanity checks. Sample
+WhatsApp export lives at `polla.json` in repo root.
 
-Vite base is `/pollawebsv/` for GitHub Pages deployment (`vite.config.ts:7`)
+## Scoring (src/lib/api.js:108 `compareBetWithMatch`)
 
-## Scoring System
+| Status     | Points |
+|------------|--------|
+| `exact`    | 5      |
+| `correct`  | 3      |
+| `incorrect`| 0      |
 
-| Status | Points |
-|--------|--------|
-| exact | 5 |
-| correct | 3 |
-| draw | 2 |
-| incorrect | 0 |
+The only valid `status` values are `'pending' | 'exact' | 'correct' | 'incorrect'`
+(`src/lib/types.js:23`). `ResultsModal.svelte` has a "Empates" section
+filtered on `b.points === 2`, but the scorer never assigns 2 — that branch
+is dead UI, do not add a 2-pt tier.
 
-## Architecture
+## Architecture / data flow
 
-- `bets.json` - Central data file (scraped bets, updated by multiple scripts)
-- `worldcup_matches.json` - Cached World Cup API results
-- `config.json` - Shared config (Google Sheets ID, football-api key, Selenium host)
-- `credentials/service-account.json` - Google Cloud service account (gitignored)
-- `api/bets.php`, `api/analyze.php` - PHP endpoints for dashboard
-- `src/lib/parser.js` - WhatsApp message → structured bet parser (Svelte app)
-- `src/lib/api.js` - Match fetching + scoring (separate `TEAM_ALIASES_API`)
+1. **Parse** — `src/lib/parser.js`. `parseWhatsAppExport(json)` →
+   `parseMessage(msg)` extracts up to four bet types per WhatsApp message:
+   `champion`, `runnerup`, `topscorer`, `score`. Score parsing
+   (`parseAllScoreBets`) is heuristic: flag emoji → country (`FLAG_MAP`),
+   then team-name normalization via `TEAM_ALIASES`, then pairs teams with
+   adjacent numbers across one or two lines.
+2. **State** — `src/lib/stores.svelte.js`. Svelte 5 runes; `appState` is
+   one `$state` object. Derived data are plain exported **functions**
+   (`stats()`, `filteredBets()`, `participants()`, `uniqueDates()`), not
+   `$derived` — call them in markup.
+3. **Fetch + score** — `src/lib/api.js`. Match sources: `loadMatchesFromGitHub()`
+   (openfootball `worldcup.json`, default) and `loadMatches()`
+   (football-data.org; api key fetched at runtime from
+   `https://app.iedeoccidente.com/pollaweb/config.php`, never in source).
+4. **Persistence** — `localStorage` key `polla_bets`. Optional Google
+   Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get}_bets.php`
+   (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:8`).
+5. **Orchestration** — `src/App.svelte`. `analyzeBets(useGitHub)` loads
+   matches, maps each bet through `findMatchForBet` + `compareBetWithMatch`,
+   persists, and computes the winner ranking.
 
-## WhatsApp Scraping Methods
+## Conventions
 
-1. **Playwright** (`whatsapp_scraper.py`) - Primary, uses `.whatsapp_profile` for session persistence
-2. **Selenium** (`src/WhatsAppScraper.php`) - PHP alternative, requires `chromedriver --port=4444`
-3. **Baileys** (`scrape_baileys.js`) - Node.js, separate implementation
+- Svelte 5 runes throughout: `$state`, `$derived`, callback props
+  (`onClose`, `onSelectBet`) instead of `createEventDispatcher`,
+  `onclick={...}` attributes.
+- Types via JSDoc `@typedef` in `src/lib/types.js`; reference as
+  `/** @type {import('./types.js').Bet} */`.
+- Router: `svelte-spa-router` (hash-based).
+- Heavy `console.log` debug output is left in `parser.js` and `api.js` for
+  match-debugging — do not strip without a reason.
 
-## Important Gotchas
+## Gotchas
 
-- **Two divergent team-alias maps**: `parser.js` and `api.js` each have their own `TEAM_ALIASES` / `normalizeTeamName`. Keep both in sync when adding teams.
-- **Two divergent flag maps**: `parser.js` has 🇇�🇱=Chile but may still have 🇨🇱=Colombia bugs that `parser2.js` fixed. If flag parsing fails, compare both.
-- `src/lib/parser2.js` is dead code (`// @ts-nocheck`, not imported anywhere)
-- WhatsApp DOM selectors break frequently - `whatsapp_scraper.py` has multiple fallback selectors
-- Session expires - re-scan QR code when blocked
-- football-data.org free tier: 10 req/min
-- Dashboard uses `localStorage` for persistence, exports via `api/export.php`
-
-## Google Sheets Format
-
-Columns: `Timestamp | Participant | Bet | Original Message | Status | Real Result | Points`
+- **Single canonical team-alias map** lives in `parser.js`
+  (`TEAM_ALIASES`, `normalizeTeamName`). Both `api.js` and `flags.js`
+  import it. Add new teams there only, and keep it idempotent:
+  `normalizeTeamName(canonical) === canonical` for every openfootball name
+  (`Czech Republic`, `USA`, `Bosnia & Herzegovina`, `Curaçao`, …).
+- **`src/lib/parser2.js` is dead code** (`// @ts-nocheck`, not imported
+  anywhere). It is an alternate parser draft — edit `parser.js` for real
+  changes. CLAUDE.md / GEMINI.md are mirrored instruction files; they
+  may contain overlapping or stale facts.
+- **Three flag/alias maps diverge** and must be kept in sync when adding
+  a country: `parser.js` `FLAG_MAP` (parser-time emoji lookup),
+  `parser2.js` `FLAG_MAP` (dead, but has the `🇨🇱 = Chile` fix), and
+  `flags.js` `TEAM_TO_ISO` (display). Display data (URL, emoji, Spanish
+  name) comes from `public/countries.json`.
+- **Vite base path is `'/polla/'`** (`vite.config.ts:7`). It was
+  `/pollawebsv/` until commit `ac11324`; `npm run deploy` publishes to
+  the gh-pages branch of the current repo, so the base must match the
+  GitHub Pages URL (`<user>.github.io/<repo>/`). The `.claude/settings.local.json`
+  history references `pollawebsv` — confirm the deploy target before
+  publishing.
+- **PHP files in `src/assets/`** are not part of the Vite build. They are
+  deployed manually and need `vendor/` (Google Sheets PHP SDK) plus
+  `assets/serviceaccount.json` (service-account key, not in repo) on the
+  server. The `*_horas_extras.php` files belong to an unrelated app
+  sharing the same host — leave them alone.

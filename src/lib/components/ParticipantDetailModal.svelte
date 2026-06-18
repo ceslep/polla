@@ -181,9 +181,9 @@
                     <table class="w-full text-sm min-w-[400px]">
                         <thead class="text-left text-gray-400">
                             <tr>
-                                <th class="pb-2">Fecha</th>
-                                <th class="pb-2">Apuesta</th>
-                                <th class="pb-2">Resultado</th>
+                                <th class="pb-2 pr-4">Fecha</th>
+                                <th class="pb-2 pr-4">Apuesta</th>
+                                <th class="pb-2 pr-4">Resultado</th>
                                 <th class="pb-2 text-right">Pts</th>
                             </tr>
                         </thead>
@@ -192,8 +192,8 @@
                                 {@const badge = getStatusBadge(bet.status)}
                                 <tr class="border-t border-white/5">
                                     <td class="py-2 text-gray-400 whitespace-nowrap">{bet.timestamp ? bet.timestamp.split(' ')[0] : '-'}</td>
-                                    <td class="py-2">{bet.bet_text}</td>
-                                    <td class="py-2">
+                                    <td class="py-2 pr-4">{bet.bet_text}</td>
+                                    <td class="py-2 pr-4">
                                         <span class="px-2 py-0.5 rounded text-xs {badge.class}">{badge.label}</span>
                                     </td>
                                     <td class="py-2 text-right font-medium {bet.points > 0 ? 'text-yellow-400' : 'text-gray-500'}">

@@ -133,6 +133,7 @@ export function getFlagData(teamName) {
     return {
         flag: flagUrl,
         emoji: emojiFromIso(iso),
-        spanishName: spanish
+        spanishName: spanish,
+        englishName: teamName
     };
 }
