@@ -1,9 +1,10 @@
 <script>
     import { appState } from '../stores.svelte.js';
+    import { sortByTimestampDesc } from '../stores.svelte.js';
 
     let { onClose = () => {} } = $props();
 
-    const pendingBets = $derived(appState.bets.filter(b => b.status === 'pending'));
+    const pendingBets = $derived(sortByTimestampDesc(appState.bets.filter(b => b.status === 'pending')));
 </script>
 
 <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" onclick={() => onClose()}>

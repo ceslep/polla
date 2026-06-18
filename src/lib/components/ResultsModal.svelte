@@ -1,6 +1,7 @@
 <script>
     import { FLAG_MAP } from '../parser.js';
     import Flag from './Flag.svelte';
+    import { sortByTimestampDesc } from '../stores.svelte.js';
 
     /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], onClose: () => void }} */
     let { summary, errors = [], winners = [], bets = [], onClose } = $props();
@@ -15,7 +16,7 @@
 
     /** @param {string} participant */
     function getParticipantBets(participant) {
-        return bets.filter(b => b.participant === participant);
+        return sortByTimestampDesc(bets.filter(b => b.participant === participant));
     }
 
     /** @param {string} participant */

@@ -5,6 +5,7 @@ const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/world
 
 const SAVE_BETS_URL = 'https://app.iedeoccidente.com/gs/save_bets.php';
 const GET_BETS_URL = 'https://app.iedeoccidente.com/gs/get_bets.php';
+const CLEAR_BETS_URL = 'https://app.iedeoccidente.com/gs/clear_bets.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -245,6 +246,27 @@ export async function saveBetsToSheets(bets) {
 }
 
 /**
+ * Borra todas las filas de datos en Google Sheets (preserva headers).
+ * @returns {Promise<{ success: boolean, deleted: number }>}
+ */
+export async function clearBetsFromSheets() {
+    const response = await fetch(CLEAR_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            worksheetTitle: SHEETS_WORKSHEET
+        })
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
  * Carga las apuestas desde Google Sheets (hoja "datos").
  * Transforma del formato flat de Sheets al formato nested del frontend.
  * @returns {Promise<any[]>}
@@ -264,7 +286,7 @@ export async function loadBetsFromSheets() {
         throw new Error(result.error || `Error HTTP ${response.status}`);
     }
 
-    return (result.bets || []).map(row => {
+    const rows = (result.bets || []).map(row => {
         const rawPoints = row.points;
         let points = 0;
         if (typeof rawPoints === 'number' && !isNaN(rawPoints)) {
@@ -301,11 +323,31 @@ export async function loadBetsFromSheets() {
         };
     });
 
-    const seen = new Set();
-    return bets.filter(bet => {
-        const key = (bet.messageId || '').toLowerCase().trim() + '|' + (bet.timestamp || '');
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+    // Sheets puede contener filas duplicadas si el mismo JSON se subió con
+    // messageIds distintos (cada messageId genera un `id` único y el UPSERT
+    // por id en save_bets.php no las fusiona). Sin dedup, los participantes
+    // reciben puntos dobles por el mismo partido. Priorizamos por `id` y, como
+    // red de seguridad, por la combinación messageId+timestamp+contenido del
+    // marcador (catches el caso de `id` vacío que dejaría pasar el primer filtro).
+    const seenIds = new Set();
+    const seenContent = new Set();
+    const deduped = [];
+    for (const bet of rows) {
+        if (!bet) continue;
+        if (bet.id && seenIds.has(bet.id)) continue;
+        const p = bet.prediction || {};
+        const contentKey = [
+            (bet.messageId || '').toLowerCase().trim(),
+            (bet.timestamp || '').trim(),
+            (p.homeTeam || '').toLowerCase().trim(),
+            (p.awayTeam || '').toLowerCase().trim(),
+            p.homeScore ?? '',
+            p.awayScore ?? ''
+        ].join('|');
+        if (seenContent.has(contentKey)) continue;
+        if (bet.id) seenIds.add(bet.id);
+        seenContent.add(contentKey);
+        deduped.push(bet);
+    }
+    return deduped;
 }

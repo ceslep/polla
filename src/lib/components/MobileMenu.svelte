@@ -1,8 +1,9 @@
 <script>
-    /** @type {{onReset?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
         onReset = () => {},
+        onResetAll = () => {},
         onAnalyze = () => {},
         onSaveSheets = () => {},
         isLoading = false,
@@ -53,6 +54,13 @@
                     >
                         <span class="text-2xl">🗑️</span>
                         Resetear Datos
+                    </button>
+                    <button
+                        class="w-full py-4 px-6 bg-red-600/20 hover:bg-red-600/30 rounded-2xl text-red-400 font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-red-500/30"
+                        onclick={() => handleAction(onResetAll)}
+                    >
+                        <span class="text-2xl">⚠️</span>
+                        Reset Total
                     </button>
                 {:else}
                     <p class="text-center text-gray-400 py-8">Carga apuestas para ver más opciones</p>

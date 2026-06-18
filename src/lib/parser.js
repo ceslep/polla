@@ -31,7 +31,29 @@ export const FLAG_MAP = {
     '🇬🇭': 'Ghana',
     '🇨🇲': 'Cameroon',
     '🇧🇦': 'Bosnia & Herzegovina',
-    '🇺🇲': 'USA'
+    '🇺🇲': 'USA',
+    '🇵🇾': 'Paraguay',
+    '🇭🇷': 'Croatia',
+    '🇵🇦': 'Panama',
+    '🇺🇿': 'Uzbekistan',
+    '🇨🇩': 'DR Congo',
+    '🇮🇷': 'Iran',
+    '🇹🇷': 'Turkey',
+    '🇨🇼': 'Curaçao',
+    '🇪🇨': 'Ecuador',
+    '🇨🇮': 'Ivory Coast',
+    '🇸🇪': 'Sweden',
+    '🇹🇳': 'Tunisia',
+    '🇪🇬': 'Egypt',
+    '🇳🇿': 'New Zealand',
+    '🇨🇻': 'Cape Verde',
+    '🇮🇶': 'Iraq',
+    '🇳🇴': 'Norway',
+    '🇩🇿': 'Algeria',
+    '🇦🇹': 'Austria',
+    '🇯🇴': 'Jordan',
+    '🏴󠁧󠁢󠁳󠁣󠁴󠁿': 'Scotland',
+    '🇨🇭': 'Switzerland'
 };
 
 export const TEAM_ALIASES = {
@@ -387,7 +409,10 @@ export function parseAllScoreBets(text) {
     const textWithNames = replaceFlags(text)
         // Cualquier emoji no mapeado en FLAG_MAP queda pegado al número (ej. "Usa🇺🇲1");
         // lo convertimos en separador para no perder la apuesta al tokenizar.
-        .replace(/\p{Extended_Pictographic}/gu, ' ');
+        // Importante: las banderas son dos Regional_Indicator seguidos (no son
+        // Extended_Pictographic), así que hay que incluirlas explícitamente.
+        // ZWJ (\u200d) cubre secuencias compuestas (banderas con TAG, etc.).
+        .replace(/(?:\p{Regional_Indicator}{2}|[\p{Extended_Pictographic}\u200d])/gu, ' ');
     const separated = textWithNames.replace(/([A-Za-záéíóúüñÁÉÍÓÚÜÑ])(\d)/g, '$1 $2');
     const lines = separated.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 

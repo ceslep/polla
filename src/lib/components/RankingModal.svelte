@@ -1,11 +1,11 @@
 <script>
-    import { appState } from '../stores.svelte.js';
+    import { appState, uniqueBets } from '../stores.svelte.js';
 
     let { onClose = () => {} } = $props();
 
     const participantStats = $derived(() => {
         const map = new Map();
-        for (const bet of appState.bets) {
+        for (const bet of uniqueBets()) {
             if (!map.has(bet.participant)) {
                 map.set(bet.participant, {
                     phone: bet.phone,
@@ -41,7 +41,16 @@
 <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" onclick={() => onClose()}>
     <div class="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden overflow-x-hidden" role="document" onclick={(e) => e.stopPropagation()}>
         <div class="p-4 border-b border-white/10 flex justify-between items-center">
-            <h2 class="text-xl font-bold text-yellow-400">🏆 Ranking de Participantes</h2>
+            <div class="flex items-center gap-3">
+                <button
+                    onclick={() => { window.location.hash = '/'; onClose(); }}
+                    class="text-gray-400 hover:text-white text-lg cursor-pointer"
+                    title="Volver al inicio"
+                >
+                    🏠
+                </button>
+                <h2 class="text-xl font-bold text-yellow-400">🏆 Ranking de Participantes</h2>
+            </div>
             <button onclick={() => onClose()} class="text-gray-400 hover:text-white text-2xl cursor-pointer">&times;</button>
         </div>
         <div class="p-4 overflow-y-auto max-h-[75vh] overflow-x-hidden">

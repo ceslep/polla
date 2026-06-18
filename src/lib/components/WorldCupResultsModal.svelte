@@ -135,7 +135,7 @@
         if (!teamName || isTbd(teamName)) return teamName;
         const data = getFlagData(teamName);
         if (!data) return teamName;
-        return `<img src="${data.flag}" class="inline-block h-5 w-7 mr-1" alt="${data.spanishName}" title="${data.spanishName}" />${data.spanishName}`;
+        return `<div class="flex items-center gap-1 overflow-hidden"><img src="${data.flag}" class="inline-block h-5 w-7 flex-shrink-0" alt="${data.spanishName}" title="${data.spanishName}" /><span class="truncate">${data.spanishName}</span></div>`;
     }
 
     /** @param {string} teamName */
@@ -154,7 +154,7 @@
         const data = getFlagData(teamName);
         if (!data) return teamName;
         const shortName = getShortTeamName(teamName);
-        return `<img src="${data.flag}" class="inline-block h-5 w-7 mr-1" alt="${shortName}" title="${shortName}" />${shortName}`;
+        return `<div class="flex items-center gap-1 overflow-hidden"><img src="${data.flag}" class="inline-block h-5 w-7 flex-shrink-0" alt="${shortName}" title="${shortName}" /><span class="truncate">${shortName}</span></div>`;
     }
 
     /** @param {string} teamName */
@@ -528,7 +528,7 @@
                         {@const team1Tbd = isTbd(match.team1)}
                         {@const team2Tbd = isTbd(match.team2)}
                         <div
-                            class="bg-gradient-to-r {match.score?.ft ? 'from-emerald-900/20 to-transparent' : 'from-white/5 to-transparent'} rounded-2xl border border-white/10 hover:border-white/20 transition-all overflow-hidden overflow-x-hidden"
+                            class="bg-gradient-to-r {match.score?.ft ? 'from-emerald-900/20 to-transparent' : 'from-white/5 to-transparent'} rounded-2xl border border-white/10 hover:border-white/20 transition-all overflow-hidden"
                         >
                             <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                             <div class="w-full text-left p-4 cursor-pointer" onclick={() => toggleMatch(idx)}>
@@ -626,12 +626,12 @@
                                 </div>
 
                                 <!-- Desktop: horizontal layout -->
-                                <div class="hidden md:flex items-center justify-between overflow-x-hidden">
-                                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                                <div class="hidden md:flex items-center justify-between overflow-hidden">
+                                    <div class="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
                                         {#if !team1Tbd}
-                                            <span class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team1)}</span>
+                                            <div class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team1)}</div>
                                         {:else}
-                                            <span class="font-bold text-xl text-yellow-500">{translateTeamCode(match.team1)}</span>
+                                            <div class="font-bold text-xl text-yellow-500 truncate">{translateTeamCode(match.team1)}</div>
                                         {/if}
                                     </div>
 
@@ -645,11 +645,11 @@
                                         {/if}
                                     </div>
 
-                                    <div class="flex items-center gap-3 flex-1 justify-end min-w-0">
+                                    <div class="flex items-center gap-3 flex-1 justify-end min-w-0 overflow-hidden">
                                         {#if !team2Tbd}
-                                            <span class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team2)}</span>
+                                            <div class="text-2xl flex-shrink-0">{@html getFlagHtmlShort(match.team2)}</div>
                                         {:else}
-                                            <span class="font-bold text-xl text-yellow-500">{translateTeamCode(match.team2)}</span>
+                                            <div class="font-bold text-xl text-yellow-500 truncate">{translateTeamCode(match.team2)}</div>
                                         {/if}
                                     </div>
                                 </div>

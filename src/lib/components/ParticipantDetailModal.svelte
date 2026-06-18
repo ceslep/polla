@@ -1,16 +1,17 @@
 <script>
-    import { appState } from '../stores.svelte.js';
+    import { appState, uniqueBets, sortByTimestampDesc } from '../stores.svelte.js';
+    import { getFlagData } from '../flags.js';
 
     let { name, onClose = () => {} } = $props();
 
     let activeTab = $state('all');
 
     const participant = $derived(() => {
-        return appState.bets.find(b => b.participant === name)?.participant || 'Desconocido';
+        return uniqueBets().find(b => b.participant === name)?.participant || 'Desconocido';
     });
 
     const participantBets = $derived(() => {
-        return appState.bets.filter(b => b.participant === name);
+        return uniqueBets().filter(b => b.participant === name);
     });
 
     const stats = $derived(() => {
@@ -27,7 +28,7 @@
 
     const participantRank = $derived(() => {
         const map = new Map();
-        for (const bet of appState.bets) {
+        for (const bet of uniqueBets()) {
             if (!map.has(bet.participant)) {
                 map.set(bet.participant, { name: bet.participant, points: 0 });
             }
@@ -42,14 +43,16 @@
     });
 
     const filteredBets = $derived(() => {
-        const bets = participantBets();
+        const bets = sortByTimestampDesc(participantBets());
+        let filtered;
         switch (activeTab) {
-            case 'exact': return bets.filter(b => b.status === 'exact');
-            case 'correct': return bets.filter(b => b.status === 'correct');
-            case 'incorrect': return bets.filter(b => b.status === 'incorrect');
-            case 'pending': return bets.filter(b => b.status === 'pending');
-            default: return bets;
+            case 'exact': filtered = bets.filter(b => b.status === 'exact'); break;
+            case 'correct': filtered = bets.filter(b => b.status === 'correct'); break;
+            case 'incorrect': filtered = bets.filter(b => b.status === 'incorrect'); break;
+            case 'pending': filtered = bets.filter(b => b.status === 'pending'); break;
+            default: filtered = bets;
         }
+        return filtered;
     });
 
     const tomorrowMatches = $derived(() => {
@@ -94,20 +97,56 @@
             default: return { label: status, class: 'bg-gray-500/20 text-gray-400' };
         }
     }
+
+    /** @param {any} bet */
+    function getBetFlagHtml(bet) {
+        if (bet.type === 'score' && bet.prediction) {
+            const homeData = getFlagData(bet.prediction.homeTeam);
+            const awayData = getFlagData(bet.prediction.awayTeam);
+            const homeFlag = homeData?.flag ? `<img src="${homeData.flag}" class="inline-block h-4 w-6 mr-1" alt="" />` : '';
+            const awayFlag = awayData?.flag ? `<img src="${awayData.flag}" class="inline-block h-4 w-6 ml-1" alt="" />` : '';
+            const homeName = homeData?.spanishName || bet.prediction.homeTeam;
+            const awayName = awayData?.spanishName || bet.prediction.awayTeam;
+            return `${homeFlag}${homeName} ${bet.prediction.homeScore} - ${bet.prediction.awayScore} ${awayName}${awayFlag}`;
+        }
+        if (bet.type === 'champion' && bet.prediction?.champion) {
+            const data = getFlagData(bet.prediction.champion);
+            const flag = data?.flag ? `<img src="${data.flag}" class="inline-block h-4 w-6 mr-1" alt="" />` : '';
+            return `${flag}🏆 ${data?.spanishName || bet.prediction.champion}`;
+        }
+        if (bet.type === 'runnerup' && bet.prediction?.runnerup) {
+            const data = getFlagData(bet.prediction.runnerup);
+            const flag = data?.flag ? `<img src="${data.flag}" class="inline-block h-4 w-6 mr-1" alt="" />` : '';
+            return `${flag}🥈 ${data?.spanishName || bet.prediction.runnerup}`;
+        }
+        if (bet.type === 'topscorer' && bet.prediction?.topscorer) {
+            return `⚽ ${bet.prediction.topscorer}`;
+        }
+        return bet.bet_text || '';
+    }
 </script>
 
 <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4" role="dialog" onclick={() => onClose()}>
     <div class="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" role="document" onclick={(e) => e.stopPropagation()}>
         <div class="p-4 border-b border-white/10">
             <div class="flex justify-between items-start">
-                <div>
-                    <h2 class="text-xl font-bold text-white">{participant()}</h2>
-                    <p class="text-gray-400 text-sm">{appState.bets.find(b => b.participant === name)?.phone || ''}</p>
-                    <p class="text-yellow-400 font-medium mt-1">
-                        Puesto {participantRank().position} de {participantRank().total} participantes
-                        <span class="text-gray-500">•</span>
-                        <span class="font-bold text-yellow-400">{stats().points} puntos</span>
-                    </p>
+                <div class="flex items-center gap-3">
+                    <button
+                        onclick={() => { window.location.hash = '/'; onClose(); }}
+                        class="text-gray-400 hover:text-white text-lg cursor-pointer"
+                        title="Volver al inicio"
+                    >
+                        🏠
+                    </button>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">{participant()}</h2>
+                        <p class="text-gray-400 text-sm">{appState.bets.find(b => b.participant === name)?.phone || ''}</p>
+                        <p class="text-yellow-400 font-medium mt-1">
+                            Puesto {participantRank().position} de {participantRank().total} participantes
+                            <span class="text-gray-500">•</span>
+                            <span class="font-bold text-yellow-400">{stats().points} puntos</span>
+                        </p>
+                    </div>
                 </div>
                 <button onclick={() => onClose()} class="text-gray-400 hover:text-white text-2xl cursor-pointer">&times;</button>
             </div>
@@ -177,7 +216,23 @@
             {#if filteredBets().length === 0}
                 <p class="text-gray-500 text-center py-8">No hay apuestas en esta categoría</p>
             {:else}
-                <div class="overflow-x-auto">
+                <!-- Mobile Cards -->
+                <div class="block md:hidden space-y-2">
+                    {#each filteredBets() as bet}
+                        {@const badge = getStatusBadge(bet.status)}
+                        <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                            <div class="text-xs text-gray-400 mb-2">{bet.timestamp ? bet.timestamp.split(' ')[0] : '-'}</div>
+                            <div class="text-white text-sm font-medium">{@html getBetFlagHtml(bet)}</div>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="px-2 py-0.5 rounded text-xs {badge.class}">{badge.label}</span>
+                                <span class="font-bold {bet.points > 0 ? 'text-yellow-400' : 'text-gray-500'}">+{Number(bet.points) || 0}</span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+
+                <!-- Desktop Table -->
+                <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-sm min-w-[400px]">
                         <thead class="text-left text-gray-400">
                             <tr>
@@ -212,10 +267,10 @@
                 <h3 class="text-sm font-bold text-orange-400 mb-3">⚽ Próximos partidos de mañana - ¡Aún no has apostado!</h3>
                 <div class="grid gap-2">
                     {#each tomorrowMatches() as match}
-                        <div class="flex items-center justify-between bg-white/5 rounded-lg px-4 py-2">
-                            <span class="text-gray-300">{match.homeTeam}</span>
-                            <span class="text-gray-500 mx-3">vs</span>
-                            <span class="text-gray-300">{match.awayTeam}</span>
+                        <div class="flex flex-col sm:flex-row items-center justify-between bg-white/5 rounded-lg px-4 py-2 gap-2">
+                            <span class="text-gray-300 text-sm">{match.homeTeam}</span>
+                            <span class="text-gray-500 text-xs">vs</span>
+                            <span class="text-gray-300 text-sm">{match.awayTeam}</span>
                         </div>
                     {/each}
                 </div>

@@ -1,7 +1,7 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet, participants, safeFormatDate } from './lib/stores.svelte.js';
-    import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets } from './lib/api.js';
+    import { appState, findMatchForBet, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
+    import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName, parseWhatsAppExport } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
@@ -14,6 +14,7 @@
     import ParticipantDetailModal from './lib/components/ParticipantDetailModal.svelte';
     import AdminModal from './lib/components/AdminModal.svelte';
     import AdminUploadModal from './lib/components/AdminUploadModal.svelte';
+    import ResetAllModal from './lib/components/ResetAllModal.svelte';
     import MessageModal from './lib/components/MessageModal.svelte';
     import MobileMenu from './lib/components/MobileMenu.svelte';
 
@@ -25,6 +26,7 @@
     let showRankingModal = $state(false);
     let showAdminModal = $state(false);
     let showAdminUploadModal = $state(false);
+    let showResetAllModal = $state(false);
     let showMessageModal = $state(false);
     let isSavingToSheets = $state(false);
     let isLoadingFromSheets = $state(false);
@@ -82,7 +84,7 @@
     function calculateWinners() {
         const pointsByParticipant = new Map();
 
-        for (const bet of appState.bets) {
+        for (const bet of uniqueBets()) {
             if (bet.status === 'pending') continue;
             const current = pointsByParticipant.get(bet.participant) || 0;
             pointsByParticipant.set(bet.participant, current + (Number(bet.points) || 0));
@@ -282,6 +284,15 @@
                 </button>
 
                 <button
+                    class="hidden md:flex px-4 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-xl text-sm font-semibold transition-all border border-red-500/30 text-red-400 min-h-11"
+                    onclick={() => {
+                        showResetAllModal = true;
+                    }}
+                >
+                    ⚠️ Reset Total
+                </button>
+
+                <button
                     class="hidden md:flex px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-orange-500/20 min-h-11 disabled:opacity-50"
                     onclick={() => {
                         if (isDev) {
@@ -462,7 +473,6 @@
                     if (!Array.isArray(rawMessages)) throw new Error('El JSON debe ser un arreglo de mensajes');
 
                     const parsedBets = parseWhatsAppExport(rawMessages);
-                    alert(`DEBUG: parsedBets=${parsedBets.length}, appState=${appState.bets.length}`);
 
                     // Sin filtro de fecha por ahora - cargar todos
                     const betMap = new Map();
@@ -545,6 +555,39 @@
         />
     {/if}
 
+    {#if showResetAllModal}
+        <ResetAllModal
+            onConfirm={async () => {
+                showResetAllModal = false;
+                isSavingToSheets = true;
+                try {
+                    // 1. Borrar todos los datos de Google Sheets
+                    await clearBetsFromSheets();
+
+                    // 2. Borrar localStorage
+                    localStorage.removeItem('polla_bets');
+
+                    // 3. Limpiar estado
+                    appState.bets = [];
+
+                    // 4. Pedir archivo JSON
+                    showAdminUploadModal = true;
+
+                    messageModalContent = 'Datos borrados. Ahora carga el archivo JSON completo.';
+                    messageModalType = 'success';
+                    showMessageModal = true;
+                } catch (/** @type {any} */ err) {
+                    messageModalContent = 'Error al hacer reset:\n' + (err.message || err);
+                    messageModalType = 'error';
+                    showMessageModal = true;
+                } finally {
+                    isSavingToSheets = false;
+                }
+            }}
+            onClose={() => showResetAllModal = false}
+        />
+    {/if}
+
     <MobileMenu
         bind:isOpen={mobileMenuOpen}
         hasBets={appState.bets.length > 0}
@@ -581,6 +624,9 @@
             adminTitle = "Guardar en Sheets";
             adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
             showAdminModal = true;
+        }}
+        onResetAll={() => {
+            showResetAllModal = true;
         }}
     />
 </main>

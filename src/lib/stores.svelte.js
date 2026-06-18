@@ -20,6 +20,74 @@ export const appState = $state({
     participantAliases: {}
 });
 
+/**
+ * Clave canónica de "cruce único" para deduplicar apuestas de un mismo
+ * participante sobre el mismo partido. Score usa (participante + equipos
+ * normalizados); los demás tipos (campeón/subcampeón/goleador) usan
+ * (participante + tipo) porque no hay dos equipos.
+ * @param {Bet} bet
+ * @returns {string}
+ */
+function betKey(bet) {
+    const p = (bet.participant || '').toLowerCase().trim();
+    const t = bet.type || '';
+    if (t === 'score') {
+        const pred = bet.prediction || {};
+        const h = normalizeTeamName(pred.homeTeam || '').toLowerCase();
+        const a = normalizeTeamName(pred.awayTeam || '').toLowerCase();
+        // Orden estable (home, away) → no genera duplicados si una versión
+        // trae los equipos invertidos respecto a otra.
+        const teams = [h, a].sort().join('|');
+        return `${p}|score|${teams}`;
+    }
+    return `${p}|${t}`;
+}
+
+/**
+ * Reglas de prioridad cuando dos apuestas colisionan en betKey: conservar
+ * la entrada "más fiable" para scoring. Orden de preferencia:
+ *   1. manuallyEdited (corrección explícita del usuario gana)
+ *   2. points más altos (la ya calificada gana sobre la pendiente)
+ *   3. status !== 'pending' (si empatan en puntos, la calificada gana)
+ *   4. orden original (preservar orden estable de aparición)
+ * @param {Bet} prev
+ * @param {Bet} next
+ * @returns {boolean}
+ */
+function shouldReplace(prev, next) {
+    const pm = !!prev.manuallyEdited;
+    const nm = !!next.manuallyEdited;
+    if (pm !== nm) return nm; // true > false
+
+    const pp = Number(prev.points) || 0;
+    const np = Number(next.points) || 0;
+    if (pp !== np) return np > pp;
+
+    const ps = prev.status === 'pending' ? 0 : 1;
+    const ns = next.status === 'pending' ? 0 : 1;
+    return ns > ps;
+}
+
+/**
+ * Devuelve appState.bets deduplicado por cruce único. Las vistas que
+ * muestran puntos o conteos por participante deben usar este helper en
+ * lugar de iterar appState.bets directamente, para evitar que un mismo
+ * partido sume puntos dos veces (causa histórica: Sheets acumulaba filas
+ * con messageIds distintos y el parser producía 2 entradas para el mismo
+ * contenido). El array original NO se muta.
+ * @type {() => Bet[]}
+ */
+export const uniqueBets = () => {
+    const seen = new Map();
+    for (const bet of appState.bets) {
+        if (!bet) continue;
+        const key = betKey(bet);
+        const prev = seen.get(key);
+        if (!prev || shouldReplace(prev, bet)) seen.set(key, bet);
+    }
+    return [...seen.values()];
+};
+
 /** @type {() => string[]} */
 export const uniqueDates = () => {
     const dates = new Set();
@@ -124,12 +192,13 @@ export const finishedMatchesPerDate = () => {
 
 /** @type {(date: string) => { hasAllBets: boolean, missing: string[], malformed: string[], participants: string[], totalMatches: number, finishedMatches: number }} */
 export const validateDateBets = (date) => {
-    const dateBets = appState.bets.filter(bet => {
+    const unique = uniqueBets();
+    const dateBets = unique.filter(bet => {
         const d = getBetDate(bet);
         return d === date;
     });
 
-    const allParticipants = [...new Set(appState.bets.map(b => b.participant))].sort();
+    const allParticipants = [...new Set(unique.map(b => b.participant))].sort();
     const matchesOnDate = appState.matches.filter(m => {
         const mDate = safeFormatDate(m.date);
         if (!mDate) return false;
@@ -182,7 +251,7 @@ export function isBetPotentiallyMalformed(bet) {
 
 export const filteredBets = () => {
     /** @type {Bet[]} */
-    let result = appState.bets.filter(bet => {
+    let result = uniqueBets().filter(bet => {
         if (appState.filters.participant && bet.participant !== appState.filters.participant) return false;
         if (appState.filters.status && bet.status !== appState.filters.status) return false;
         if (appState.filters.type && bet.type !== appState.filters.type) return false;
@@ -223,18 +292,34 @@ export const filteredBets = () => {
 };
 
 export const stats = () => {
-    const total = appState.bets.length;
-    const pending = appState.bets.filter(b => b.status === 'pending').length;
-    const exact = appState.bets.filter(b => b.status === 'exact').length;
-    const correct = appState.bets.filter(b => b.status === 'correct').length;
-    const incorrect = appState.bets.filter(b => b.status === 'incorrect').length;
-    const points = appState.bets.filter(b => b.status !== 'pending').reduce((sum, b) => sum + (Number(b.points) || 0), 0);
+    const bets = uniqueBets();
+    const total = bets.length;
+    const pending = bets.filter(b => b.status === 'pending').length;
+    const exact = bets.filter(b => b.status === 'exact').length;
+    const correct = bets.filter(b => b.status === 'correct').length;
+    const incorrect = bets.filter(b => b.status === 'incorrect').length;
+    const points = bets.filter(b => b.status !== 'pending').reduce((sum, b) => sum + (Number(b.points) || 0), 0);
 
     return { total, pending, exact, correct, incorrect, points };
 };
 
+/**
+ * Ordena por timestamp descendente (más reciente primero). Locale-safe:
+ * el formato "2026/6/17 07:03:05" ordena lexicográficamente igual que
+ * cronológicamente porque año/mes/día tienen ancho fijo. Devuelve un array
+ * NUEVO (no muta). Si dos elementos comparten timestamp, preserva el orden
+ * de inserción (estable). Cada elemento debe tener un campo `timestamp`
+ * (string) — funciona con `Bet` y con cualquier objeto agrupado por mensaje.
+ * @template {{ timestamp?: string }} T
+ * @param {T[]} items
+ * @returns {T[]}
+ */
+export const sortByTimestampDesc = (items) => {
+    return [...items].sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+};
+
 export const participants = () => {
-    return [...new Set(appState.bets.map(b => b.participant))].sort();
+    return [...new Set(uniqueBets().map(b => b.participant))].sort();
 };
 
 /**

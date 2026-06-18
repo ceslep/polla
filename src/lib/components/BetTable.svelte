@@ -1,5 +1,5 @@
 <script>
-    import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate } from '../stores.svelte.js';
+    import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate, sortByTimestampDesc } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
     import FilterSheet from './FilterSheet.svelte';
 
@@ -175,11 +175,7 @@
             if (bet.manuallyEdited) msg.hasManuallyEdited = true;
         });
 
-        return [...messageMap.values()].sort((a, b) => {
-            const partCompare = (a.participant || '').localeCompare(b.participant || '');
-            if (partCompare !== 0) return partCompare;
-            return (b.timestamp || '').localeCompare(a.timestamp || '');
-        });
+        return sortByTimestampDesc([...messageMap.values()]);
     });
 
     /** @param {string} msgId */
