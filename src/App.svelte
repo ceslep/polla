@@ -302,18 +302,8 @@
 
         refreshFromSheets();
 
-        const onFocus = () => {
-            if (document.visibilityState === 'visible' && !appState.saving && !appState.isLoading) {
-                refreshFromSheets();
-            }
-        };
-        window.addEventListener('focus', onFocus);
-        document.addEventListener('visibilitychange', onFocus);
-
         return () => {
             window.removeEventListener('hashchange', handleHashChange);
-            window.removeEventListener('focus', onFocus);
-            document.removeEventListener('visibilitychange', onFocus);
         };
     });
 </script>

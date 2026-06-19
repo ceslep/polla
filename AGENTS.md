@@ -103,12 +103,14 @@ is dead UI, do not add a 2-pt tier.
    the winner ranking. Note: the parameter defaults to `false` but every
    call site in `App.svelte` passes `true` — do not "fix" that to
    `useGitHub = true` without auditing callers.
-7. **Refresh** — `App.svelte` re-lee desde Sheets al montar y en cada
-   `focus`/`visibilitychange` (cuando no está guardando ni analizando) vía
-   `refreshFromSheets()`. Si Sheets responde, se rehidrata `appState.bets`
-   y se llama `analyzeBets(true)` otra vez. Si falla, se setea
-   `appState.sheetsUnavailable` y aparece un banner rojo de solo-lectura
-   con botón "Reintentar".
+7. **Refresh** — `App.svelte` lee desde Sheets **una sola vez** al montar
+   vía `refreshFromSheets()`. Recargas adicionales son siempre manuales:
+   botón 🔄 en el header, opción "Recargar desde Sheets" en el menú
+   móvil, o "Reintentar" del banner rojo de solo-lectura. **No** se
+   recarga en `focus`/`visibilitychange` (cerrar modales disparaba
+   `focus` y provocaba cargas extra no deseadas). Si Sheets falla al
+   montar, se setea `appState.sheetsUnavailable` y aparece el banner
+   rojo de solo-lectura.
 
 ## Conventions
 
