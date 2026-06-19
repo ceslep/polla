@@ -36,9 +36,8 @@
             <div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 space-y-2">
                 <p class="text-red-300 text-sm font-semibold">Esta acción eliminará:</p>
                 <ul class="text-gray-300 text-sm space-y-1">
-                    <li class="flex items-center gap-2"><span class="text-red-400">•</span> Todos los datos en Google Sheets</li>
-                    <li class="flex items-center gap-2"><span class="text-red-400">•</span> Todos los datos en localStorage</li>
-                    <li class="flex items-center gap-2"><span class="text-red-400">•</span> Todas las apuestas actuales</li>
+                    <li class="flex items-center gap-2"><span class="text-red-400">•</span> Todas las apuestas en Google Sheets</li>
+                    <li class="flex items-center gap-2"><span class="text-red-400">•</span> Todas las apuestas cargadas en la vista</li>
                 </ul>
             </div>
 

@@ -1,12 +1,13 @@
 <script>
     import { appState } from '../stores.svelte.js';
     import { parseWhatsAppExport } from '../parser.js';
+    import { saveBetsToSheets } from '../api.js';
 
     let isDragOver = $state(false);
     let isLoading = $state(false);
 
     /** @param {File} file */
-    function handleFile(file) {
+    async function handleFile(file) {
         if (!file || !file.name.endsWith('.json')) {
             alert('Por favor carga un archivo JSON válido');
             return;
@@ -14,37 +15,37 @@
 
         isLoading = true;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const result = e.target?.result;
-                if (!result || typeof result !== 'string') {
-                    alert('Error al leer el archivo');
-                    isLoading = false;
-                    return;
-                }
-                const data = JSON.parse(result);
-                const messages = Array.isArray(data) ? data : data.messages || [];
-                const bets = parseWhatsAppExport(data);
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            const messages = Array.isArray(data) ? data : data.messages || [];
+            const bets = parseWhatsAppExport(data);
 
-                console.log(`Parsed ${messages.length} messages, found ${bets.length} bets`);
+            console.log(`Parsed ${messages.length} messages, found ${bets.length} bets`);
 
-                if (bets.length === 0) {
-                    alert(`No se encontraron apuestas.\n\nMensajes en archivo: ${messages.length}\nRevisa la consola para más detalles.`);
-                    isLoading = false;
-                    return;
-                }
-
-                appState.bets = bets;
-                localStorage.setItem('polla_bets', JSON.stringify(bets));
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Error desconocido';
-                alert('Error al leer el archivo: ' + message);
-            } finally {
-                isLoading = false;
+            if (bets.length === 0) {
+                alert(`No se encontraron apuestas.\n\nMensajes en archivo: ${messages.length}\nRevisa la consola para más detalles.`);
+                return;
             }
-        };
-        reader.readAsText(file);
+
+            appState.bets = bets;
+            appState.saving = true;
+            try {
+                await saveBetsToSheets(bets);
+                appState.sheetsUnavailable = false;
+            } catch (err) {
+                appState.sheetsUnavailable = true;
+                console.error('Error guardando apuestas en Sheets:', err);
+                alert('Apuestas cargadas en memoria, pero no se pudieron guardar en Google Sheets. La vista puede ser de solo lectura.');
+            } finally {
+                appState.saving = false;
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Error desconocido';
+            alert('Error al leer el archivo: ' + message);
+        } finally {
+            isLoading = false;
+        }
     }
 
     /** @param {DragEvent} e */

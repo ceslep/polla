@@ -2,6 +2,7 @@
     import { parseMessage } from '../parser.js';
     import { appState } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
+    import { saveBetsToSheets } from '../api.js';
     import { untrack } from 'svelte';
 
     let { bet, onClose, onUpdate } = $props();
@@ -88,7 +89,7 @@
         }
     }
 
-    function saveChanges() {
+    async function saveChanges() {
         parseError = null;
 
         const tempMessage = {
@@ -113,7 +114,17 @@
             }));
 
             appState.bets = [...oldBets, ...newBets];
-            localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+            appState.saving = true;
+            try {
+                await saveBetsToSheets(appState.bets);
+                appState.sheetsUnavailable = false;
+            } catch (err) {
+                appState.sheetsUnavailable = true;
+                console.error('Error guardando cambios en Sheets:', err);
+                parseError = 'Cambios guardados en memoria, pero no se pudieron guardar en Google Sheets. La vista puede ser de solo lectura.';
+            } finally {
+                appState.saving = false;
+            }
 
             if (onUpdate) {
                 onUpdate(newBets);

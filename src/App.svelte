@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, dropOverLimitMessages, dropOrganizerBets } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -32,9 +32,7 @@
     let showMessageModal = $state(false);
     let showStatsModal = $state(false);
     let showMovementModal = $state(false);
-    let isSavingToSheets = $state(false);
     let isLoadingFromSheets = $state(false);
-    let loadFromSheetsFailed = $state(false);
     let messageModalType = $state(/** @type {'info' | 'warning' | 'error' | 'success'} */ ('info'));
     let messageModalContent = $state('');
     let adminAction = $state(/** @type {(() => void) | null} */ (null));
@@ -111,6 +109,29 @@
             .sort((a, b) => b.points - a.points);
 
         return sorted.map((w, i) => ({ ...w, rank: i + 1 }));
+    }
+
+    /**
+     * Persiste `appState.bets` en Google Sheets. No-op silencioso si Sheets
+     * está caído (`appState.sheetsUnavailable`); el caller decide si mostrar
+     * el error. Marca `appState.saving` durante la operación.
+     * @returns {Promise<boolean>} true si guardó, false si falló o fue no-op
+     */
+    async function persistBets() {
+        if (appState.sheetsUnavailable) return false;
+        if (appState.bets.length === 0) return false;
+        appState.saving = true;
+        try {
+            await saveBetsToSheets(appState.bets);
+            appState.sheetsUnavailable = false;
+            return true;
+        } catch (err) {
+            console.error('Error guardando en Google Sheets:', err);
+            appState.sheetsUnavailable = true;
+            return false;
+        } finally {
+            appState.saving = false;
+        }
     }
 
     /**
@@ -217,7 +238,7 @@
 
             console.log('Updated bets:', updatedBets.length);
             appState.bets = updatedBets;
-            localStorage.setItem('polla_bets', JSON.stringify(updatedBets));
+            await persistBets();
 
             const winners = calculateWinners();
             analysisSummary = {
@@ -239,6 +260,39 @@
         }
     }
 
+    /**
+     * Re-lee las apuestas desde Google Sheets, las re-analiza y deja
+     * `appState.bets` listo. Llamado al montar y al volver a la pestaña
+     * para mantener la vista sincronizada con otros admins.
+     * @returns {Promise<void>}
+     */
+    async function refreshFromSheets() {
+        isLoadingFromSheets = true;
+        try {
+            console.log('Cargando desde Google Sheets...');
+            const sheetsBets = await loadBetsFromSheets();
+            if (sheetsBets.length > 0) {
+                const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
+                    ...bet,
+                    verified: false,
+                    status: 'pending',
+                    points: Number(bet.points) || 0
+                })));
+                appState.bets = betsToAnalyze;
+                appState.sheetsUnavailable = false;
+                await analyzeBets(true);
+            } else {
+                appState.bets = [];
+                appState.sheetsUnavailable = false;
+            }
+        } catch (e) {
+            console.error('Failed to load from Sheets:', e);
+            appState.sheetsUnavailable = true;
+        } finally {
+            isLoadingFromSheets = false;
+        }
+    }
+
     onMount(() => {
         handleHashChange();
         window.addEventListener('hashchange', handleHashChange);
@@ -246,48 +300,39 @@
             showRankingModal = true;
         }
 
-        (async () => {
-            const isGitHubPages = window.location.hostname === 'ceslep.github.io';
-            const saved = localStorage.getItem('polla_bets');
+        refreshFromSheets();
 
-            if (saved && !isGitHubPages) {
-                try {
-                    appState.bets = dropOrganizerBets(dropOverLimitMessages(applyPhoneNameOverrides(JSON.parse(saved))));
-                    await analyzeBets(true);
-                } catch (e) { console.error(e); }
-            } else {
-                isLoadingFromSheets = true;
-                loadFromSheetsFailed = false;
-                try {
-                    console.log(isGitHubPages ? 'Forced GitHub Pages load from Sheets...' : 'No localStorage, loading from Sheets...');
-                    const sheetsBets = await loadBetsFromSheets();
-                    if (sheetsBets.length > 0) {
-                        const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
-                            ...bet,
-                            verified: false,
-                            status: 'pending',
-                            points: Number(bet.points) || 0
-                        })));
-                        appState.bets = betsToAnalyze;
-                        localStorage.setItem('polla_bets', JSON.stringify(betsToAnalyze));
-                        await analyzeBets(true);
-                    }
-                } catch (e) {
-                    console.error('Failed to load from Sheets:', e);
-                    loadFromSheetsFailed = true;
-                } finally {
-                    isLoadingFromSheets = false;
-                }
+        const onFocus = () => {
+            if (document.visibilityState === 'visible' && !appState.saving && !appState.isLoading) {
+                refreshFromSheets();
             }
-        })();
+        };
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onFocus);
 
         return () => {
             window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onFocus);
         };
     });
 </script>
 
 <main class="min-h-screen bg-[#111] text-white selection:bg-cyan-500/30">
+    {#if appState.sheetsUnavailable}
+        <div class="bg-red-500/15 border-b border-red-500/30 text-red-200 text-sm">
+            <div class="max-w-7xl mx-auto px-4 md:px-6 py-2 flex items-center justify-between gap-3">
+                <span>⚠️ Sin conexión con Google Sheets. La vista es de solo lectura hasta que se restablezca.</span>
+                <button
+                    class="text-red-200 hover:text-white font-semibold underline underline-offset-2 min-h-11"
+                    onclick={() => refreshFromSheets()}
+                    disabled={appState.saving}
+                >
+                    Reintentar
+                </button>
+            </div>
+        </div>
+    {/if}
     <header class="bg-black/40 border-b border-white/5 backdrop-blur-md sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
             <h1 class="text-xl md:text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent italic tracking-tighter">
@@ -317,23 +362,11 @@
                 </button>
 
                 <button
-                    class="hidden md:flex px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all border border-white/10 min-h-11"
-                    onclick={() => {
-                        if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
-                            appState.bets = [];
-                            localStorage.removeItem('polla_bets');
-                        }
-                    }}
-                >
-                    Resetear
-                </button>
-
-                <button
                     class="hidden md:flex px-4 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-xl text-sm font-semibold transition-all border border-red-500/30 text-red-400 min-h-11"
                     onclick={() => {
                         adminAction = () => { showResetAllModal = true; };
                         adminTitle = "Reset Total";
-                        adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets y localStorage.";
+                        adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets.";
                         showAdminModal = true;
                     }}
                 >
@@ -358,48 +391,17 @@
                 </button>
 
                 <button
-                    class="hidden md:flex px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 min-h-11 disabled:opacity-50"
+                    class="hidden md:flex px-4 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 rounded-xl text-sm font-semibold transition-all border border-cyan-500/30 text-cyan-300 min-h-11 disabled:opacity-50"
                     onclick={() => {
-                        if (isDev) {
-                            isSavingToSheets = true;
-                            saveBetsToSheets(appState.bets).then(result => {
-                                messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
-                                messageModalType = 'success';
-                                showMessageModal = true;
-                                isSavingToSheets = false;
-                            }).catch(err => {
-                                messageModalContent = 'Error al guardar:\n' + (err.message || err);
-                                messageModalType = 'error';
-                                showMessageModal = true;
-                                isSavingToSheets = false;
-                            });
-                        } else {
-                            adminAction = async () => {
-                                isSavingToSheets = true;
-                                try {
-                                    const result = await saveBetsToSheets(appState.bets);
-                                    messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
-                                    messageModalType = 'success';
-                                    showMessageModal = true;
-                                } catch (/** @type {any} */ err) {
-                                    messageModalContent = 'Error al guardar:\n' + (err.message || err);
-                                    messageModalType = 'error';
-                                    showMessageModal = true;
-                                } finally {
-                                    isSavingToSheets = false;
-                                }
-                            };
-                            adminTitle = "Guardar en Sheets";
-                            adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
-                            showAdminModal = true;
-                        }
+                        refreshFromSheets();
                     }}
-                    disabled={appState.isLoading || appState.bets.length === 0 || isSavingToSheets}
+                    disabled={appState.isLoading || appState.saving}
+                    title="Recargar apuestas y resultados desde Google Sheets"
                 >
-                    {#if isSavingToSheets}
-                        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    {#if isLoadingFromSheets || appState.isLoading}
+                        <div class="w-4 h-4 border-2 border-cyan-300/30 border-t-cyan-300 rounded-full animate-spin"></div>
                     {:else}
-                        💾
+                        🔄
                     {/if}
                 </button>
 
@@ -440,14 +442,6 @@
                 <p class="text-gray-400">Obteniendo tus apuestas guardadas</p>
             </div>
         {:else if appState.bets.length === 0}
-            {#if loadFromSheetsFailed}
-                <div class="text-center mb-8">
-                    <div class="bg-red-500/20 border border-red-500/30 rounded-xl px-6 py-4 mb-6 inline-block">
-                        <p class="text-red-400">⚠️ No se pudo cargar desde Sheets</p>
-                        <p class="text-gray-400 text-sm">Carga el archivo JSON de WhatsApp para comenzar</p>
-                    </div>
-                </div>
-            {/if}
             <div class="max-w-2xl mx-auto mt-20 text-center">
                 <h2 class="text-4xl font-bold mb-4">🏆 ¡Bienvenido a la Polla!</h2>
                 <p class="text-gray-400 mb-12">Carga tu exportación de WhatsApp para empezar a calcular puntos.</p>
@@ -459,6 +453,7 @@
                 onSelectBet={handleSelectBet}
                 onApplySuggestion={handleApplySuggestion}
                 onDismissSuggestion={handleDismissSuggestion}
+                selectedParticipantName={selectedParticipantName}
             />
         {/if}
     </div>
@@ -519,7 +514,7 @@
         <AdminUploadModal
             onConfirm={async (file) => {
                 showAdminUploadModal = false;
-                isSavingToSheets = true;
+                appState.saving = true;
                 try {
                     const text = await file.text();
                     const rawMessages = JSON.parse(text);
@@ -555,7 +550,6 @@
                         }
                     }
                     appState.bets = Array.from(betMap.values());
-                    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
 
                     // Subir JSON original al servidor
                     const formData = new FormData();
@@ -575,14 +569,6 @@
                     await analyzeBets(true);
                     const result = await saveBetsToSheets(appState.bets);
 
-                    // Recargar desde Sheets y reprocesar para mostrar resultados actualizados
-                    isLoadingFromSheets = true;
-                    const sheetsBets = await loadBetsFromSheets();
-                    appState.bets = applyPhoneNameOverrides(sheetsBets);
-                    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
-                    await analyzeBets(true);
-                    isLoadingFromSheets = false;
-
                     messageModalContent = `¡Éxito!\nJSON fusionado (${parsedBets.length} apuestas) y guardado en Google Sheets.\nActualizadas: ${result.updated}, insertadas: ${result.inserted}${uploadResult?.success ? '\nJSON subido: ' + uploadResult.filename : ''}`;
                     messageModalType = 'success';
                     showMessageModal = true;
@@ -591,7 +577,7 @@
                     messageModalType = 'error';
                     showMessageModal = true;
                 } finally {
-                    isSavingToSheets = false;
+                    appState.saving = false;
                 }
             }}
             onClose={() => {
@@ -624,18 +610,12 @@
         <ResetAllModal
             onConfirm={async () => {
                 showResetAllModal = false;
-                isSavingToSheets = true;
+                appState.saving = true;
                 try {
-                    // 1. Borrar todos los datos de Google Sheets
                     await clearBetsFromSheets();
-
-                    // 2. Borrar localStorage
-                    localStorage.removeItem('polla_bets');
-
-                    // 3. Limpiar estado
                     appState.bets = [];
+                    appState.sheetsUnavailable = false;
 
-                    // 4. Pedir archivo JSON
                     showAdminUploadModal = true;
 
                     messageModalContent = 'Datos borrados. Ahora carga el archivo JSON completo.';
@@ -646,7 +626,7 @@
                     messageModalType = 'error';
                     showMessageModal = true;
                 } finally {
-                    isSavingToSheets = false;
+                    appState.saving = false;
                 }
             }}
             onClose={() => showResetAllModal = false}
@@ -657,45 +637,20 @@
         bind:isOpen={mobileMenuOpen}
         hasBets={appState.bets.length > 0}
         isLoading={appState.isLoading}
-        isSavingToSheets={isSavingToSheets}
+        isSavingToSheets={appState.saving}
         onStats={() => showStatsModal = true}
         onMovement={() => showMovementModal = true}
-        onReset={() => {
-            if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
-                appState.bets = [];
-                localStorage.removeItem('polla_bets');
-            }
-        }}
+        onRefresh={refreshFromSheets}
         onAnalyze={() => {
             adminAction = () => analyzeBets(true);
             adminTitle = "Análisis con GitHub";
             adminMessage = "Se requiere acceso administrativo para realizar el análisis utilizando los datos de GitHub.";
             showAdminModal = true;
         }}
-        onSaveSheets={() => {
-            adminAction = async () => {
-                isSavingToSheets = true;
-                try {
-                    const result = await saveBetsToSheets(appState.bets);
-                    messageModalContent = `¡Éxito!\nSe han guardado ${result.saved} apuestas correctamente en Google Sheets.`;
-                    messageModalType = 'success';
-                    showMessageModal = true;
-                } catch (/** @type {any} */ err) {
-                    messageModalContent = 'Error al guardar:\n' + (err.message || err);
-                    messageModalType = 'error';
-                    showMessageModal = true;
-                } finally {
-                    isSavingToSheets = false;
-                }
-            };
-            adminTitle = "Guardar en Sheets";
-            adminMessage = "Se requiere acceso administrativo para guardar los datos en Google Sheets.";
-            showAdminModal = true;
-        }}
         onResetAll={() => {
             adminAction = () => { showResetAllModal = true; };
             adminTitle = "Reset Total";
-            adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets y localStorage.";
+            adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets.";
             showAdminModal = true;
         }}
     />

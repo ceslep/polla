@@ -1,4 +1,5 @@
 import { normalizeTeamName } from './parser.js';
+import { saveBetsToSheets } from './api.js';
 
 /** @typedef {import('./types.js').Bet} Bet */
 /** @typedef {import('./types.js').Match} Match */
@@ -6,12 +7,14 @@ import { normalizeTeamName } from './parser.js';
 /** Puntuación mínima para aparecer en tablas de ranking y mensajes. */
 export const MIN_POINTS_THRESHOLD = 13;
 
-/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
+/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, saving: boolean, sheetsUnavailable: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
 export const appState = $state({
     bets: [],
     matches: [],
     allMatches: [],
     isLoading: false,
+    saving: false,
+    sheetsUnavailable: false,
     filters: {
         participant: '',
         status: '',
@@ -526,10 +529,11 @@ export function setParticipantAlias(original, alias) {
  * Aplica la sugerencia fuzzy de un bet: reemplaza homeTeam/awayTeam por los
  * del partido sugerido, marca manuallyEdited y limpia la sugerencia. NO
  * re-analiza — el caller debe invocar analyzeBets() si quiere recalcular
- * el status contra el resultado real.
+ * el status contra el resultado real. Persiste el cambio en Google Sheets.
  * @param {string} betId
+ * @returns {Promise<void>}
  */
-export function applyMatchSuggestion(betId) {
+export async function applyMatchSuggestion(betId) {
     const bet = appState.bets.find(b => b.id === betId);
     if (!bet || !bet.suggestedMatch) return;
     const updated = {
@@ -543,15 +547,36 @@ export function applyMatchSuggestion(betId) {
         suggestedMatch: null
     };
     appState.bets = appState.bets.map(b => b.id === betId ? updated : b);
-    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+    if (appState.sheetsUnavailable) return;
+    appState.saving = true;
+    try {
+        await saveBetsToSheets(appState.bets);
+    } catch (err) {
+        appState.sheetsUnavailable = true;
+        console.error('Error guardando sugerencia aplicada en Sheets:', err);
+    } finally {
+        appState.saving = false;
+    }
 }
 
-/** @param {string} betId */
-export function dismissMatchSuggestion(betId) {
+/**
+ * @param {string} betId
+ * @returns {Promise<void>}
+ */
+export async function dismissMatchSuggestion(betId) {
     const bet = appState.bets.find(b => b.id === betId);
     if (!bet || !bet.suggestedMatch) return;
     appState.bets = appState.bets.map(b => b.id === betId ? { ...b, suggestedMatch: null } : b);
-    localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
+    if (appState.sheetsUnavailable) return;
+    appState.saving = true;
+    try {
+        await saveBetsToSheets(appState.bets);
+    } catch (err) {
+        appState.sheetsUnavailable = true;
+        console.error('Error guardando sugerencia descartada en Sheets:', err);
+    } finally {
+        appState.saving = false;
+    }
 }
 
 /** @param {string} original @returns {string} */

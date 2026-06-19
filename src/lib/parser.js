@@ -267,8 +267,8 @@ export function resolveParticipantName(message) {
 
 /**
  * Aplica los overrides phone→nombre a un array de bets ya construidos.
- * Útil para normalizar datos antiguos cargados de localStorage o Google
- * Sheets que no pasaron por `parseMessage`.
+ * Útil para normalizar apuestas cargadas desde Google Sheets que no
+ * pasaron por `parseMessage`.
  * @param {any[]} bets
  * @returns {any[]}
  */
@@ -904,8 +904,8 @@ export function isOrganizerAnnouncement(text) {
 
 /**
  * Descarta apuestas cuyo `originalMessage` matchea algún patrón de mensaje
- * del organizador. Útil para limpiar datos persistidos (localStorage, Sheets)
- * que fueron parseados antes de que se agregara un filtro nuevo.
+ * del organizador. Útil para limpiar datos de Google Sheets que fueron
+ * parseados antes de que se agregara un filtro nuevo.
  * @param {Bet[]} bets
  * @returns {Bet[]}
  */

@@ -1,11 +1,10 @@
 <script>
-    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, onStats?: () => void, onMovement?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onResetAll?: () => void, onAnalyze?: () => void, onRefresh?: () => void, onStats?: () => void, onMovement?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
-        onReset = () => {},
         onResetAll = () => {},
         onAnalyze = () => {},
-        onSaveSheets = () => {},
+        onRefresh = () => {},
         onStats = () => {},
         onMovement = () => {},
         isLoading = false,
@@ -54,24 +53,17 @@
                         {isLoading ? 'Analizando...' : 'Analizar con GitHub'}
                     </button>
                     <button
-                        class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"
-                        onclick={() => handleAction(onSaveSheets)}
+                        class="w-full py-4 px-6 bg-cyan-600/20 hover:bg-cyan-600/30 rounded-2xl text-cyan-300 font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-cyan-500/30"
+                        onclick={() => handleAction(onRefresh)}
                         disabled={isLoading || isSavingToSheets}
                     >
                         {#if isSavingToSheets}
-                            <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Guardando...
+                            <div class="w-5 h-5 border-2 border-cyan-300/30 border-t-cyan-300 rounded-full animate-spin"></div>
+                            Actualizando...
                         {:else}
-                            <span class="text-2xl">💾</span>
-                            Guardar en Sheets
+                            <span class="text-2xl">🔄</span>
+                            Recargar desde Sheets
                         {/if}
-                    </button>
-                    <button
-                        class="w-full py-4 px-6 bg-white/5 hover:bg-white/10 rounded-2xl text-white font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-white/10"
-                        onclick={() => handleAction(onReset)}
-                    >
-                        <span class="text-2xl">🗑️</span>
-                        Resetear Datos
                     </button>
                     <button
                         class="w-full py-4 px-6 bg-red-600/20 hover:bg-red-600/30 rounded-2xl text-red-400 font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-red-500/30"
