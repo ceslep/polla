@@ -3,13 +3,19 @@
     import { getFlagData } from '../flags.js';
     import FilterSheet from './FilterSheet.svelte';
 
-    let { onSelectBet, onApplySuggestion = () => {}, onDismissSuggestion = () => {}, onParticipantClick = () => {} } = $props();
+    let { onSelectBet, onApplySuggestion = () => {}, onDismissSuggestion = () => {}, onParticipantClick = () => {}, selectedParticipantName = null } = $props();
 
     let activeTab = $state('grouped');
     let filterSheetOpen = $state(false);
 
     const currentBets = $derived(filteredBets());
-    const currentParticipants = $derived(participants());
+    const currentParticipants = $derived.by(() => {
+        const set = qualifyingParticipants();
+        if (selectedParticipantName && !set.has(selectedParticipantName)) {
+            set.add(selectedParticipantName);
+        }
+        return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+    });
     const availableDates = $derived(matchDates());
     const totalMatchesMap = $derived(matchesPerDate());
     const finishedMatchesMap = $derived(finishedMatchesPerDate());
@@ -140,7 +146,7 @@
         return result;
     });
 
-    /** @type {() => Array<{messageId: string, participant: string, timestamp: string, bets: any[], hasMalformed: boolean, hasManuallyEdited: boolean, scoreBetCount: number}>} */
+    /** @type {() => Array<{messageId: string, participant: string, phone: string, timestamp: string, bets: any[], hasMalformed: boolean, hasManuallyEdited: boolean, scoreBetCount: number}>} */
     const groupedByMessage = $derived(() => {
         if (appState.filters.date) return [];
 
@@ -172,6 +178,7 @@
                 messageMap.set(bet.messageId, {
                     messageId: bet.messageId,
                     participant: bet.participant,
+                    phone: bet.phone || '',
                     timestamp: bet.timestamp,
                     bets: [],
                     hasMalformed: false,
@@ -404,6 +411,9 @@
                                 <span class="bg-cyan-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl">
                                     {msg.participant}
                                 </span>
+                                {#if msg.phone}
+                                    <span class="text-xs text-gray-400">📞 {msg.phone}</span>
+                                {/if}
                                 {#if msg.hasManuallyEdited}
                                     <span class="text-cyan-400 text-xs">ℹ️</span>
                                 {/if}
@@ -582,6 +592,9 @@
                                             <div class="bg-cyan-600 text-white text-sm font-bold px-3 md:px-4 py-2 rounded-xl shadow-lg">
                                                 {msg.participant}
                                             </div>
+                                            {#if msg.phone}
+                                                <span class="text-xs text-gray-400">📞 {msg.phone}</span>
+                                            {/if}
                                             {#if msg.hasManuallyEdited}
                                                 <span class="px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs rounded-full hidden sm:inline" title="Tiene apuestas editadas">ℹ️ Editado</span>
                                             {/if}
