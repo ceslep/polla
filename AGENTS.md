@@ -86,16 +86,29 @@ is dead UI, do not add a 2-pt tier.
    with "Aplicar / Descartar" buttons. `applyMatchSuggestion` /
    `dismissMatchSuggestion` in `stores.svelte.js` mutate the bet.
 4. **Derived stats** — `src/lib/accuracy.js` (`globalAccuracy`, `participantAccuracy`, `specialBetTallies`) and `src/lib/teamStats.js` (`teamStandingsFromMatches`) compute stats consumed by UI modals. `src/lib/fifa.js` loads FIFA rankings from a PHP endpoint with a `public/fifa_rankings.json` offline fallback.
-5. **Persistence** — `localStorage` key `polla_bets`. Optional Google
-   Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
-   (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:9`). Aliases use the
-   same endpoints with `worksheetTitle: 'alias'`.
+5. **Persistence** — Google Sheets es la única fuente de verdad. El
+   frontend **no usa `localStorage`**: cada mutación (`applyMatchSuggestion`,
+   `dismissMatchSuggestion`, `BetModal.saveChanges`, `DropZone`,
+   `AdminUploadModal`, fin de `analyzeBets`) llama a
+   `saveBetsToSheets(appState.bets)` (`src/lib/api.js`). El `php` en
+   `src/assets/save_bets.php` hace UPSERT de las 20 columnas A:T para
+   que las columnas calculadas (`status`, `points`, `real_result`,
+   `verified`, `manuallyEdited`) se persistan junto con los datos crudos.
+   Endpoints: `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
+   (`SHEETS_SPREADSHEET_ID` hardcoded en `api.js:9`). Aliases usan los
+   mismos endpoints con `worksheetTitle: 'alias'`.
 6. **Orchestration** — `src/App.svelte analyzeBets(useGitHub = false)`
    (line 118). Loads matches, maps each bet through `findMatchForBet` +
-   `compareBetWithMatch`, persists, and computes the winner ranking. Note:
-   the parameter defaults to `false` but every call site in `App.svelte`
-   passes `true` — do not "fix" that to `useGitHub = true` without
-   auditing callers.
+   `compareBetWithMatch`, persists via `saveBetsToSheets`, and computes
+   the winner ranking. Note: the parameter defaults to `false` but every
+   call site in `App.svelte` passes `true` — do not "fix" that to
+   `useGitHub = true` without auditing callers.
+7. **Refresh** — `App.svelte` re-lee desde Sheets al montar y en cada
+   `focus`/`visibilitychange` (cuando no está guardando ni analizando) vía
+   `refreshFromSheets()`. Si Sheets responde, se rehidrata `appState.bets`
+   y se llama `analyzeBets(true)` otra vez. Si falla, se setea
+   `appState.sheetsUnavailable` y aparece un banner rojo de solo-lectura
+   con botón "Reintentar".
 
 ## Conventions
 
