@@ -230,6 +230,60 @@ export const TEAM_ALIASES = {
 };
 
 /**
+ * Override de nombre de participante por número de teléfono. Útil cuando el
+ * export de WhatsApp trae un `Display Name` inútil ("." , emoji suelto, etc.)
+ * y queremos forzar un nombre canónico en toda la app. La clave es el campo
+ * `Phone` tal como llega en el JSON de WhatsApp (o en un Bet persistido).
+ * Congelado para evitar mutaciones accidentales en runtime.
+ * @type {Readonly<Record<string, string>>}
+ */
+export const PHONE_NAME_OVERRIDES = Object.freeze({
+    '+57 321 4877061': 'Julian G',
+    '+57 322 6018001': 'Olmer Ballesteros',
+    '+57 310 7527343':'Zurdo',
+    '+57 314 5762801':'Tangarife',
+    '+57 312 4657377':'Jhon Edison',
+    '+57 314 3060052':'Albert Gomez',
+    '+57 321 7835542':'Delcid Bueno',
+    '+57 311 6715577':'John Edison Hoyos'
+});
+
+/**
+ * Resuelve el participant canónico desde un mensaje crudo de WhatsApp.
+ * Prioriza el override por teléfono; si no hay match, usa `Display Name`.
+ * @param {{ 'Display Name'?: string, participant?: string, sender?: string, Phone?: string, phone?: string }} message
+ * @returns {string}
+ */
+export function resolveParticipantName(message) {
+    const phone = message?.Phone || message?.phone || '';
+    if (phone && PHONE_NAME_OVERRIDES[phone]) {
+        return PHONE_NAME_OVERRIDES[phone];
+    }
+    return message?.['Display Name'] || message?.participant || message?.sender || 'Unknown';
+}
+
+/**
+ * Aplica los overrides phone→nombre a un array de bets ya construidos.
+ * Útil para normalizar datos antiguos cargados de localStorage o Google
+ * Sheets que no pasaron por `parseMessage`.
+ * @param {any[]} bets
+ * @returns {any[]}
+ */
+export function applyPhoneNameOverrides(bets) {
+    if (!Array.isArray(bets)) return bets;
+    let changed = false;
+    const out = bets.map(b => {
+        const override = b?.phone && PHONE_NAME_OVERRIDES[b.phone];
+        if (override && b.participant !== override) {
+            changed = true;
+            return { ...b, participant: override };
+        }
+        return b;
+    });
+    return changed ? out : bets;
+}
+
+/**
  * @param {string} name
  * @returns {string}
  */
@@ -459,10 +513,11 @@ export function parseAllScoreBets(text) {
                 .replace(/(\d)\s*[-–]\s*(\d)/g, '$1§$2')
                 // "3-C" o "3-C verde" → donde C es una letra inicial de equipo: expandir abreviatura
                 .replace(/(\d)-([A-ZÁÉÍÓÚÜÑ])(\s+|$)/gi, (match, num, letter, after) => {
+                    /** @type {Record<string, string>} */
                     const expansions = {
                         'C': 'Cabo Verde', 'E': 'Ecuador', 'B': 'Brazil', 'I': 'Iran',
                         'A': 'Arabia', 'S': 'Saudi Arabia', 'P': 'Paraguay', 'U': 'Uruguay',
-                        'M': 'Marruecos', 'Mo': 'Morocco', 'H': 'Haiti', 'S': 'Scotland'
+                        'M': 'Marruecos', 'H': 'Haiti'
                     };
                     const teamName = expansions[letter] || letter;
                     return `${num} ${teamName} `;
@@ -680,7 +735,7 @@ export function parseScoreBet(text) {
 export function parseMessage(message) {
     const text = message.Message || message.message || message.bet_text || message.original_message || '';
     const timestamp = message.Time || message.timestamp || message.date || '';
-    const participant = message['Display Name'] || message.participant || message.sender || 'Unknown';
+    const participant = resolveParticipantName(message);
     const phone = message.Phone || message.phone || '';
     const messageId = message['Message Id'] || message.id || '';
 

@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName, parseWhatsAppExport } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -18,6 +18,7 @@
     import MessageModal from './lib/components/MessageModal.svelte';
     import MobileMenu from './lib/components/MobileMenu.svelte';
     import StatsModal from './lib/components/StatsModal.svelte';
+    import MovementModal from './lib/components/MovementModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -30,6 +31,7 @@
     let showResetAllModal = $state(false);
     let showMessageModal = $state(false);
     let showStatsModal = $state(false);
+    let showMovementModal = $state(false);
     let isSavingToSheets = $state(false);
     let isLoadingFromSheets = $state(false);
     let loadFromSheetsFailed = $state(false);
@@ -249,7 +251,7 @@
 
             if (saved && !isGitHubPages) {
                 try {
-                    appState.bets = JSON.parse(saved);
+                    appState.bets = applyPhoneNameOverrides(JSON.parse(saved));
                     await analyzeBets(true);
                 } catch (e) { console.error(e); }
             } else {
@@ -259,12 +261,12 @@
                     console.log(isGitHubPages ? 'Forced GitHub Pages load from Sheets...' : 'No localStorage, loading from Sheets...');
                     const sheetsBets = await loadBetsFromSheets();
                     if (sheetsBets.length > 0) {
-                        const betsToAnalyze = sheetsBets.map((bet) => ({
+                        const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
                             ...bet,
                             verified: false,
                             status: 'pending',
                             points: Number(bet.points) || 0
-                        }));
+                        })));
                         appState.bets = betsToAnalyze;
                         localStorage.setItem('polla_bets', JSON.stringify(betsToAnalyze));
                         await analyzeBets(true);
@@ -304,6 +306,13 @@
                     onclick={() => showStatsModal = true}
                 >
                     📊 Estadísticas
+                </button>
+
+                <button
+                    class="hidden md:flex px-4 py-2 bg-pink-600 hover:bg-pink-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-pink-500/20 min-h-11"
+                    onclick={() => showMovementModal = true}
+                >
+                    📈 Movimiento
                 </button>
 
                 <button
@@ -568,7 +577,7 @@
                     // Recargar desde Sheets y reprocesar para mostrar resultados actualizados
                     isLoadingFromSheets = true;
                     const sheetsBets = await loadBetsFromSheets();
-                    appState.bets = sheetsBets;
+                    appState.bets = applyPhoneNameOverrides(sheetsBets);
                     localStorage.setItem('polla_bets', JSON.stringify(appState.bets));
                     await analyzeBets(true);
                     isLoadingFromSheets = false;
@@ -600,6 +609,14 @@
 
     {#if showStatsModal}
         <StatsModal onClose={() => showStatsModal = false} />
+    {/if}
+
+    {#if showMovementModal}
+        <MovementModal
+            bets={appState.bets}
+            matches={appState.matches}
+            onClose={() => showMovementModal = false}
+        />
     {/if}
 
     {#if showResetAllModal}
@@ -641,6 +658,7 @@
         isLoading={appState.isLoading}
         isSavingToSheets={isSavingToSheets}
         onStats={() => showStatsModal = true}
+        onMovement={() => showMovementModal = true}
         onReset={() => {
             if (confirm('¿Estás seguro de querer borrar todos los datos?')) {
                 appState.bets = [];

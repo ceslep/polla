@@ -227,6 +227,10 @@ export async function saveAliasesToSheets(aliases) {
  * @param {any[]} bets - Arreglo de apuestas del frontend
  * @returns {Promise<{ success: boolean, saved: number, rows: number }>}
  */
+/**
+ * @param {import('./types.js').Bet[]} bets
+ * @returns {Promise<{ success: boolean, saved: number, rows: number, updated?: number, inserted?: number, error?: string }>}
+ */
 export async function saveBetsToSheets(bets) {
     const response = await fetch(SAVE_BETS_URL, {
         method: 'POST',
@@ -286,7 +290,7 @@ export async function loadBetsFromSheets() {
         throw new Error(result.error || `Error HTTP ${response.status}`);
     }
 
-    const rows = (result.bets || []).map(row => {
+    const rows = (result.bets || []).map(/** @param {any} row */ (row) => {
         const rawPoints = row.points;
         let points = 0;
         if (typeof rawPoints === 'number' && !isNaN(rawPoints)) {

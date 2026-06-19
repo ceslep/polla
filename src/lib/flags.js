@@ -9,6 +9,7 @@ import { normalizeTeamName } from './parser.js';
  * al código ISO y luego a los datos del país (flag URL, emoji, nombre español).
  */
 
+/** @type {Record<string, { flag: string, emoji: string, spanishName: string }>} */
 const COUNTRIES_BY_CODE = {};
 for (const c of countries) {
     COUNTRIES_BY_CODE[c.code.toLowerCase()] = {
@@ -97,6 +98,7 @@ const SUBDIVISION_SPAIN = {
     'gb-wls': 'Gales'
 };
 
+/** @param {string} iso */
 function emojiFromIso(iso) {
     if (SUBDIVISION_EMOJI[/** @type {keyof typeof SUBDIVISION_EMOJI} */ (iso)]) {
         return SUBDIVISION_EMOJI[/** @type {keyof typeof SUBDIVISION_EMOJI} */ (iso)];
@@ -108,6 +110,7 @@ function emojiFromIso(iso) {
     return String.fromCodePoint(base + a, base + b);
 }
 
+/** @param {string} iso */
 function getSpanishNameFromIso(iso) {
     if (SUBDIVISION_SPAIN[/** @type {keyof typeof SUBDIVISION_SPAIN} */ (iso)]) {
         return SUBDIVISION_SPAIN[/** @type {keyof typeof SUBDIVISION_SPAIN} */ (iso)];
@@ -116,13 +119,14 @@ function getSpanishNameFromIso(iso) {
     return fromJson?.spanishName || null;
 }
 
+/** @param {string} teamName */
 export function getFlagData(teamName) {
     if (!teamName) return null;
 
-    let iso = TEAM_TO_ISO[teamName.toLowerCase().trim()];
+    let iso = TEAM_TO_ISO[/** @type {keyof typeof TEAM_TO_ISO} */ (teamName.toLowerCase().trim())];
     if (!iso) {
         const canonical = normalizeTeamName(teamName);
-        iso = TEAM_TO_ISO[canonical.toLowerCase().trim()];
+        iso = TEAM_TO_ISO[/** @type {keyof typeof TEAM_TO_ISO} */ (canonical.toLowerCase().trim())];
     }
     if (!iso) return null;
 

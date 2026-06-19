@@ -38,7 +38,9 @@
     }
 </script>
 
-<div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" onclick={() => onClose()}>
+<div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" role="dialog" tabindex="-1" onclick={() => onClose()} onkeydown={(e) => e.key === 'Escape' && onClose()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div class="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden overflow-x-hidden" role="document" onclick={(e) => e.stopPropagation()}>
         <div class="p-4 border-b border-white/10 flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -62,13 +64,20 @@
                         onclick={() => window.location.hash = `/participant/${encodeURIComponent(p.name)}`}
                     >
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-black text-2xl {
-                                i === 0 ? 'text-yellow-400' :
-                                i === 1 ? 'text-gray-300' :
-                                i === 2 ? 'text-orange-400' : 'text-gray-500'
-                            }">
-                                {getPosition(i)}
-                            </span>
+                            {#if i === 0}
+                                <img src={`${import.meta.env.BASE_URL}m1.png`} alt="1° lugar" class="w-12 h-12 object-contain drop-shadow-md" />
+                            {:else if i === 1}
+                                <img src={`${import.meta.env.BASE_URL}m2.png`} alt="2° lugar" class="w-10 h-10 object-contain drop-shadow-md" />
+                            {:else if i === 2}
+                                <img src={`${import.meta.env.BASE_URL}m3.png`} alt="3° lugar" class="w-10 h-10 object-contain drop-shadow-md" />
+                            {:else}
+                                <div class="relative w-10 h-10 shrink-0 flex items-center justify-center">
+                                    <img src={`${import.meta.env.BASE_URL}balon.png`} alt="" class="w-full h-full object-contain drop-shadow-md" />
+                                    <span class="absolute inset-0 flex items-center justify-center font-black text-yellow-400 text-2xl [-webkit-text-stroke:_0.5px_black]">
+                                        {i + 1}
+                                    </span>
+                                </div>
+                            {/if}
                             <span class="text-2xl font-black text-yellow-400">{p.points} pts</span>
                         </div>
                         <div class="text-white font-semibold text-base mb-2">{p.name}</div>
@@ -104,13 +113,20 @@
                                 onclick={() => window.location.hash = `/participant/${encodeURIComponent(p.name)}`}
                             >
                                 <td class="py-2 md:py-3 pr-2 md:pr-4">
-                                    <span class="font-bold text-sm md:text-base {
-                                        i === 0 ? 'text-yellow-400' :
-                                        i === 1 ? 'text-gray-300' :
-                                        i === 2 ? 'text-orange-400' : 'text-gray-500'
-                                    }">
-                                        {getPosition(i)}
-                                    </span>
+                                    {#if i === 0}
+                                        <img src={`${import.meta.env.BASE_URL}m1.png`} alt="1° lugar" class="w-10 h-10 object-contain drop-shadow-md" />
+                                    {:else if i === 1}
+                                        <img src={`${import.meta.env.BASE_URL}m2.png`} alt="2° lugar" class="w-8 h-8 object-contain drop-shadow-md" />
+                                    {:else if i === 2}
+                                        <img src={`${import.meta.env.BASE_URL}m3.png`} alt="3° lugar" class="w-8 h-8 object-contain drop-shadow-md" />
+                                    {:else}
+                                        <div class="relative w-8 h-8 shrink-0 flex items-center justify-center">
+                                            <img src={`${import.meta.env.BASE_URL}balon.png`} alt="" class="w-full h-full object-contain drop-shadow-md" />
+                                            <span class="absolute inset-0 flex items-center justify-center font-black text-yellow-400 text-lg md:text-xl [-webkit-text-stroke:_0.5px_black]">
+                                                {i + 1}
+                                            </span>
+                                        </div>
+                                    {/if}
                                 </td>
                                 <td class="py-2 md:py-3 pr-4 font-medium text-sm md:text-base">{p.name}</td>
                                 <td class="py-2 md:py-3 pr-2 md:pr-4 text-center font-bold text-yellow-400">{p.points}</td>

@@ -124,7 +124,9 @@
     }
 </script>
 
-<div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 md:p-4" role="dialog" onclick={() => onClose()}>
+<div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 md:p-4" role="dialog" tabindex="-1" onclick={() => onClose()} onkeydown={(e) => e.key === 'Escape' && onClose()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div class="bg-gray-900 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col" role="document" onclick={(e) => e.stopPropagation()}>
         <div class="p-4 border-b border-white/10 flex justify-between items-center shrink-0">
             <div class="flex items-center gap-3">

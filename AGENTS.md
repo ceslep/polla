@@ -27,6 +27,8 @@ node test_match.js        # smoke test for match loading + findMatchForBet
 node test_sort.mjs        # smoke test for sortByTimestampDesc in stores.svelte.js
 node test_unique_bets.mjs # smoke test for uniqueBets dedup logic
 node test_fuzzy.mjs       # smoke test for findMatchSuggestion (Levenshtein fallback)
+node test_accuracy.mjs    # smoke test for globalAccuracy/participantAccuracy in accuracy.js
+node test_team_stats.mjs  # smoke test for teamStandingsFromTeams in teamStats.js
 ```
 
 Refrescar ranking FIFA (mensual): abrir en navegador
@@ -80,11 +82,12 @@ is dead UI, do not add a 2-pt tier.
    is attached to the bet as `suggestedMatch` and surfaced in the UI
    with "Aplicar / Descartar" buttons. `applyMatchSuggestion` /
    `dismissMatchSuggestion` in `stores.svelte.js` mutate the bet.
-4. **Persistence** — `localStorage` key `polla_bets`. Optional Google
+4. **Derived stats** — `src/lib/accuracy.js` (`globalAccuracy`, `participantAccuracy`, `specialBetTallies`) and `src/lib/teamStats.js` (`teamStandingsFromMatches`) compute stats consumed by UI modals. `src/lib/fifa.js` loads FIFA rankings from a PHP endpoint with a `public/fifa_rankings.json` offline fallback.
+5. **Persistence** — `localStorage` key `polla_bets`. Optional Google
    Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
    (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:9`). Aliases use the
    same endpoints with `worksheetTitle: 'alias'`.
-5. **Orchestration** — `src/App.svelte:103 analyzeBets(useGitHub)`. Loads
+6. **Orchestration** — `src/App.svelte analyzeBets(useGitHub)`. Loads
    matches, maps each bet through `findMatchForBet` + `compareBetWithMatch`,
    persists, and computes the winner ranking. Note: the parameter defaults
    to `false` but every call site in `App.svelte` passes `true` — do not

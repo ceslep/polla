@@ -48,7 +48,9 @@
 
 {#if isOpen}
     <div class="fixed inset-0 z-50 md:hidden">
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick={() => isOpen = false}></div>
         <div class="absolute bottom-0 left-0 right-0 bg-gray-900 border-t border-white/10 rounded-t-3xl p-4 pb-8 max-h-[85vh] overflow-y-auto">
             <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-4"></div>

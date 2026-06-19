@@ -1,5 +1,5 @@
 <script>
-    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, onStats?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onReset?: () => void, onResetAll?: () => void, onAnalyze?: () => void, onSaveSheets?: () => void, onStats?: () => void, onMovement?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
         onReset = () => {},
@@ -7,6 +7,7 @@
         onAnalyze = () => {},
         onSaveSheets = () => {},
         onStats = () => {},
+        onMovement = () => {},
         isLoading = false,
         isSavingToSheets = false,
         hasBets = false
@@ -21,7 +22,9 @@
 
 {#if isOpen}
     <div class="fixed inset-0 z-50 md:hidden">
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick={() => isOpen = false}></div>
         <div class="absolute bottom-0 left-0 right-0 bg-gray-900 border-t border-white/10 rounded-t-3xl p-6 pb-8 max-h-[80vh] overflow-y-auto">
             <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-6"></div>
@@ -34,6 +37,13 @@
                     >
                         <span class="text-2xl">📊</span>
                         Estadísticas
+                    </button>
+                    <button
+                        class="w-full py-4 px-6 bg-pink-600 hover:bg-pink-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"
+                        onclick={() => handleAction(onMovement)}
+                    >
+                        <span class="text-2xl">📈</span>
+                        Movimiento
                     </button>
                     <button
                         class="w-full py-4 px-6 bg-orange-600 hover:bg-orange-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"

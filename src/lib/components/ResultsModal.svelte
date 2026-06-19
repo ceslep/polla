@@ -1,10 +1,14 @@
 <script>
     import { FLAG_MAP } from '../parser.js';
     import Flag from './Flag.svelte';
-    import { sortByTimestampDesc, computeMovement, getLatestFinishedDate } from '../stores.svelte.js';
+    import { sortByTimestampDesc } from '../stores.svelte.js';
+    import MovementModal from './MovementModal.svelte';
 
     /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], matches?: any[], onClose: () => void }} */
     let { summary, errors = [], winners = [], bets = [], matches = [], onClose } = $props();
+
+    /** @type {boolean} */
+    let showMovementModal = $state(false);
 
     /** @param {number} n */
     function formatNumber(n) {
@@ -144,95 +148,16 @@ ${rows.join('\n')}`;
         });
     }
 
-    /** @type {string | null} */
-    let exportMovementMessage = $state(null);
-
-    /** @param {string} dateStr */
-    function formatDateShort(dateStr) {
-        if (!dateStr) return '';
-        const [y, m, d] = dateStr.split('-');
-        return `${d}/${m}`;
-    }
-
-    function exportMovementToWhatsApp() {
-        const movement = computeMovement(bets, matches, winners);
-        if (movement.length === 0) return;
-
-        const yesterday = getLatestFinishedDate(matches);
-        const today = new Date();
-        const todayStr = `${today.getDate()}/${today.getMonth() + 1}`;
-
-        const up = movement.filter(m => m.kind === 'up');
-        const down = movement.filter(m => m.kind === 'down');
-        const same = movement.filter(m => m.kind === 'same');
-        const fresh = movement.filter(m => m.kind === 'new');
-
-        /** @param {string} name */
-        function cleanName(name) {
-            const clean = name
-                .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
-                .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
-                .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
-                .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
-                .replace(/[\u{2600}-\u{26FF}]/gu, '')
-                .replace(/[\u{2700}-\u{27BF}]/gu, '')
-                .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
-                .replace(/[^a-zA-Z0-9ñÑ\s]/g, '')
-                .replace(/\s+/g, ' ').trim();
-            return clean.length === 0 ? 'sin nombre' : clean;
-        }
-
-        const lines = [];
-        lines.push('📊 MOVIMIENTO — Mundial 2026');
-        lines.push(`(corte: ${formatDateShort(yesterday)}, hoy ${todayStr})`);
-        lines.push('');
-
-        if (up.length > 0) {
-            lines.push(`⬆️ SUBIERON (${up.length}):`);
-            for (const m of up) {
-                const delta = (m.prevRank || 0) - m.currRank;
-                const ptsDelta = m.currPoints - m.prevPoints;
-                const ptsStr = ptsDelta > 0 ? ` · +${ptsDelta} pts` : '';
-                lines.push(`• ${cleanName(m.participant)}: ${m.prevRank}° → ${m.currRank}° (+${delta})${ptsStr}`);
-            }
-            lines.push('');
-        }
-        if (down.length > 0) {
-            lines.push(`⬇️ BAJARON (${down.length}):`);
-            for (const m of down) {
-                const delta = m.currRank - (m.prevRank || 0);
-                const ptsDelta = m.currPoints - m.prevPoints;
-                const ptsStr = ptsDelta < 0 ? ` · ${ptsDelta} pts` : '';
-                lines.push(`• ${cleanName(m.participant)}: ${m.prevRank}° → ${m.currRank}° (-${delta})${ptsStr}`);
-            }
-            lines.push('');
-        }
-        if (same.length > 0) {
-            lines.push(`= MANTUVIERON (${same.length}):`);
-            for (const m of same) {
-                lines.push(`• ${cleanName(m.participant)}: ${m.currRank}° → ${m.currRank}°`);
-            }
-            lines.push('');
-        }
-        if (fresh.length > 0) {
-            lines.push(`🆕 NUEVOS (${fresh.length}):`);
-            for (const m of fresh) {
-                lines.push(`• ${cleanName(m.participant)} entró en ${m.currRank}°`);
-            }
-            lines.push('');
-        }
-
-        const text = lines.join('\n').trimEnd();
-        navigator.clipboard.writeText(text).then(() => {
-            exportMovementMessage = '¡Copiado!';
-            setTimeout(() => { exportMovementMessage = null; }, 2000);
-        });
+    function openMovementModal() {
+        showMovementModal = true;
     }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onclick={onClose}>
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" role="dialog" tabindex="-1" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
         <div class="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
             {#if selectedParticipant}
@@ -439,7 +364,7 @@ ${rows.join('\n')}`;
                                 <span>✗</span> Incorrectas ({breakdown.incorrectas.length})
                             </h4>
                             <div class="space-y-2">
-                                {#each breakdown.incorrectas.slice(0, 5) as bet}
+                                {#each breakdown.incorrectas as bet}
                                     {@const scoreBet = getScoreDisplay(bet)}
                                     {@const champBet = getChampionDisplay(bet)}
                                     {@const runnerupBet = getRunnerupDisplay(bet)}
@@ -476,9 +401,6 @@ ${rows.join('\n')}`;
                                         {/if}
                                     </div>
                                 {/each}
-                                {#if breakdown.incorrectas.length > 5}
-                                    <div class="text-gray-500 text-sm text-center">...y {breakdown.incorrectas.length - 5} más</div>
-                                {/if}
                             </div>
                         </div>
                     {/if}
@@ -529,13 +451,13 @@ ${rows.join('\n')}`;
                             <h3 class="text-yellow-400 font-bold text-sm uppercase flex items-center gap-2">
                                 <span>🏆</span> Clasificación Actual
                             </h3>
-                            {#if exportMessage || exportMovementMessage}
-                                <span class="text-emerald-400 text-sm font-medium">{exportMessage || exportMovementMessage}</span>
+                            {#if exportMessage}
+                                <span class="text-emerald-400 text-sm font-medium">{exportMessage}</span>
                             {:else}
                                 <div class="flex gap-2">
                                     <button
                                         class="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white rounded-lg transition-colors"
-                                        onclick={exportMovementToWhatsApp}
+                                        onclick={openMovementModal}
                                     >
                                         📊 Movimiento
                                     </button>
@@ -556,13 +478,20 @@ ${rows.join('\n')}`;
                                     onclick={() => selectedParticipant = winner.participant}
                                 >
                                     <div class="flex items-center gap-3">
-                                        <span class="w-8 h-8 rounded-full flex items-center justify-center font-black text-sm
-                                            {winner.rank === 1 ? 'bg-yellow-500 text-black' :
-                                             winner.rank === 2 ? 'bg-gray-300 text-black' :
-                                             winner.rank === 3 ? 'bg-amber-600 text-white' :
-                                             'bg-white/10 text-gray-400'}">
-                                            {winner.rank}
-                                        </span>
+                                        {#if winner.rank === 1}
+                                            <img src={`${import.meta.env.BASE_URL}m1.png`} alt="1° lugar" class="w-12 h-12 object-contain drop-shadow-md" />
+                                        {:else if winner.rank === 2}
+                                            <img src={`${import.meta.env.BASE_URL}m2.png`} alt="2° lugar" class="w-10 h-10 object-contain drop-shadow-md" />
+                                        {:else if winner.rank === 3}
+                                            <img src={`${import.meta.env.BASE_URL}m3.png`} alt="3° lugar" class="w-10 h-10 object-contain drop-shadow-md" />
+                                        {:else}
+                                            <div class="relative w-8 h-8 shrink-0 flex items-center justify-center">
+                                                <img src={`${import.meta.env.BASE_URL}balon.png`} alt="" class="w-full h-full object-contain drop-shadow-md" />
+                                                <span class="absolute inset-0 flex items-center justify-center font-black text-yellow-400 text-lg [-webkit-text-stroke:_0.5px_black]">
+                                                    {winner.rank}
+                                                </span>
+                                            </div>
+                                        {/if}
                                         <div class="flex flex-col items-start">
                                             <span class="text-white font-semibold">{winner.participant}</span>
                                             {#if winnerPhone}
@@ -594,12 +523,9 @@ ${rows.join('\n')}`;
         <div class="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center flex-shrink-0">
             {#if !selectedParticipant}
                 <div class="flex gap-2 items-center flex-wrap">
-                    {#if exportMovementMessage}
-                        <span class="text-emerald-400 text-sm font-medium">{exportMovementMessage}</span>
-                    {/if}
                     <button
                         class="px-4 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
-                        onclick={exportMovementToWhatsApp}
+                        onclick={openMovementModal}
                     >
                         📊 Movimiento
                     </button>
@@ -622,3 +548,12 @@ ${rows.join('\n')}`;
         </div>
     </div>
 </div>
+
+{#if showMovementModal}
+    <MovementModal
+        {bets}
+        {matches}
+        {winners}
+        onClose={() => showMovementModal = false}
+    />
+{/if}

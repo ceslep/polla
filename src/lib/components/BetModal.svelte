@@ -2,11 +2,12 @@
     import { parseMessage } from '../parser.js';
     import { appState } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
+    import { untrack } from 'svelte';
 
     let { bet, onClose, onUpdate } = $props();
 
     let isEditing = $state(false);
-    let editedMessage = $state(bet.originalMessage || bet.original_message || '');
+    let editedMessage = $state(untrack(() => bet.originalMessage || bet.original_message || ''));
     let parseError = $state(/** @type {string | null} */ (null));
     let parsedPreview = $state(/** @type {any[] | null} */ (null));
 
@@ -150,12 +151,17 @@
     }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+    role="dialog"
+    tabindex="-1"
     onclick={onClose}
+    onkeydown={(e) => e.key === 'Escape' && onClose()}
 >
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
         class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
         onclick={(e) => e.stopPropagation()}

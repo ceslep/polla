@@ -280,16 +280,18 @@
         const standings = {};
 
         matches.filter(m => m.group && m.score?.ft).forEach(m => {
-            if (!standings[m.group]) standings[m.group] = {};
+            const group = /** @type {string} */ (m.group);
+            if (!standings[group]) standings[group] = {};
 
             [m.team1, m.team2].forEach((team, i) => {
-                if (!standings[m.group][team]) {
-                    standings[m.group][team] = { pj: 0, pg: 0, pp: 0, pe: 0, gf: 0, gc: 0, gd: 0, pts: 0 };
+                if (!standings[group][team]) {
+                    standings[group][team] = { pj: 0, pg: 0, pp: 0, pe: 0, gf: 0, gc: 0, gd: 0, pts: 0 };
                 }
-                const s = standings[m.group][team];
+                const s = standings[group][team];
                 s.pj++;
-                const goalsFor = i === 0 ? m.score.ft[0] : m.score.ft[1];
-                const goalsAgainst = i === 0 ? m.score.ft[1] : m.score.ft[0];
+                const ft = /** @type {{ft: [number, number], ht: [number, number]}} */ (m.score).ft;
+                const goalsFor = i === 0 ? ft[0] : ft[1];
+                const goalsAgainst = i === 0 ? ft[1] : ft[0];
                 s.gf += goalsFor;
                 s.gc += goalsAgainst;
                 if (goalsFor > goalsAgainst) { s.pg++; s.pts += 3; }
@@ -318,9 +320,11 @@
     }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onclick={onClose}>
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" role="dialog" tabindex="-1" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
         <div class="p-3 md:p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
             <div class="flex items-center gap-2 md:gap-4">
@@ -531,7 +535,7 @@
                             class="bg-gradient-to-r {match.score?.ft ? 'from-emerald-900/20 to-transparent' : 'from-white/5 to-transparent'} rounded-2xl border border-white/10 hover:border-white/20 transition-all overflow-hidden"
                         >
                             <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-                            <div class="w-full text-left p-4 cursor-pointer" onclick={() => toggleMatch(idx)}>
+                            <button type="button" class="w-full text-left p-4 cursor-pointer appearance-none border-0 bg-transparent" onclick={() => toggleMatch(idx)}>
                                 <!-- Desktop: horizontal tags + meta -->
                                 <div class="hidden md:flex items-center justify-between mb-3">
                                     <div class="flex items-center gap-3">
@@ -659,7 +663,7 @@
                                         <span class="bg-white/5 px-3 py-1 rounded-full">HT: {match.score.ht[0]} - {match.score.ht[1]}</span>
                                     </div>
                                 {/if}
-                            </div>
+                            </button>
 
                             {#if isExpanded && match.score?.ft && (match.goals1?.length || match.goals2?.length)}
                                 <div class="border-t border-white/10 p-4 bg-black/20">
