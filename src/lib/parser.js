@@ -62,6 +62,7 @@ export const TEAM_ALIASES = {
     'espana': 'Spain',
     'españa': 'Spain',
     'spain': 'Spain',
+    'sudafeica': 'South Africa',
     'sudafrica': 'South Africa',
     'sadafrica': 'South Africa',
     'south africa': 'South Africa',
@@ -153,8 +154,10 @@ export const TEAM_ALIASES = {
     'escosia': 'Scotland',
     'escogia': 'Scotland',
     'scotland': 'Scotland',
+    'suisa': 'Switzerland',
     'suiza': 'Switzerland',
     'zuisa': 'Switzerland',
+    'zuiza': 'Switzerland',
     'switzerland': 'Switzerland',
     'catar': 'Qatar',
     'qarar': 'Qatar',
@@ -868,12 +871,68 @@ export function parseWhatsAppExport(jsonData) {
     messages.forEach((/** @type {any} */ msg) => {
         if (!msg.Message && !msg.message && !msg.bet_text && !msg.original_message) return;
         const text = msg.Message || msg.message || msg.bet_text || msg.original_message || '';
-        // El organizador publica plantillas con marcadores de muestra ("Ejemplo: Colombia 1
-        // Rusia 2, ..."). No son apuestas reales — se ignoran.
-        if (/\bejemplos?\s*:/i.test(text)) return;
+        if (isOrganizerAnnouncement(text)) return;
         const bets = parseMessage(msg);
         allBets.push(...bets);
     });
 
-    return allBets;
+    return dropOverLimitMessages(allBets);
+}
+
+const ORGANIZER_PATTERNS = [
+    /\bejemplos?\s*:/i,
+    /https?:\/\//i,
+    /]https[:/.]*ceslep[:/.]*github[:/.]*io[:/.]*polla/i,
+    /🏆\s*CLASIFICACI[OÓ]N/i,
+    /Recuerden\s+usar\s+el\s+formato/i,
+    /Ojo.*ponen.*[Cc]ero/i
+];
+
+/**
+ * Detecta mensajes del organizador (recordatorios de formato, post de
+ * clasificación, plantillas con "Ejemplo:", etc.) que no son apuestas reales.
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isOrganizerAnnouncement(text) {
+    if (!text) return false;
+    for (const pattern of ORGANIZER_PATTERNS) {
+        if (pattern.test(text)) return true;
+    }
+    return false;
+}
+
+/**
+ * Descarta apuestas cuyo `originalMessage` matchea algún patrón de mensaje
+ * del organizador. Útil para limpiar datos persistidos (localStorage, Sheets)
+ * que fueron parseados antes de que se agregara un filtro nuevo.
+ * @param {Bet[]} bets
+ * @returns {Bet[]}
+ */
+export function dropOrganizerBets(bets) {
+    return bets.filter(bet => !bet || !isOrganizerAnnouncement(bet.originalMessage));
+}
+
+export const MAX_BETS_PER_MESSAGE = 6;
+
+/**
+ * Descarta todas las apuestas cuyo `messageId` aparezca en más de
+ * MAX_BETS_PER_MESSAGE apuestas. Esos mensajes casi siempre son ruido
+ * (texto mal interpretado como varios score-bets) y saturan el ranking
+ * con filas que no corresponden a cruces reales. No muta los objetos.
+ * @param {Bet[]} bets
+ * @returns {Bet[]}
+ */
+export function dropOverLimitMessages(bets) {
+    const counts = new Map();
+    for (const bet of bets) {
+        if (!bet || !bet.messageId) continue;
+        counts.set(bet.messageId, (counts.get(bet.messageId) || 0) + 1);
+    }
+    const overLimit = new Set();
+    for (const [messageId, count] of counts) {
+        if (count > MAX_BETS_PER_MESSAGE) overLimit.add(messageId);
+    }
+    if (overLimit.size === 0) return bets;
+    return bets.filter(bet => !bet || !bet.messageId || !overLimit.has(bet.messageId));
 }

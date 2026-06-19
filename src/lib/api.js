@@ -1,4 +1,4 @@
-import { normalizeTeamName } from './parser.js';
+import { normalizeTeamName, dropOverLimitMessages, dropOrganizerBets } from './parser.js';
 
 const CONFIG_URL = 'https://app.iedeoccidente.com/pollaweb/config.php';
 const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
@@ -353,5 +353,5 @@ export async function loadBetsFromSheets() {
         seenContent.add(contentKey);
         deduped.push(bet);
     }
-    return deduped;
+    return dropOrganizerBets(dropOverLimitMessages(deduped));
 }

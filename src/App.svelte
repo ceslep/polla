@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, dropOverLimitMessages, dropOrganizerBets } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -251,7 +251,7 @@
 
             if (saved && !isGitHubPages) {
                 try {
-                    appState.bets = applyPhoneNameOverrides(JSON.parse(saved));
+                    appState.bets = dropOrganizerBets(dropOverLimitMessages(applyPhoneNameOverrides(JSON.parse(saved))));
                     await analyzeBets(true);
                 } catch (e) { console.error(e); }
             } else {

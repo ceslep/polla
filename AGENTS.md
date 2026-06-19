@@ -31,6 +31,9 @@ node test_accuracy.mjs    # smoke test for globalAccuracy/participantAccuracy in
 node test_team_stats.mjs  # smoke test for teamStandingsFromTeams in teamStats.js
 ```
 
+Run from the repo root. `polla.json` is the sample WhatsApp export
+used by most of them.
+
 Refrescar ranking FIFA (mensual): abrir en navegador
 `https://app.iedeoccidente.com/gs/fetch_fifa_rankings.php`, pegar la tabla
 de `https://www.fifa.com/es/world-rankings` y guardar. El JSON se cachea en
@@ -41,9 +44,9 @@ offline. El PHP vive en `src/assets/fetch_fifa_rankings.php`.
 No automated test suite — `node test_*` are manual sanity checks. The
 `test_*.mjs` ones shim `globalThis.$state = (o) => o` because they import
 `stores.svelte.js`, which uses Svelte 5 runes unavailable outside the
-Svelte runtime. Sample WhatsApp export lives at `polla.json` in repo root.
+Svelte runtime.
 
-## Scoring (src/lib/api.js `compareBetWithMatch`)
+## Scoring (src/lib/api.js `compareBetWithMatch`, lines 123/130/133)
 
 | Status     | Points |
 |------------|--------|
@@ -87,11 +90,12 @@ is dead UI, do not add a 2-pt tier.
    Sheets push/pull via `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
    (`SHEETS_SPREADSHEET_ID` hardcoded at `api.js:9`). Aliases use the
    same endpoints with `worksheetTitle: 'alias'`.
-6. **Orchestration** — `src/App.svelte analyzeBets(useGitHub)`. Loads
-   matches, maps each bet through `findMatchForBet` + `compareBetWithMatch`,
-   persists, and computes the winner ranking. Note: the parameter defaults
-   to `false` but every call site in `App.svelte` passes `true` — do not
-   "fix" that to `useGitHub = true` without auditing callers.
+6. **Orchestration** — `src/App.svelte analyzeBets(useGitHub = false)`
+   (line 118). Loads matches, maps each bet through `findMatchForBet` +
+   `compareBetWithMatch`, persists, and computes the winner ranking. Note:
+   the parameter defaults to `false` but every call site in `App.svelte`
+   passes `true` — do not "fix" that to `useGitHub = true` without
+   auditing callers.
 
 ## Conventions
 

@@ -41,6 +41,7 @@ const TEAM_ALIASES = {
     'mexico': 'Mexico',
     'méxico': 'Mexico',
     // South Africa
+    'sudafeica': 'South Africa',
     'sudafrica': 'South Africa',
     'sudáfrica': 'South Africa',
     'surafrica': 'South Africa',           // FIX: nuevo alias (mensaje 21)
@@ -159,8 +160,10 @@ const TEAM_ALIASES = {
     'escosia': 'Scotland',
     'scotland': 'Scotland',
     // Switzerland
+    'suisa': 'Switzerland',
     'suiza': 'Switzerland',
     'zuisa': 'Switzerland',
+    'zuiza': 'Switzerland',
     'switzerland': 'Switzerland',
     // Saudi Arabia
     'arabia': 'Saudi Arabia',
