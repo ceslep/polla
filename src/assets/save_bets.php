@@ -175,6 +175,8 @@ try {
     $dataRange = $worksheetTitle . '!A';
     $updates = []; // Stack de datos para batch update
     $insertRowIndex = count($existingData) + 1; // Próxima fila disponible para insert
+    $updatedCount = 0;
+    $insertedCount = 0;
 
     foreach ($bets as $bet) {
         if (!is_array($bet)) continue;
@@ -183,13 +185,15 @@ try {
         $newRow = betToRow($bet);
 
         if (isset($existingMap[$key])) {
-            // UPDATE: Solo actualiza originalMessage (columna T = índice 19)
+            // UPDATE: reescribe las 20 columnas para reflejar status/points/
+            // real_result/verified/manuallyEdited calculados en frontend.
             $rowIndex = $existingMap[$key];
-            $updateRange = $worksheetTitle . '!T' . $rowIndex;
+            $updateRange = $worksheetTitle . '!A' . $rowIndex . ':T' . $rowIndex;
             $updates[] = [
                 'range' => $updateRange,
-                'values' => [[$newRow[19]]] // originalMessage
+                'values' => [$newRow]
             ];
+            $updatedCount++;
         } else {
             // INSERT: Nueva fila
             $insertRange = $worksheetTitle . '!A' . $insertRowIndex . ':T' . $insertRowIndex;
@@ -199,6 +203,7 @@ try {
             ];
             $existingMap[$key] = $insertRowIndex;
             $insertRowIndex++;
+            $insertedCount++;
         }
     }
 
@@ -211,25 +216,7 @@ try {
     }
 
     // 5. Ejecutar batch update
-    $updatedCount = 0;
-    $insertedCount = 0;
-    $hasHeaderUpdate = false;
-
     if (count($updates) > 0) {
-        // Contar updates vs inserts basado en lo que enviamos
-        foreach ($updates as $u) {
-            $range = $u['range'];
-            if (preg_match('/!T(\d+)$/', $range)) {
-                $updatedCount++;
-            } elseif (preg_match('/!A(\d+):T(\d+)$/', $range, $m)) {
-                if ($m[1] == 1 && strtolower($u['values'][0][0] ?? '') === 'id') {
-                    $hasHeaderUpdate = true;
-                } else {
-                    $insertedCount++;
-                }
-            }
-        }
-
         $body = new BatchUpdateValuesRequest([
             'valueInputOption' => 'RAW',
             'data' => $updates
