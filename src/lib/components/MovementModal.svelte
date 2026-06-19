@@ -1,5 +1,5 @@
 <script>
-    import { computeMovement, getLatestFinishedDate, uniqueBets } from '../stores.svelte.js';
+    import { computeMovement, getLatestFinishedDate, uniqueBets, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
 
     /** @type {{ bets: any[], matches: any[], winners?: Array<{participant: string, points: number, rank: number}>, onClose: () => void }} */
     let { bets = [], matches = [], winners = /** @type {Array<{participant: string, points: number, rank: number}>} */ ([]), onClose } = $props();
@@ -35,12 +35,17 @@
             pointsByParticipant.set(bet.participant, current + (Number(bet.points) || 0));
         }
         const sorted = [...pointsByParticipant.entries()]
+            .filter(([, points]) => points >= MIN_POINTS_THRESHOLD)
             .map(([participant, points]) => ({ participant, points }))
             .sort((a, b) => b.points - a.points);
         return sorted.map((w, i) => ({ ...w, rank: i + 1 }));
     }
 
-    const computedWinners = $derived(winners.length > 0 ? winners : calculateWinners());
+    const computedWinners = $derived(
+        winners.length > 0
+            ? winners.filter(w => w.points >= MIN_POINTS_THRESHOLD)
+            : calculateWinners()
+    );
     const movement = $derived(computeMovement(bets, matches, computedWinners));
     const yesterday = $derived(getLatestFinishedDate(matches));
 

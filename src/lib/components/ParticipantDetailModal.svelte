@@ -1,5 +1,5 @@
 <script>
-    import { appState, uniqueBets, sortByTimestampDesc } from '../stores.svelte.js';
+    import { appState, uniqueBets, sortByTimestampDesc, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
 
     let { name, onClose = () => {} } = $props();
@@ -29,13 +29,15 @@
     const participantRank = $derived(() => {
         const map = new Map();
         for (const bet of uniqueBets()) {
-            if (!map.has(bet.participant)) {
-                map.set(bet.participant, { name: bet.participant, points: 0 });
-            }
-            map.get(bet.participant).points += Number(bet.points) || 0;
+            if (bet.status === 'pending') continue;
+            const current = map.get(bet.participant) || 0;
+            map.set(bet.participant, current + (Number(bet.points) || 0));
         }
-        const sorted = [...map.values()].sort((a, b) => b.points - a.points);
-        const index = sorted.findIndex(p => p.name === name);
+        const sorted = [...map.entries()]
+            .filter(([, points]) => points >= MIN_POINTS_THRESHOLD)
+            .sort((a, b) => b[1] - a[1])
+            .map(([participant]) => participant);
+        const index = sorted.indexOf(name);
         return {
             position: index + 1,
             total: sorted.length
@@ -141,7 +143,14 @@
                         🏠
                     </button>
                     <div>
-                        <h2 class="text-xl font-bold text-white">{participant()}</h2>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2 min-h-[2rem]">
+                            {#if participant() === 'Desconocido'}
+                                <span class="inline-block w-5 h-5 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin shrink-0" aria-hidden="true"></span>
+                                <span class="text-gray-400 font-normal italic text-base">Cargando participante…</span>
+                            {:else}
+                                {participant()}
+                            {/if}
+                        </h2>
                         <p class="text-gray-400 text-sm">{appState.bets.find(b => b.participant === name)?.phone || ''}</p>
                         <p class="text-yellow-400 font-medium mt-1">
                             Puesto {participantRank().position} de {participantRank().total} participantes

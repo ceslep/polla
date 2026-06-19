@@ -1,7 +1,7 @@
 <script>
     import { FLAG_MAP } from '../parser.js';
     import Flag from './Flag.svelte';
-    import { sortByTimestampDesc } from '../stores.svelte.js';
+    import { sortByTimestampDesc, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
     import MovementModal from './MovementModal.svelte';
 
     /** @type {{ summary: { total: number, updated: number, errors: number }, errors?: string[], winners?: Array<{participant: string, points: number, rank: number}>, bets?: any[], matches?: any[], onClose: () => void }} */
@@ -9,6 +9,9 @@
 
     /** @type {boolean} */
     let showMovementModal = $state(false);
+
+    /** Solo muestra ganadores que alcanzan el umbral mínimo de puntos. */
+    const filteredWinners = $derived(winners.filter(w => w.points >= MIN_POINTS_THRESHOLD));
 
     /** @param {number} n */
     function formatNumber(n) {
@@ -133,7 +136,7 @@
 
         const baseUrl = 'https://ceslep.github.io/polla/#/participant/';
 
-        const rows = winners.map(w => {
+        const rows = filteredWinners.map(w => {
             const encodedName = encodeURIComponent(w.participant);
             const url = baseUrl + encodedName;
             return `${w.rank}. [${cleanName(w.participant)}](${url}) - ${w.points} pts`;
@@ -445,7 +448,7 @@ ${rows.join('\n')}`;
                 {/if}
 
                 <!-- Winners Section -->
-                {#if winners.length > 0}
+                {#if filteredWinners.length > 0}
                     <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="text-yellow-400 font-bold text-sm uppercase flex items-center gap-2">
@@ -471,7 +474,7 @@ ${rows.join('\n')}`;
                             {/if}
                         </div>
                         <div class="space-y-2">
-                            {#each winners as winner}
+                            {#each filteredWinners as winner}
                                 {@const winnerPhone = getParticipantPhone(winner.participant)}
                                 <button
                                     class="w-full flex items-center justify-between bg-black/20 rounded-lg p-3 hover:bg-white/10 transition-colors {winner.rank <= 3 ? 'border border-yellow-500/30' : ''}"
@@ -510,7 +513,7 @@ ${rows.join('\n')}`;
                 {/if}
 
                 <!-- Success Message -->
-                {#if summary.errors === 0 && winners.length === 0}
+                {#if summary.errors === 0 && filteredWinners.length === 0}
                     <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 text-center">
                         <div class="text-6xl mb-3">✅</div>
                         <div class="text-emerald-400 font-bold text-lg">¡Análisis exitoso!</div>
@@ -533,7 +536,7 @@ ${rows.join('\n')}`;
                         class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
                         onclick={exportToWhatsApp}
                     >
-                        📋 Exportar para WhatsApp
+                        📋 A WhatsApp
                     </button>
                 </div>
             {:else}
@@ -553,7 +556,7 @@ ${rows.join('\n')}`;
     <MovementModal
         {bets}
         {matches}
-        {winners}
+        winners={filteredWinners}
         onClose={() => showMovementModal = false}
     />
 {/if}

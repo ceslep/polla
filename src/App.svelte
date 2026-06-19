@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets } from './lib/stores.svelte.js';
+    import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, dropOverLimitMessages, dropOrganizerBets } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
@@ -106,6 +106,7 @@
         }
 
         const sorted = [...pointsByParticipant.entries()]
+            .filter(([, points]) => points >= MIN_POINTS_THRESHOLD)
             .map(([participant, points]) => ({ participant, points }))
             .sort((a, b) => b.points - a.points);
 

@@ -3,6 +3,9 @@ import { normalizeTeamName } from './parser.js';
 /** @typedef {import('./types.js').Bet} Bet */
 /** @typedef {import('./types.js').Match} Match */
 
+/** Puntuación mínima para aparecer en tablas de ranking y mensajes. */
+export const MIN_POINTS_THRESHOLD = 13;
+
 /** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
 export const appState = $state({
     bets: [],
@@ -320,6 +323,38 @@ export const sortByTimestampDesc = (items) => {
 
 export const participants = () => {
     return [...new Set(uniqueBets().map(b => b.participant))].sort();
+};
+
+/**
+ * Suma de puntos por participante (sólo apuestas con status !== 'pending',
+ * consistente con calculateWinners). Sirve como fuente única de la
+ * puntuación total a usar en filtros y rankings.
+ * @type {() => Map<string, number>}
+ */
+export const participantPoints = () => {
+    /** @type {Map<string, number>} */
+    const map = new Map();
+    for (const bet of uniqueBets()) {
+        if (bet.status === 'pending') continue;
+        map.set(bet.participant, (map.get(bet.participant) || 0) + (Number(bet.points) || 0));
+    }
+    return map;
+};
+
+/**
+ * Conjunto de participantes cuya puntuación total alcanza el umbral mínimo
+ * (MIN_POINTS_THRESHOLD). Usar en lugar de participants() cuando se quiere
+ * ocultar a los participantes con bajo rendimiento de tablas de ranking y
+ * mensajes. Las apuestas individuales NO se filtran; este helper sólo
+ * decide qué participantes mostrar.
+ * @type {() => Set<string>}
+ */
+export const qualifyingParticipants = () => {
+    const out = new Set();
+    for (const [name, pts] of participantPoints()) {
+        if (pts >= MIN_POINTS_THRESHOLD) out.add(name);
+    }
+    return out;
 };
 
 /**

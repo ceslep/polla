@@ -1,5 +1,5 @@
 <script>
-    import { appState, uniqueBets } from '../stores.svelte.js';
+    import { appState, uniqueBets, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
 
     let { onClose = () => {} } = $props();
 
@@ -26,7 +26,9 @@
             else if (bet.status === 'incorrect') p.incorrect++;
             else if (bet.status === 'pending') p.pending++;
         }
-        return [...map.values()].sort((a, b) => b.points - a.points);
+        return [...map.values()]
+            .filter(p => p.points >= MIN_POINTS_THRESHOLD)
+            .sort((a, b) => b.points - a.points);
     });
 
     /** @param {number} index */

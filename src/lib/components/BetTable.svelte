@@ -1,5 +1,5 @@
 <script>
-    import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate, sortByTimestampDesc } from '../stores.svelte.js';
+    import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate, sortByTimestampDesc, qualifyingParticipants, participantPoints } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
     import FilterSheet from './FilterSheet.svelte';
 
@@ -118,9 +118,11 @@
         const date = appState.filters.date;
         const matches = getMatchesForDate(date);
         const betsByParticipant = getBetsByParticipantForDate(date);
+        const qualifying = qualifyingParticipants();
         const result = [];
 
         for (const participant of currentParticipants) {
+            if (!qualifying.has(participant)) continue;
             const participantBets = betsByParticipant.get(participant) || [];
             const scoreBets = participantBets.filter((/** @type {any} */ b) => b.type === 'score');
             const missingCount = matches.length - scoreBets.length;
@@ -142,6 +144,14 @@
     const groupedByMessage = $derived(() => {
         if (appState.filters.date) return [];
 
+        // Si el usuario eligió un participante explícitamente en el filtro,
+        // se respetan sus apuestas aunque no llegue al umbral mínimo
+        // (necesario para diagnosticar participantes con bajo rendimiento).
+        const selectedParticipant = appState.filters.participant;
+        const points = participantPoints();
+        const meetsThreshold = /** @param {string} name @returns {boolean} */
+            (name) => !selectedParticipant ? (points.get(name) || 0) >= 13 : name === selectedParticipant;
+
         const filtered = appState.bets.filter(bet => {
             if (appState.filters.participant && bet.participant !== appState.filters.participant) return false;
             if (appState.filters.type && bet.type !== appState.filters.type) return false;
@@ -151,6 +161,7 @@
                 const text = (bet.bet_text + ' ' + bet.participant).toLowerCase();
                 if (!text.includes(search)) return false;
             }
+            if (!meetsThreshold(bet.participant)) return false;
             return true;
         });
 

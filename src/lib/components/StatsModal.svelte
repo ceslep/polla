@@ -1,5 +1,5 @@
 <script>
-    import { appState, uniqueBets } from '../stores.svelte.js';
+    import { appState, uniqueBets, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
     import { globalAccuracy, participantAccuracy, specialBetTallies } from '../accuracy.js';
     import { teamStandingsFromMatches, topAttacks, topDefenses } from '../teamStats.js';
@@ -26,7 +26,9 @@
     });
 
     const globalStats = $derived(globalAccuracy(uniqueBets()));
-    const perParticipant = $derived(participantAccuracy(uniqueBets()));
+    const perParticipant = $derived(
+        participantAccuracy(uniqueBets()).filter(p => p.points >= MIN_POINTS_THRESHOLD)
+    );
     const special = $derived(specialBetTallies(uniqueBets()));
     const standingsData = $derived(teamStandingsFromMatches(appState.allMatches));
     const sortedStandings = $derived(standingsData.sorted);
