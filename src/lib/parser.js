@@ -1,4 +1,5 @@
 /** @typedef {import('./types.js').Bet} Bet */
+import { MANUAL_BETS } from './manualBets.js';
 
 export const FLAG_MAP = {
     '🇲🇽': 'Mexico',
@@ -476,7 +477,22 @@ export function parseAllScoreBets(text) {
         // ZWJ (\u200d) cubre secuencias compuestas (banderas con TAG, etc.).
         .replace(/(?:\p{Regional_Indicator}{2}|[\p{Extended_Pictographic}\u200d])/gu, ' ');
     const separated = textWithNames.replace(/([A-Za-záéíóúüñÁÉÍÓÚÜÑ])(\d)/g, '$1 $2');
-    const lines = separated.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const rawLines = separated.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    // Pre-proceso: si una línea es solo un número, unirla a la línea anterior.
+    // Caso típico en WhatsApp: "USA 2 Australia\n0" — el 0 (marcador visitante)
+    // se fue a una nueva línea por Enter accidental o copy-paste. Sin esta
+    // unión, la primera pasada pierde la línea incompleta ("team1 num team2"
+    // sin segundo número no matchea) y la segunda pasada no la recupera
+    // porque `extractTeamAndNum("0")` retorna null (numIdx===0).
+    const lines = [];
+    for (const line of rawLines) {
+        if (/^\d+$/.test(line) && lines.length > 0) {
+            lines[lines.length - 1] += ' ' + line;
+        } else {
+            lines.push(line);
+        }
+    }
 
     /**
      * @param {string} home
@@ -935,4 +951,20 @@ export function dropOverLimitMessages(bets) {
     }
     if (overLimit.size === 0) return bets;
     return bets.filter(bet => !bet || !bet.messageId || !overLimit.has(bet.messageId));
+}
+
+/**
+ * Convierte los mensajes manuales definidos en `manualBets.js` en apuestas
+ * estructuradas usando el mismo `parseMessage` que los mensajes del export.
+ * Pensado para tapar el caso en que un mensaje real no aparece en el JSON
+ * subido (export de WhatsApp no sincronizado al momento de exportar).
+ * @returns {Bet[]}
+ */
+export function parseManualBets() {
+    /** @type {Bet[]} */
+    const out = [];
+    for (const msg of MANUAL_BETS) {
+        out.push(...parseMessage(msg));
+    }
+    return out;
 }

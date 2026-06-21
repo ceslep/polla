@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, parseManualBets } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -271,6 +271,7 @@
         try {
             console.log('Cargando desde Google Sheets...');
             const sheetsBets = await loadBetsFromSheets();
+            const manualBets = parseManualBets();
             if (sheetsBets.length > 0) {
                 const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
                     ...bet,
@@ -278,7 +279,11 @@
                     status: 'pending',
                     points: Number(bet.points) || 0
                 })));
-                appState.bets = betsToAnalyze;
+                appState.bets = [...betsToAnalyze, ...manualBets];
+                appState.sheetsUnavailable = false;
+                await analyzeBets(true);
+            } else if (manualBets.length > 0) {
+                appState.bets = manualBets;
                 appState.sheetsUnavailable = false;
                 await analyzeBets(true);
             } else {

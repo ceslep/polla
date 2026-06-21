@@ -1,6 +1,6 @@
 <script>
     import { appState } from '../stores.svelte.js';
-    import { parseWhatsAppExport } from '../parser.js';
+    import { parseWhatsAppExport, parseManualBets } from '../parser.js';
     import { saveBetsToSheets } from '../api.js';
 
     let isDragOver = $state(false);
@@ -20,18 +20,20 @@
             const data = JSON.parse(text);
             const messages = Array.isArray(data) ? data : data.messages || [];
             const bets = parseWhatsAppExport(data);
+            const manualBets = parseManualBets();
+            const allBets = [...bets, ...manualBets];
 
-            console.log(`Parsed ${messages.length} messages, found ${bets.length} bets`);
+            console.log(`Parsed ${messages.length} messages, found ${bets.length} bets (+ ${manualBets.length} manuales)`);
 
-            if (bets.length === 0) {
+            if (allBets.length === 0) {
                 alert(`No se encontraron apuestas.\n\nMensajes en archivo: ${messages.length}\nRevisa la consola para más detalles.`);
                 return;
             }
 
-            appState.bets = bets;
+            appState.bets = allBets;
             appState.saving = true;
             try {
-                await saveBetsToSheets(bets);
+                await saveBetsToSheets(allBets);
                 appState.sheetsUnavailable = false;
             } catch (err) {
                 appState.sheetsUnavailable = true;

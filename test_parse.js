@@ -10,7 +10,8 @@ const tests = [
     'R checa 1 Sudáfrica 1',
     'Suiza 2 bosnia 1',
     'Canadá 2 catar o\nMéxico 1 Corea del Sur 1',
-    'Portugal 3\nCongo 1\n\nInglaterra 2\nCroacia 2\n\nGhana 2\nPanamá 1\n\nColombia 4 \nUzbequistan 1'
+    'Portugal 3\nCongo 1\n\nInglaterra 2\nCroacia 2\n\nGhana 2\nPanamá 1\n\nColombia 4 \nUzbequistan 1',
+    'Estados Unidos 2 Australia\n0\nEscocia 1 Marruecos 2\n\nBrasil 4   Haití 0\n\nTurquía 1 paraguay 1'
 ];
 
 for (const text of tests) {

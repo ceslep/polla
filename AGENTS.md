@@ -29,6 +29,8 @@ node test_unique_bets.mjs # smoke test for uniqueBets dedup logic
 node test_fuzzy.mjs       # smoke test for findMatchSuggestion (Levenshtein fallback)
 node test_accuracy.mjs    # smoke test for globalAccuracy/participantAccuracy in accuracy.js
 node test_team_stats.mjs  # smoke test for teamStandingsFromTeams in teamStats.js
+node test_compare_bet.mjs # smoke test for compareBetWithMatch (home/away inversion)
+node test_manual_bets.mjs # smoke test for parseManualBets (MANUAL_BETS injection)
 ```
 
 Run from the repo root. `polla.json` is the sample WhatsApp export
@@ -102,15 +104,31 @@ is dead UI, do not add a 2-pt tier.
    `compareBetWithMatch`, persists via `saveBetsToSheets`, and computes
    the winner ranking. Note: the parameter defaults to `false` but every
    call site in `App.svelte` passes `true` — do not "fix" that to
-   `useGitHub = true` without auditing callers.
-7. **Refresh** — `App.svelte` lee desde Sheets **una sola vez** al montar
-   vía `refreshFromSheets()`. Recargas adicionales son siempre manuales:
-   botón 🔄 en el header, opción "Recargar desde Sheets" en el menú
-   móvil, o "Reintentar" del banner rojo de solo-lectura. **No** se
-   recarga en `focus`/`visibilitychange` (cerrar modales disparaba
-   `focus` y provocaba cargas extra no deseadas). Si Sheets falla al
-   montar, se setea `appState.sheetsUnavailable` y aparece el banner
-   rojo de solo-lectura.
+    `useGitHub = true` without auditing callers.
+ 7. **Refresh** — `App.svelte` lee desde Sheets **una sola vez** al montar
+    vía `refreshFromSheets()`. Recargas adicionales son siempre manuales:
+    botón 🔄 en el header, opción "Recargar desde Sheets" en el menú
+    móvil, o "Reintentar" del banner rojo de solo-lectura. **No** se
+    recarga en `focus`/`visibilitychange` (cerrar modales disparaba
+    `focus` y provocaba cargas extra no deseadas). Si Sheets falla al
+    montar, se setea `appState.sheetsUnavailable` y aparece el banner
+    rojo de solo-lectura.
+ 8. **Manual bets** — `src/lib/manualBets.js` exporta `MANUAL_BETS`, una
+    lista de mensajes sintéticos con la misma forma que produce un export
+    real de WhatsApp (más `synthetic: true` y `source: <nota>` para
+    trazabilidad). Cubre el caso en que el export omitió un mensaje que
+    el participante sí envió (bug conocido de WhatsApp: mensajes no
+    sincronizados al momento de exportar no salen en el JSON, pero sí
+    son visibles en la app). `parser.js → parseManualBets()` los
+    convierte en `Bet[]` con la misma pipeline que el resto. Se
+    inyectan en `App.svelte refreshFromSheets` y en
+    `DropZone.svelte handleFile` antes de asignar a `appState.bets` y
+    antes de `saveBetsToSheets`, para que siempre viajen en el payload
+    y sobrevivan re-uploads. Convención de `Message Id`:
+    `manual_<participant-snake>_<YYYY-MM-DD>_<NNN>`. Una vez persistidas
+    en Sheets (UPSERT por `id`), las apuestas manuales sobreviven aunque
+    se borre la entrada del array — el array funciona como backfill si
+    Sheets se reinicia.
 
 ## Conventions
 
