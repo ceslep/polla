@@ -1,5 +1,6 @@
 /** @typedef {import('./types.js').Bet} Bet */
 import { MANUAL_BETS } from './manualBets.js';
+import { betKey } from './stores.svelte.js';
 
 export const FLAG_MAP = {
     '🇲🇽': 'Mexico',
@@ -965,6 +966,69 @@ export function parseManualBets() {
     const out = [];
     for (const msg of MANUAL_BETS) {
         out.push(...parseMessage(msg));
+    }
+    return out;
+}
+
+/**
+ * Re-parsea los `originalMessage` de bets ya persistidas para detectar
+ * apuestas que faltan. Caso típico: un mensaje pre-fix del parser solo
+ * generó 3 de 4 bets; esas 3 se guardaron en Sheets, pero la 4ª nunca
+ * se persistió porque nadie la creó. `refreshFromSheets` solo lee bets
+ * de Sheets y las re-califica, así que la 4ª permanece ausente para
+ * siempre salvo que (a) se re-suba el JSON original, o (b) este helper
+ * la regenere a partir del `originalMessage` persistido.
+ *
+ * Devuelve solo las bets NUEVAS (no presentes por `betKey` en el input)
+ * con IDs únicos del estilo `${messageId}_score_reparse_${idx}` para
+ * no colisionar con los `_score_${idx}` que ya están en Sheets. Una vez
+ * insertadas, `saveBetsToSheets` hace UPSERT y `betKey` las considera
+ * en el `uniqueBets` del próximo refresh —不会再 generarlas de nuevo.
+ *
+ * @param {Bet[]} sheetsBets
+ * @returns {Bet[]}
+ */
+export function reparseMissingBets(sheetsBets) {
+    if (!Array.isArray(sheetsBets) || sheetsBets.length === 0) return [];
+
+    const groups = new Map();
+    for (const b of sheetsBets) {
+        if (!b || !b.messageId) continue;
+        if (!groups.has(b.messageId)) groups.set(b.messageId, []);
+        groups.get(b.messageId).push(b);
+    }
+
+    const existingKeys = new Set();
+    for (const b of sheetsBets) {
+        if (!b) continue;
+        existingKeys.add(betKey(b));
+    }
+
+    /** @type {Bet[]} */
+    const out = [];
+    for (const [messageId, group] of groups) {
+        if (!group.length) continue;
+        const first = group[0];
+        if (!first.originalMessage) continue;
+
+        const syntheticMsg = {
+            Message: first.originalMessage,
+            'Message Id': messageId,
+            Time: first.timestamp,
+            'Display Name': first.participant,
+            Phone: first.phone || ''
+        };
+
+        const reparsed = parseMessage(syntheticMsg);
+        let reparseIdx = 0;
+        for (const bet of reparsed) {
+            const key = betKey(bet);
+            if (existingKeys.has(key)) continue;
+            bet.id = `${messageId}_score_reparse_${reparseIdx}`;
+            reparseIdx++;
+            out.push(bet);
+            existingKeys.add(key);
+        }
     }
     return out;
 }
