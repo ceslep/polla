@@ -168,6 +168,7 @@ export const TEAM_ALIASES = {
     'iran': 'Iran',
     'turquia': 'Turkey',
     'turkia': 'Turkey',
+    'turquuia': 'Turkey',
     'turkey': 'Turkey',
     'cura': 'Curaçao',
     'curacao': 'Curaçao',
@@ -175,6 +176,7 @@ export const TEAM_ALIASES = {
     'curazao': 'Curaçao',
     'cruzao': 'Curaçao',
     'corazao': 'Curaçao',
+    'cucacao': 'Curaçao',
     'ecuador': 'Ecuador',
     'costa': 'Ivory Coast',
     'costa marfil': 'Ivory Coast',
@@ -189,6 +191,7 @@ export const TEAM_ALIASES = {
     'costadom': 'Ivory Coast',
     'ivory coast': 'Ivory Coast',
     'fil': 'Ivory Coast',
+    'marfil': 'Ivory Coast',
     'suecia': 'Sweden',
     'suecis': 'Sweden',
     'sweden': 'Sweden',
@@ -197,6 +200,8 @@ export const TEAM_ALIASES = {
     'tinez': 'Tunisia',
     'tines': 'Tunisia',
     'tunez': 'Tunisia',
+    'tunel': 'Tunisia',
+    'tenez': 'Tunisia',
     'tunisia': 'Tunisia',
     'egipto': 'Egypt',
     'egypt': 'Egypt',
@@ -306,8 +311,10 @@ export function normalizeTeamName(name) {
     return TEAM_ALIASES[/** @type {keyof typeof TEAM_ALIASES} */ (lower)] || lower;
 }
 
-/** Formas canónicas válidas (valores del mapa de alias). */
-const CANONICAL_TEAMS = new Set(Object.values(TEAM_ALIASES));
+/** Formas canónicas válidas (valores del mapa de alias). Exportado para que
+ * `collectParserWorkarounds` y cualquier consumidor externo pueda chequear
+ * si un nombre de equipo resuelto está en el set canónico. */
+export const CANONICAL_TEAMS = new Set(Object.values(TEAM_ALIASES));
 
 /**
  * Normaliza un texto a un equipo canónico. Si el texto completo no resuelve
@@ -1031,4 +1038,206 @@ export function reparseMissingBets(sheetsBets) {
         }
     }
     return out;
+}
+
+/**
+ * @typedef {Object} ParserIssue
+ * @property {string} code - Identificador estable (e.g. `'orphan_number'`, `'o_for_zero'`).
+ * @property {string} label - Descripción legible en español.
+ * @property {'low'|'medium'|'high'} severity
+ * @property {string} [snippet] - Fragmento del originalMessage que disparó la señal.
+ */
+
+/**
+ * Analiza el texto crudo de un mensaje de WhatsApp y devuelve una lista de
+ * "issues" que indican que `parseAllScoreBets` tuvo que aplicar heurísticas
+ * o workarounds para extraer las apuestas. Sirve para mostrar al admin qué
+ * mensajes llegaron con formato dudoso y revisar el `originalMessage` a mano.
+ *
+ * No re-parsea (es un analizador estático sobre el texto) y no muta nada.
+ * Las señales que detecta coinciden con los workarounds ya implementados
+ * en el parser:
+ *
+ *  - `orphan_number`   línea con sólo un número (caso "USA 2 Australia\n0")
+ *  - `o_for_zero`      "o"/"O" aislado entre espacios o puntuación, que el
+ *                      parser reescribe como "0" (typo "Canadá 2 catar o")
+ *  - `hyphen_score`    marcadores con "-" o "–" ("1-1", "2–3")
+ *  - `unknown_flag`    par de Regional_Indicator que NO está en FLAG_MAP
+ *  - `no_space_num_text` dígito pegado a letra sin espacio ("1escocia", "2C")
+ *  - `cross_line_score` dos líneas adyacentes con patrón "equipo número"
+ *                      cada una (el parser las une a través del segundo loop)
+ *  - `unknown_team`    `normalizeTeamName` devolvió algo que NO está en
+ *                      CANONICAL_TEAMS (typo o equipo no reconocido)
+ *  - `reparse_recovered` algún bet derivado tiene id con sufijo `_reparse_N`,
+ *                      emitido por `reparseMissingBets` (señal "el parser
+ *                      perdió esta apuesta en una versión vieja y se recuperó")
+ *
+ * Las issues se deduplican por `(code, snippet)` para no spamear cuando
+ * un mismo mensaje tiene varios score-bets con el mismo problema.
+ *
+ * @param {string} text - `originalMessage` del bet o texto crudo del mensaje.
+ * @param {Array<{ id?: string, type?: string, prediction?: any }>} [derivedBets=[]]
+ *   Bets ya extraídos de este mensaje (para chequear equipos canónicos y
+ *   `_reparse_` suffix). Si se omite, esas dos señales no se reportan.
+ * @returns {ParserIssue[]}
+ */
+export function collectParserWorkarounds(text, derivedBets = []) {
+    /** @type {ParserIssue[]} */
+    const issues = [];
+    if (!text) return issues;
+
+    const lines = text.split('\n');
+    const nonEmptyLines = lines.map(l => l.trim()).filter(Boolean);
+
+    /** @type {Set<string>} */
+    const seen = new Set();
+    /** @param {ParserIssue} issue */
+    function add(issue) {
+        const key = `${issue.code}::${issue.snippet || ''}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        issues.push(issue);
+    }
+
+    for (const raw of lines) {
+        const t = raw.trim();
+        if (/^\d+$/.test(t)) {
+            add({
+                code: 'orphan_number',
+                label: 'Línea con sólo un número (probable marcador)',
+                severity: 'medium',
+                snippet: t
+            });
+        }
+    }
+
+    const oMatches = text.match(/(?<=\s|^)(o|O)(?=\s|$|[.,;:])/g);
+    if (oMatches && oMatches.length > 0) {
+        add({
+            code: 'o_for_zero',
+            label: '"o" tipográfica usada como 0',
+            severity: 'high',
+            snippet: oMatches[0]
+        });
+    }
+
+    const dashScoreMatches = text.match(/\b\d+\s*[-–]\s*\d+\b/g);
+    if (dashScoreMatches && dashScoreMatches.length > 0) {
+        add({
+            code: 'hyphen_score',
+            label: 'Marcador con guión/raya («1-1», «2–3»…)',
+            severity: 'medium',
+            snippet: dashScoreMatches[0]
+        });
+    }
+
+    const riPairs = text.match(/\p{Regional_Indicator}{2}/gu) || [];
+    for (const pair of riPairs) {
+        if (!FLAG_MAP[/** @type {keyof typeof FLAG_MAP} */ (pair)]) {
+            add({
+                code: 'unknown_flag',
+                label: `Bandera no reconocida: ${pair}`,
+                severity: 'high',
+                snippet: pair
+            });
+        }
+    }
+
+    const noSpaceMatches = text.match(/\d[A-Za-záéíóúüñÁÉÍÓÚÜÑ]/g);
+    if (noSpaceMatches && noSpaceMatches.length > 0) {
+        add({
+            code: 'no_space_num_text',
+            label: 'Número pegado a equipo sin espacio',
+            severity: 'medium',
+            snippet: noSpaceMatches[0]
+        });
+    }
+
+    for (let i = 0; i < nonEmptyLines.length - 1; i++) {
+        const l1 = nonEmptyLines[i];
+        const l2 = nonEmptyLines[i + 1];
+        const a = singleTeamAndNumberOnLine(l1);
+        const b = singleTeamAndNumberOnLine(l2);
+        if (a && b && a.team !== b.team) {
+            const l1Trim = l1.length > 24 ? l1.slice(0, 22) + '…' : l1;
+            const l2Trim = l2.length > 24 ? l2.slice(0, 22) + '…' : l2;
+            add({
+                code: 'cross_line_score',
+                label: 'Marcador partido en dos líneas',
+                severity: 'high',
+                snippet: `${l1Trim} ⏎ ${l2Trim}`
+            });
+        }
+    }
+
+    /** @type {Set<string>} */
+    const reportedTeams = new Set();
+    for (const bet of derivedBets) {
+        if (bet.type === 'score' && bet.prediction) {
+            for (const key of /** @type {const} */ (['homeTeam', 'awayTeam'])) {
+                const raw = bet.prediction[key];
+                if (!raw) continue;
+                const norm = normalizeTeamName(raw);
+                if (norm && !CANONICAL_TEAMS.has(norm) && !reportedTeams.has(norm)) {
+                    reportedTeams.add(norm);
+                    add({
+                        code: 'unknown_team',
+                        label: `Equipo no canónico: «${norm}»`,
+                        severity: 'high',
+                        snippet: norm
+                    });
+                }
+            }
+        }
+    }
+
+    for (const bet of derivedBets) {
+        if (typeof bet.id === 'string' && /_reparse_\d+$/.test(bet.id)) {
+            add({
+                code: 'reparse_recovered',
+                label: 'Apuesta recuperada por retro-fix del parser',
+                severity: 'low',
+                snippet: ''
+            });
+            break;
+        }
+    }
+
+    return issues;
+}
+
+/**
+ * Helper local de `collectParserWorkarounds`. Devuelve `{team, num}` si la
+ * línea es del estilo "equipo(s) número" con el número al final (señal de
+ * que la línea quedó incompleta y el parser la completará con la línea
+ * siguiente). Devuelve null si la línea ya contiene un partido completo
+ * (número en el medio, más de un número, etc.).
+ * @param {string} line
+ * @returns {{ team: string, num: number } | null}
+ */
+function singleTeamAndNumberOnLine(line) {
+    const norm = line
+        .replace(/\bvs\.?\b/gi, ' ')
+        .replace(/[-–]/g, ' ')
+        .replace(/\./g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const tokens = norm.split(' ').filter(Boolean);
+
+    /** @type {number[]} */
+    const numIdxs = [];
+    for (let i = 0; i < tokens.length; i++) {
+        if (/^\d+$/.test(tokens[i])) numIdxs.push(i);
+    }
+    if (numIdxs.length !== 1) return null;
+
+    const numIdx = numIdxs[0];
+    if (numIdx === 0) return null;
+    if (numIdx < tokens.length - 1) return null;
+
+    const teamTokens = tokens.slice(0, numIdx);
+    const team = resolveTeamName(teamTokens.join(' '));
+    if (!team || team.length <= 2) return null;
+
+    return { team, num: parseInt(tokens[numIdx], 10) };
 }

@@ -1,5 +1,5 @@
 <script>
-    /** @type {{onResetAll?: () => void, onAnalyze?: () => void, onRefresh?: () => void, onStats?: () => void, onMovement?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onResetAll?: () => void, onAnalyze?: () => void, onRefresh?: () => void, onStats?: () => void, onMovement?: () => void, onMalformed?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
         onResetAll = () => {},
@@ -7,6 +7,7 @@
         onRefresh = () => {},
         onStats = () => {},
         onMovement = () => {},
+        onMalformed = () => {},
         isLoading = false,
         isSavingToSheets = false,
         hasBets = false
@@ -43,6 +44,13 @@
                     >
                         <span class="text-2xl">📈</span>
                         Movimiento
+                    </button>
+                    <button
+                        class="w-full py-4 px-6 bg-amber-600/20 hover:bg-amber-600/30 rounded-2xl text-amber-300 font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-amber-500/30"
+                        onclick={() => handleAction(onMalformed)}
+                    >
+                        <span class="text-2xl">⚠️</span>
+                        Formato dudoso
                     </button>
                     <button
                         class="w-full py-4 px-6 bg-orange-600 hover:bg-orange-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"
