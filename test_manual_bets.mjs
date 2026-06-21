@@ -1,27 +1,58 @@
-import { parseManualBets } from './src/lib/parser.js';
+// Shim $state for Node (Svelte 5 rune not available outside Svelte runtime).
+// parser.js imports betKey from stores.svelte.js which uses $state at module scope.
+globalThis.$state = (obj) => obj;
+
+const { parseManualBets } = await import('./src/lib/parser.js');
 
 const bets = parseManualBets();
 
 let pass = 0, fail = 0;
-const expected = [
+const expectedMleandro = [
     { type: 'score', homeTeam: 'USA',      awayTeam: 'Australia', homeScore: 3, awayScore: 0 },
     { type: 'score', homeTeam: 'Scotland', awayTeam: 'Morocco',   homeScore: 0, awayScore: 2 },
     { type: 'score', homeTeam: 'Brazil',   awayTeam: 'Haiti',     homeScore: 4, awayScore: 0 },
     { type: 'score', homeTeam: 'Turkey',   awayTeam: 'Paraguay',  homeScore: 0, awayScore: 2 }
 ];
 
+const expectedYohn = [
+    { type: 'champion',  champion: 'Germany' },
+    { type: 'runnerup',  runnerup: 'Colombia' },
+    { type: 'topscorer', topscorer: 'luis diaz' }
+];
+
 console.log('=== Test parseManualBets ===');
 console.log('Bets extraidos:', bets.length);
 console.log('');
 
-if (bets.length !== expected.length) {
-    console.log('FAIL: se esperaban ' + expected.length + ' bets, se obtuvieron ' + bets.length);
+if (bets.length !== expectedMleandro.length + expectedYohn.length) {
+    console.log('FAIL: se esperaban ' + (expectedMleandro.length + expectedYohn.length) + ' bets, se obtuvieron ' + bets.length);
     process.exit(1);
 }
 
-for (let i = 0; i < expected.length; i++) {
-    const e = expected[i];
-    const b = bets[i];
+const mleandro = bets.filter(b => b.participant === 'mleandro0210' || b.phone === '+57 310 5218554');
+const yohn = bets.filter(b => b.participant === 'Yohn Alcaraz' || b.phone === '+57 322 4422883');
+
+console.log('Bets de mleandro0210:', mleandro.length, '/ esperados:', expectedMleandro.length);
+if (mleandro.length === expectedMleandro.length) {
+    console.log('OK  participant mleandro0210 resuelto correctamente');
+    pass++;
+} else {
+    console.log('FAIL participant mleandro0210 incorrecto');
+    fail++;
+}
+
+console.log('Bets de Yohn Alcaraz:', yohn.length, '/ esperados:', expectedYohn.length);
+if (yohn.length === expectedYohn.length) {
+    console.log('OK  participant Yohn Alcaraz resuelto correctamente');
+    pass++;
+} else {
+    console.log('FAIL participant Yohn Alcaraz incorrecto');
+    fail++;
+}
+
+for (let i = 0; i < expectedMleandro.length; i++) {
+    const e = expectedMleandro[i];
+    const b = mleandro[i];
     const ok = b
         && b.type === e.type
         && b.prediction.homeTeam === e.homeTeam
@@ -29,28 +60,20 @@ for (let i = 0; i < expected.length; i++) {
         && b.prediction.homeScore === e.homeScore
         && b.prediction.awayScore === e.awayScore;
     const tag = ok ? 'OK ' : 'FAIL';
-    console.log(tag, 'Bet', i, '->', JSON.stringify(b ? b.prediction : null));
+    console.log(tag, 'mleandro[' + i + '] ->', JSON.stringify(b ? b.prediction : null));
     if (ok) pass++; else fail++;
 }
 
-const mleandro = bets.filter(b => b.participant === 'mleandro0210' || b.phone === '+57 310 5218554');
-console.log('');
-console.log('Bets con participant=mleandro0210 o phone=+57 310 5218554:', mleandro.length);
-if (mleandro.length === expected.length) {
-    console.log('OK  participant resuelto correctamente');
-    pass++;
-} else {
-    console.log('FAIL participant incorrecto');
-    fail++;
-}
-
-const allScore = bets.every(b => b.type === 'score');
-if (allScore) {
-    console.log('OK  todas son tipo score (sin champion/runnerup/topscorer colaterales)');
-    pass++;
-} else {
-    console.log('FAIL hay tipos distintos a score');
-    fail++;
+for (let i = 0; i < expectedYohn.length; i++) {
+    const e = expectedYohn[i];
+    const b = yohn[i];
+    /** @type {any} */
+    const pred = b ? b.prediction : {};
+    const value = pred[e.type];
+    const ok = b && b.type === e.type && value === e[e.type];
+    const tag = ok ? 'OK ' : 'FAIL';
+    console.log(tag, 'yohn[' + i + '] ->', JSON.stringify(b ? b.prediction : null));
+    if (ok) pass++; else fail++;
 }
 
 console.log('');
