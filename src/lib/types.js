@@ -27,12 +27,15 @@
  * @property {boolean} manuallyEdited
  * @property {string} [realResult]
  * @property {{ homeTeam: string, awayTeam: string, homeScore: number|null, awayScore: number|null, date: string, distance: number } | null} [suggestedMatch]
+ * @property {Match} [matchedMatch]
  */
 
 /**
  * @typedef {Object} Match
  * @property {number} id
  * @property {string} date
+ * @property {string} [time]
+ * @property {string} [ground]
  * @property {string} homeTeam
  * @property {string} homeShort
  * @property {string} awayTeam

@@ -28,8 +28,8 @@
 export const MANUAL_BETS = [
     {
         Time: '2026/6/19 12:00:00',
-        'Formatted Name': '+57 310 52185541',
-        'Display Name': 'mleandro02101',
+        'Formatted Name': '+57 310 5218554',
+        'Display Name': 'mleandro0210',
         Message: 'Estados unidos 3 Australia 0\nEscocia 0 Marruecos 2\nBrasil 4 Haiti 0\nTurquia 0 Paraguay 2',
         Caption: '',
         Type: 'chat',

@@ -48,6 +48,8 @@ export async function loadMatchesFromGitHub() {
             .map((/** @type {any} */ m, /** @type {number} */ index) => ({
                 id: index + 1,
                 date: m.date,
+                time: m.time,
+                ground: m.ground,
                 homeTeam: normalizeTeamName(m.team1),
                 homeShort: m.team1,
                 awayTeam: normalizeTeamName(m.team2),

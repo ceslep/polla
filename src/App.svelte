@@ -19,6 +19,7 @@
     import MobileMenu from './lib/components/MobileMenu.svelte';
     import StatsModal from './lib/components/StatsModal.svelte';
     import MovementModal from './lib/components/MovementModal.svelte';
+    import MalformedMessagesModal from './lib/components/MalformedMessagesModal.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -32,6 +33,7 @@
     let showMessageModal = $state(false);
     let showStatsModal = $state(false);
     let showMovementModal = $state(false);
+    let showMalformedModal = $state(false);
     let isLoadingFromSheets = $state(false);
     let messageModalType = $state(/** @type {'info' | 'warning' | 'error' | 'success'} */ ('info'));
     let messageModalContent = $state('');
@@ -165,6 +167,8 @@
                 .map((m, i) => ({
                     id: i + 1,
                     date: m.date,
+                    time: m.time,
+                    ground: m.ground,
                     homeTeam: normalizeTeamName(m.team1),
                     homeShort: m.team1,
                     awayTeam: normalizeTeamName(m.team2),
@@ -178,10 +182,6 @@
             console.log('Has Qatar in allMatches:', allMatchesFormatted.some(m => m.homeTeam.includes('Qatar') || m.awayTeam.includes('Qatar')));
 
             const updatedBets = appState.bets.map(bet => {
-                if (bet.status !== 'pending' && bet.verified) {
-                    return bet;
-                }
-
                 let effectiveBet = bet;
                 const betDate = safeFormatDate(bet.timestamp);
                 const cutoffDateStr = '2026-06-14';
@@ -210,13 +210,19 @@
                     }
                 }
 
+                const fullMatch = findMatchForBet(effectiveBet, allMatchesFormatted);
+
+                if (bet.status !== 'pending' && bet.verified) {
+                    return { ...effectiveBet, matchedMatch: fullMatch || undefined };
+                }
+
                 const match = findMatchForBet(effectiveBet, matches);
                 console.log('match graded:', bet.bet_text, '|', match ? match.homeTeam + ' '+ match.awayTeam + ' '+ match.date + ' Score:' + match.homeScore + '-' + match.awayScore : 'null');
                 if (match) {
                     const result = compareBetWithMatch(effectiveBet, match);
                     console.log('compareBetWithMatch result:', bet.bet_text, '|', JSON.stringify(result));
                     updatedCount++;
-                    return { ...effectiveBet, ...result, suggestedMatch: null };
+                    return { ...effectiveBet, ...result, suggestedMatch: null, matchedMatch: fullMatch || undefined };
                 }
                 const fuzzy = findMatchSuggestion(effectiveBet, matches);
                 if (fuzzy) {
@@ -230,10 +236,11 @@
                             awayScore: fuzzy.match.awayScore,
                             date: fuzzy.match.date,
                             distance: fuzzy.distance
-                        }
+                        },
+                        matchedMatch: undefined
                     };
                 }
-                return { ...effectiveBet, suggestedMatch: null };
+                return { ...effectiveBet, suggestedMatch: null, matchedMatch: fullMatch || undefined };
             });
 
             console.log('Updated bets:', updatedBets.length);
@@ -359,6 +366,16 @@
                 >
                     📈 Movimiento
                 </button>
+
+                {#if appState.bets.length > 0}
+                    <button
+                        class="hidden md:flex px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 rounded-xl text-sm font-semibold transition-all border border-amber-500/30 text-amber-300 min-h-11"
+                        onclick={() => showMalformedModal = true}
+                        title="Mensajes de WhatsApp que el parser tuvo que procesar con workarounds"
+                    >
+                        ⚠️ Formato dudoso
+                    </button>
+                {/if}
 
                 <button
                     class="hidden md:flex px-4 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-xl text-sm font-semibold transition-all border border-red-500/30 text-red-400 min-h-11"
@@ -605,6 +622,10 @@
         />
     {/if}
 
+    {#if showMalformedModal}
+        <MalformedMessagesModal onClose={() => showMalformedModal = false} />
+    {/if}
+
     {#if showResetAllModal}
         <ResetAllModal
             onConfirm={async () => {
@@ -639,6 +660,7 @@
         isSavingToSheets={appState.saving}
         onStats={() => showStatsModal = true}
         onMovement={() => showMovementModal = true}
+        onMalformed={() => showMalformedModal = true}
         onRefresh={refreshFromSheets}
         onAnalyze={() => {
             adminAction = () => analyzeBets(true);

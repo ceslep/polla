@@ -1,5 +1,5 @@
 <script>
-    import { appState, filteredBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate, sortByTimestampDesc, qualifyingParticipants, participantPoints } from '../stores.svelte.js';
+    import { appState, filteredBets, uniqueBets, participants, matchDates, matchesPerDate, finishedMatchesPerDate, validateDateBets, isBetPotentiallyMalformed, getBetDate, sortByTimestampDesc, qualifyingParticipants, participantPoints } from '../stores.svelte.js';
     import { getFlagData } from '../flags.js';
     import FilterSheet from './FilterSheet.svelte';
 
@@ -158,7 +158,7 @@
         const meetsThreshold = /** @param {string} name @returns {boolean} */
             (name) => !selectedParticipant ? (points.get(name) || 0) >= 13 : name === selectedParticipant;
 
-        const filtered = appState.bets.filter(bet => {
+        const filtered = uniqueBets().filter(bet => {
             if (appState.filters.participant && bet.participant !== appState.filters.participant) return false;
             if (appState.filters.type && bet.type !== appState.filters.type) return false;
             if (appState.filters.status && bet.status !== appState.filters.status) return false;
@@ -198,7 +198,7 @@
 
     /** @param {string} msgId */
     function getBetsForMessage(msgId) {
-        return appState.bets.filter((/** @type {any} */ b) => b.messageId === msgId);
+        return uniqueBets().filter((/** @type {any} */ b) => b.messageId === msgId);
     }
 
     /** @param {{ homeTeam: string, awayTeam: string, homeScore: number|null, awayScore: number|null, date: string, distance: number }} s */
@@ -462,6 +462,14 @@
                                                     {#if bet.real_result}<span class="text-gray-500">| {bet.real_result}</span>{/if}
                                                     {#if malformed}<span>⚠️</span>{/if}
                                                 </div>
+                                                {#if bet.type === 'score' && bet.matchedMatch}
+                                                    <div class="text-xs text-gray-500 hidden sm:flex items-center gap-2 mt-1">
+                                                        <span>📅 {formatDateShort(bet.matchedMatch.date)} · {bet.matchedMatch.time?.slice(0, 5) || '—'}</span>
+                                                        {#if bet.matchedMatch.ground}
+                                                            <span>🏟️ {bet.matchedMatch.ground}</span>
+                                                        {/if}
+                                                    </div>
+                                                {/if}
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-1 flex-shrink-0">
@@ -648,6 +656,14 @@
                                                                 {#if malformed}<span>⚠️</span>{/if}
                                                                 {#if bet.manuallyEdited}<span class="hidden sm:inline">ℹ️</span>{/if}
                                                             </div>
+                                                            {#if bet.type === 'score' && bet.matchedMatch}
+                                                                <div class="text-xs text-gray-500 hidden sm:flex items-center gap-2 mt-1">
+                                                                    <span>📅 {formatDateShort(bet.matchedMatch.date)} · {bet.matchedMatch.time?.slice(0, 5) || '—'}</span>
+                                                                    {#if bet.matchedMatch.ground}
+                                                                        <span>🏟️ {bet.matchedMatch.ground}</span>
+                                                                    {/if}
+                                                                </div>
+                                                            {/if}
                                                         </div>
                                                     </div>
                                                     <div class="flex items-center gap-1 md:gap-2 flex-shrink-0">
