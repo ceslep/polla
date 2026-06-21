@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
-    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, parseManualBets } from './lib/parser.js';
+    import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, parseManualBets, reparseMissingBets } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
     import StatsGrid from './lib/components/StatsGrid.svelte';
     import BetTable from './lib/components/BetTable.svelte';
@@ -279,7 +279,11 @@
                     status: 'pending',
                     points: Number(bet.points) || 0
                 })));
-                appState.bets = [...betsToAnalyze, ...manualBets];
+                const recoveredBets = reparseMissingBets(betsToAnalyze);
+                if (recoveredBets.length > 0) {
+                    console.log(`reparseMissingBets: ${recoveredBets.length} apuesta(s) recuperada(s) por retro-fix del parser`);
+                }
+                appState.bets = [...betsToAnalyze, ...recoveredBets, ...manualBets];
                 appState.sheetsUnavailable = false;
                 await analyzeBets(true);
             } else if (manualBets.length > 0) {

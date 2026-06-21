@@ -34,13 +34,19 @@ export const appState = $state({
  * @param {Bet} bet
  * @returns {string}
  */
-function betKey(bet) {
+export function betKey(bet) {
     const p = (bet.participant || '').toLowerCase().trim();
     const t = bet.type || '';
     if (t === 'score') {
         const pred = bet.prediction || {};
-        const h = normalizeTeamName(pred.homeTeam || '').toLowerCase();
-        const a = normalizeTeamName(pred.awayTeam || '').toLowerCase();
+        // Acepta tanto bets anidados (prediction.homeTeam) como filas planas
+        // de Sheets (homeTeam/awayTeam en el top-level con prediction vacío).
+        // Los campos top-level NO están en el typedef de Bet pero existen
+        // en el shape que devuelve `loadBetsFromSheets`.
+        const rawHome = /** @type {any} */ (bet).homeTeam || pred.homeTeam || '';
+        const rawAway = /** @type {any} */ (bet).awayTeam || pred.awayTeam || '';
+        const h = normalizeTeamName(rawHome).toLowerCase();
+        const a = normalizeTeamName(rawAway).toLowerCase();
         // Orden estable (home, away) → no genera duplicados si una versión
         // trae los equipos invertidos respecto a otra.
         const teams = [h, a].sort().join('|');
