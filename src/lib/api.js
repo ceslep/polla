@@ -103,6 +103,15 @@ export async function loadMatches(from = '2026-06-01', to = '2026-07-31') {
 }
 
 /**
+ * Compara una apuesta de score contra el resultado real. Normaliza el orden
+ * local/visitante del bet al del partido antes de calcular el diff, porque
+ * `findMatchForBet` ya hace la búsqueda en ambos órdenes: si el usuario
+ * escribió "Morocco 3 Scotland 1" pero el partido real es "Scotland 0-1
+ * Morocco", el match llega invertido y el diff debe calcularse con los
+ * marcadores invertidos también. Sin esta normalización, el sign(diff) del
+ * bet queda del lado opuesto al del partido y una apuesta con el ganador
+ * correcto se marca como `incorrect` (caso real: "Marruecos 3 Escocia 1"
+ * el 2026-06-19).
  * @param {Bet} bet
  * @param {Match} match
  */
@@ -116,8 +125,17 @@ export function compareBetWithMatch(bet, match) {
         return { status: 'pending', points: 0 };
     }
 
-    const betHome = bet.prediction.homeScore || 0;
-    const betAway = bet.prediction.awayScore || 0;
+    const betHomeTeam = normalizeTeamName(bet.prediction.homeTeam || '');
+    const betAwayTeam = normalizeTeamName(bet.prediction.awayTeam || '');
+    const matchHomeTeam = normalizeTeamName(match.homeTeam);
+    const matchAwayTeam = normalizeTeamName(match.awayTeam);
+
+    const betInverted = betHomeTeam === matchAwayTeam && betAwayTeam === matchHomeTeam;
+
+    const rawBetHome = bet.prediction.homeScore || 0;
+    const rawBetAway = bet.prediction.awayScore || 0;
+    const betHome = betInverted ? rawBetAway : rawBetHome;
+    const betAway = betInverted ? rawBetHome : rawBetAway;
 
     if (betHome === realHome && betAway === realAway) {
         return { status: 'exact', points: 5, realResult: match.resultString };
