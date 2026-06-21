@@ -5,13 +5,15 @@
     let { state, isDev = false } = $props();
 
     const isWindowOpen = $derived(state?.status === 'open');
+    // En dev mode el botón siempre se puede pulsar aunque la ventana esté cerrada.
+    const canBet = $derived(isDev || isWindowOpen);
 
     function goRank() {
         setStep('ranking');
     }
 
     function goBet() {
-        if (!isWindowOpen) return;
+        if (!canBet) return;
         setStep('login');
     }
 
@@ -81,19 +83,27 @@
                 </div>
             </button>
 
-            <!-- Realizar apuesta (requiere login, sólo si ventana abierta) -->
+            <!-- Realizar apuesta (requiere login, sólo si ventana abierta, EXCEPTO en dev mode) -->
             <button
                 class="w-full py-5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-2xl text-left px-6 transition-all min-h-16 shadow-lg shadow-cyan-500/20 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:from-cyan-500 disabled:hover:to-blue-500"
                 onclick={goBet}
-                disabled={!isWindowOpen}
+                disabled={!canBet}
             >
                 <div class="flex items-center gap-4">
                     <div class="text-4xl">✏️</div>
                     <div class="flex-1">
-                        <div class="font-black text-lg">Realizar apuesta</div>
+                        <div class="font-black text-lg">
+                            {#if isDev && !isWindowOpen}
+                                Realizar apuesta {isDev ? '(DEV)' : ''}
+                            {:else}
+                                Realizar apuesta
+                            {/if}
+                        </div>
                         <div class="text-xs text-cyan-100/80">
                             {#if isWindowOpen}
                                 Inicia sesión con tu celular
+                            {:else if isDev}
+                                Modo pruebas — usa partidos del día más cercano
                             {:else if state?.status === 'upcoming'}
                                 Disponible cuando abra la ventana
                             {:else if state?.status === 'closed'}

@@ -3,7 +3,7 @@
     import { appState } from '../../stores.svelte.js';
     import { loadWorldCupMatches, loadBetsFromSheets } from '../../api.js';
     import { applyPhoneNameOverrides, parseManualBets } from '../../parser.js';
-    import { computeWindowState } from '../../pwa/window.js';
+    import { computeWindowState, matchesOnCotDate, matchLocalToCot } from '../../pwa/window.js';
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
     import { getPwaBets } from '../../api.js';
 
@@ -16,6 +16,46 @@
 
     const isDev = typeof window !== 'undefined' &&
         (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    /**
+     * En dev mode, si la ventana real no tiene matches, fabricamos una ventana
+     * "DEV" usando el día COT más cercano (pasado o futuro) para que el form
+     * sea testeable. No se hacen llamadas a Sheets en este modo.
+     * @param {any[]} rawMatches
+     * @param {any} originalState
+     * @returns {any}
+     */
+    function buildDevState(rawMatches, originalState) {
+        if (!isDev) return originalState;
+        if (originalState.matches && originalState.matches.length > 0) {
+            return originalState;
+        }
+        // Buscar el día COT más cercano con partidos.
+        /** @type {Set<string>} */
+        const days = new Set();
+        for (const m of rawMatches) {
+            const cot = matchLocalToCot(m.date, m.time);
+            if (cot) days.add(cot.cotDate);
+        }
+        if (days.size === 0) return originalState;
+        const sorted = [...days].sort();
+        const todayFmt = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit'
+        });
+        const today = todayFmt.format(new Date());
+        const closest = sorted.find(d => d >= today) || sorted[sorted.length - 1];
+        const matches = matchesOnCotDate(rawMatches, closest);
+        if (matches.length === 0) return originalState;
+        return {
+            status: 'open',
+            date: closest,
+            openAt: null,
+            closeAt: null,
+            firstMatchLocalTime: '23:59',
+            matches,
+            message: `DEV MODE: usando partidos del ${closest} (no es la fecha real).`
+        };
+    }
 
     /** @type {any} */
     let windowState = $state({
@@ -33,16 +73,8 @@
 
     onMount(() => {
         load();
-        // Asegurar que las apuestas estén cargadas para el ranking público
         if (appState.bets.length === 0) {
             loadBets();
-        }
-    });
-
-    $effect(() => {
-        // Si la fecha de la sesión no es la ventana actual, resetear a landing
-        if (windowState?.date && pwaSession.date && pwaSession.date !== windowState.date && pwaSession.step !== 'done') {
-            // No reseteamos agresivamente, sólo si ya pasó la fecha
         }
     });
 
@@ -71,8 +103,10 @@
         try {
             const raw = await loadWorldCupMatches();
             const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
-            const s = computeWindowState(withIds);
-            if (s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
+            let s = computeWindowState(withIds);
+            // En dev, si la ventana real no tiene matches, usar el día más cercano
+            s = buildDevState(withIds, s);
+            if (!isDev && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
                 const existing = await getPwaBets({
                     username: pwaSession.authUsername,
                     password: pwaSession.authPassword,
@@ -128,11 +162,11 @@
 {:else if pwaSession.step === 'ranking'}
     <PwaRanking onBack={onRankingBack} />
 {:else if pwaSession.step === 'form'}
-    <PwaForm windowState={windowState} onDone={onDone} />
+    <PwaForm windowState={windowState} onDone={onDone} {isDev} />
 {:else if pwaSession.step === 'done'}
-    <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} />
+    <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} {isDev} />
 {:else if pwaSession.step === 'history'}
-    <PwaHistory />
+    <PwaHistory {isDev} />
 {:else}
     <PwaLanding state={windowState} {isDev} />
 {/if}

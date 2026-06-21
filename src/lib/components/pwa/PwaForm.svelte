@@ -3,8 +3,8 @@
     import { savePwaBet } from '../../api.js';
     import { firstMatchTimeCot } from '../../pwa/window.js';
 
-    /** @type {{ windowState: any, onDone: (savedCount: number) => void }} */
-    let { windowState, onDone } = $props();
+    /** @type {{ windowState: any, onDone: (savedCount: number) => void, isDev?: boolean }} */
+    let { windowState, onDone, isDev = false } = $props();
 
     /** @type {Record<number, {home: number|null, away: number|null}>} */
     let scores = $state({});
@@ -61,7 +61,7 @@
 
     async function submit() {
         if (!allFilled || submitting) return;
-        if (!windowStillOpen) {
+        if (!windowStillOpen && !isDev) {
             error = 'La ventana de apuestas se cerró mientras llenabas el formulario.';
             return;
         }
@@ -70,11 +70,21 @@
             logout();
             return;
         }
-        if (!confirm(`¿Enviar tus apuestas para hoy (${windowState.date})?\n\nUna vez enviadas NO se pueden modificar.`)) {
+        if (!confirm(`¿Enviar tus apuestas para ${isDev ? 'pruebas' : `hoy (${windowState.date})`}?\n\n${isDev ? '(DEV MODE: no se persisten datos en Sheets)' : 'Una vez enviadas NO se pueden modificar.'}`)) {
             return;
         }
         submitting = true;
         error = '';
+
+        // En dev mode no hacemos red: simulamos éxito
+        if (isDev) {
+            await new Promise(r => setTimeout(r, 400));
+            markSubmitted();
+            onDone(matches.length);
+            submitting = false;
+            return;
+        }
+
         try {
             const bets = matches.map(/** @param {any} m */ (m) => ({
                 matchId: m.id,
@@ -122,9 +132,15 @@
             </div>
         </div>
 
-        {#if !windowStillOpen}
+        {#if !windowStillOpen && !isDev}
             <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-sm text-center">
                 ⚠️ La ventana de apuestas no está abierta. No podrás enviar.
+            </div>
+        {/if}
+
+        {#if isDev}
+            <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-xs text-center">
+                ⚙️ DEV MODE — al enviar NO se guardan datos en Google Sheets (simulación local)
             </div>
         {/if}
 
@@ -181,7 +197,7 @@
             <button
                 class="w-full py-5 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 rounded-2xl text-white text-lg font-black shadow-lg shadow-green-500/30 transition-all min-h-14 disabled:opacity-30"
                 onclick={submit}
-                disabled={!allFilled || submitting || !windowStillOpen}
+                disabled={!allFilled || submitting || (!windowStillOpen && !isDev)}
             >
                 {submitting ? 'Enviando…' : '✓ Enviar apuestas'}
             </button>

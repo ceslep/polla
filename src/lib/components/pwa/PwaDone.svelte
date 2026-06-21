@@ -2,15 +2,26 @@
     import { pwaSession, setStep, logout } from '../../pwa/session.svelte.js';
     import { getPwaBets } from '../../api.js';
 
-    /** @type {{ date: string, savedCount: number }} */
-    let { date, savedCount } = $props();
+    /** @type {{ date: string, savedCount: number, isDev?: boolean }} */
+    let { date, savedCount, isDev = false } = $props();
 
     let loading = $state(false);
     /** @type {Array<any>} */
     let bets = $state([]);
 
     $effect(() => {
-        if (pwaSession.authUsername && pwaSession.authPassword && date) {
+        if (isDev) {
+            // Modo dev: mostrar bets mock basados en lo que el usuario acaba de enviar.
+            // El PwaForm pasa savedCount, no los bets exactos. No tenemos acceso a los scores
+            // aquí sin re-arquitectura; mostramos un placeholder legible.
+            bets = [{
+                id: 'dev-mock-1',
+                homeTeam: '(DEV) — marcadores simulados',
+                awayTeam: 'ver PwaForm para detalle',
+                homeScore: '?',
+                awayScore: '?'
+            }];
+        } else if (pwaSession.authUsername && pwaSession.authPassword && date) {
             load();
         }
     });
@@ -37,8 +48,16 @@
         <div class="text-center mb-6">
             <div class="text-6xl mb-3">✅</div>
             <h2 class="text-3xl font-black text-green-400 mb-2">¡Apuestas registradas!</h2>
-            <p class="text-gray-300">{savedCount} marcador{savedCount !== 1 ? 'es' : ''} enviado{savedCount !== 1 ? 's' : ''} para el {date}</p>
+            <p class="text-gray-300">
+                {savedCount} marcador{savedCount !== 1 ? 'es' : ''} enviado{savedCount !== 1 ? 's' : ''} {isDev ? '(simulado)' : `para el ${date}`}
+            </p>
         </div>
+
+        {#if isDev}
+            <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-sm text-center">
+                ⚙️ DEV MODE — no se persistió nada en Google Sheets
+            </div>
+        {/if}
 
         <div class="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
             <h3 class="font-bold text-cyan-400 text-lg">Tus marcadores</h3>

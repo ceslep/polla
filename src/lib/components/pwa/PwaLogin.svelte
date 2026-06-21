@@ -13,14 +13,11 @@
     let error = $state('');
     let loading = $state(false);
 
-    // En dev mode, auto-completar y lanzar submit
+    // En dev mode, auto-completar y lanzar submit inmediatamente.
+    // En dev NO se hace ninguna llamada a la red: loginAs() se llama directo.
     $effect(() => {
         if (isDev && !loading && !pwaSession.authUsername) {
-            username = DEV_USERNAME;
-            password = DEV_PASSWORD;
-            // Pequeño delay para que se vea el auto-fill
-            const t = setTimeout(() => submit(), 300);
-            return () => clearTimeout(t);
+            loginAs('Dev User (modo pruebas)', '0000000000', DEV_USERNAME, DEV_PASSWORD);
         }
     });
 
@@ -60,8 +57,7 @@
         try {
             const result = await loginPwa({
                 username,
-                password,
-                dev: isDev
+                password
             });
             if (!result.success) {
                 error = result.error || 'No se pudo iniciar sesión.';
@@ -94,7 +90,7 @@
 
         {#if isDev}
             <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-sm text-center font-medium">
-                ⚙️ DEV MODE — auto-login con credenciales dummy
+                ⚙️ DEV MODE — saltando login con credenciales dummy
             </div>
         {/if}
 

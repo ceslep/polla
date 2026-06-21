@@ -2,12 +2,18 @@
     import { pwaSession, setStep, logout } from '../../pwa/session.svelte.js';
     import { getPwaBets } from '../../api.js';
 
+    /** @type {{ isDev?: boolean }} */
+    let { isDev = false } = $props();
+
     let loading = $state(false);
     /** @type {Map<string, Array<any>>} */
     let byDate = $state(new Map());
 
     $effect(() => {
-        if (pwaSession.authUsername && pwaSession.authPassword) {
+        if (isDev) {
+            // Dev mode: nada persistido, historial vacío.
+            byDate = new Map();
+        } else if (pwaSession.authUsername && pwaSession.authPassword) {
             load();
         }
     });
@@ -50,6 +56,12 @@
         <div class="text-sm text-gray-400 mb-4 text-center">
             Solo lectura. Las apuestas ya enviadas no se pueden modificar.
         </div>
+
+        {#if isDev}
+            <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-sm text-center">
+                ⚙️ DEV MODE — historial vacío (nada se persiste)
+            </div>
+        {/if}
 
         {#if !pwaSession.authUsername}
             <div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 text-center">
