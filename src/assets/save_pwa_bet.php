@@ -4,10 +4,13 @@
  *
  * Destino en producción: https://app.iedeoccidente.com/gs/save_pwa_bet.php
  *
- * A diferencia de save_bets.php, este endpoint es **INSERT-only** (no UPSERT).
- * Esto garantiza la inmutabilidad que pidió el usuario: una apuesta enviada
- * no se puede modificar. Si el cliente reintenta por error de red, el id
- * determinístico detecta el duplicado y devuelve 200 con la fila existente.
+ * Cambios vs versión anterior:
+ *   - Auth vía {username, password} (no más {phone, pin}). Valida contra
+ *     la hoja "participantes" (columnas B+C).
+ *   - El nombre y teléfono del bet se toman de la hoja "participantes"
+ *     (NO del payload), evitando que el cliente suplante la identidad.
+ *   - `dev: true` salta la validación de credenciales (uso exclusivo en
+ *     localhost). El frontend sólo envía este flag cuando hostname es dev.
  *
  * Esquema de la hoja "apuestas" (10 columnas A:J):
  *   A:id, B:participant, C:phone, D:matchDate, E:matchId,
@@ -18,9 +21,9 @@
  *     "spreadsheetId": "...",
  *     "date": "YYYY-MM-DD",                    // día de los partidos (en COT)
  *     "firstMatchTime": "HH:MM",               // hora COT del primer partido
- *     "participant": "Huguito P",
- *     "phone": "+57 315 6389889",
- *     "pin": "9889",                            // últimos 4 dígitos del phone
+ *     "username": "3117250869",                // last 10 digits del phone (col B)
+ *     "password": "0869",                      // last 4 digits (col C)
+ *     "dev": false,
  *     "bets": [
  *       { "matchId": 42, "homeTeam": "Spain", "awayTeam": "Saudi Arabia",
  *         "homeScore": 3, "awayScore": 1 },
@@ -29,12 +32,10 @@
  *   }
  *
  * Respuestas:
- *   200 { success: true, saved: N, alreadyExists: N }
+ *   200 { success: true, saved: N, alreadyExists: M }
  *   200 { success: true, saved: 0, alreadyExists: N } (idempotente)
- *   400 { success: false, error: "..." } (PIN incorrecto, ventana cerrada, JSON inválido)
+ *   400 { success: false, error: "..." } (credenciales inválidas, ventana cerrada, JSON inválido)
  *   500 { success: false, error: "..." } (error de Sheets)
- *
- * CORS: igual que save_bets.php (Access-Control-Allow-Origin: *).
  */
 
 require __DIR__ . '/vendor/autoload.php';
@@ -46,8 +47,9 @@ use Google\Service\Sheets\BatchUpdateValuesRequest;
 
 const SERVICE_ACCOUNT_KEY_FILE = __DIR__ . '/assets/serviceaccount.json';
 const WORKSHEET = 'apuestas';
+const PARTICIPANTS_WORKSHEET = 'participantes';
 const TIMEZONE = 'America/Bogota';
-const COT_OFFSET_HOURS = -5; // fallback si intl no está disponible
+const COT_OFFSET_HOURS = -5;
 
 const HEADERS = [
     'id', 'participant', 'phone', 'matchDate', 'matchId',
@@ -76,21 +78,6 @@ function tz(): DateTimeZone {
 }
 
 /**
- * @return string 'YYYY-MM-DD HH:MM:SS' en COT
- */
-function nowCot(): string {
-    return (new DateTime('now', tz()))->format('Y-m-d H:i:s');
-}
-
-/**
- * @param string $date 'YYYY-MM-DD'
- * @return string 'YYYY-MM-DD HH:MM:SS' en COT
- */
-function startOfDayCot(string $date): string {
-    return $date . ' 00:00:00';
-}
-
-/**
  * Valida la ventana: ahora en COT debe estar entre [date 00:00 COT, firstMatchTime - 1min COT].
  * @param string $date 'YYYY-MM-DD'
  * @param string $firstMatchTime 'HH:MM'
@@ -112,12 +99,39 @@ function validateWindow(string $date, string $firstMatchTime): array {
 }
 
 /**
- * Limpia el phone a sólo dígitos. Acepta "+57 315 6389889" o "573156389889".
- * @param string $phone
- * @return string sólo dígitos
+ * Autentica al usuario contra la hoja `participantes`. Devuelve ['participant' => ..., 'phone' => ...]
+ * o lanza excepción con código 401 si las credenciales no coinciden.
+ *
+ * @return array{participant: string, phone: string}
  */
-function digitsOnly(string $phone): string {
-    return preg_replace('/\D+/', '', $phone);
+function authenticate(string $spreadsheetId, string $username, string $password, bool $dev, Sheets $service): array {
+    if ($dev) {
+        return ['participant' => 'Dev User', 'phone' => $username];
+    }
+    if (!preg_match('/^\d{10}$/', $username)) {
+        throw new Exception('El usuario debe tener exactamente 10 dígitos.');
+    }
+    if (!preg_match('/^\d{4}$/', $password)) {
+        throw new Exception('La contraseña debe tener exactamente 4 dígitos.');
+    }
+
+    $range = PARTICIPANTS_WORKSHEET . '!A2:C1000';
+    $response = $service->spreadsheets_values->get($spreadsheetId, $range);
+    $rows = $response->getValues() ?: [];
+
+    foreach ($rows as $row) {
+        $rowUsername = trim((string)($row[1] ?? ''));
+        $rowPassword = trim((string)($row[2] ?? ''));
+        if ($rowUsername === $username && $rowPassword === $password) {
+            return [
+                'participant' => trim((string)($row[0] ?? '')),
+                'phone' => $rowUsername
+            ];
+        }
+    }
+
+    http_response_code(401);
+    throw new Exception('Credenciales inválidas.');
 }
 
 try {
@@ -132,7 +146,7 @@ try {
         throw new Exception('JSON inválido: ' . json_last_error_msg());
     }
 
-    foreach (['spreadsheetId', 'date', 'firstMatchTime', 'participant', 'phone', 'pin', 'bets'] as $field) {
+    foreach (['spreadsheetId', 'date', 'firstMatchTime', 'username', 'password', 'bets'] as $field) {
         if (!isset($data[$field])) {
             throw new Exception("Falta el campo requerido: $field");
         }
@@ -145,9 +159,9 @@ try {
     $spreadsheetId = $data['spreadsheetId'];
     $date = trim($data['date']);
     $firstMatchTime = trim($data['firstMatchTime']);
-    $participant = trim($data['participant']);
-    $phone = trim($data['phone']);
-    $pin = trim($data['pin']);
+    $username = trim($data['username']);
+    $password = trim($data['password']);
+    $dev = $data['dev'] === true;
 
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         throw new Exception('date debe tener formato YYYY-MM-DD.');
@@ -155,26 +169,22 @@ try {
     if (!preg_match('/^\d{1,2}:\d{2}$/', $firstMatchTime)) {
         throw new Exception('firstMatchTime debe tener formato HH:MM.');
     }
-    if (!preg_match('/^\d{4}$/', $pin)) {
-        throw new Exception('pin debe tener exactamente 4 dígitos.');
-    }
 
-    // 1. Validar PIN: últimos 4 dígitos del phone (cliente y servidor coinciden)
-    $phoneDigits = digitsOnly($phone);
-    if (strlen($phoneDigits) < 4) {
-        throw new Exception('phone inválido (muy corto).');
+    $client = new Client();
+    $client->setApplicationName('Polla Mundialista PWA');
+    $client->setScopes([Sheets::SPREADSHEETS]);
+    if (!file_exists(SERVICE_ACCOUNT_KEY_FILE)) {
+        throw new Exception('Archivo de credenciales no encontrado.');
     }
-    $expectedPin = substr($phoneDigits, -4);
-    if ($pin !== $expectedPin) {
-        http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'error' => 'PIN incorrecto. Verifica los últimos 4 dígitos de tu número.'
-        ]);
-        exit;
-    }
+    $client->setAuthConfig(SERVICE_ACCOUNT_KEY_FILE);
+    $service = new Sheets($client);
 
-    // 2. Validar ventana (server-side)
+    // 1. Autenticar contra la hoja `participantes`
+    $auth = authenticate($spreadsheetId, $username, $password, $dev, $service);
+    $participant = $auth['participant'];
+    $phone = $auth['phone'];
+
+    // 2. Validar ventana (server-side, hora COT)
     $window = validateWindow($date, $firstMatchTime);
     if (!$window['ok']) {
         http_response_code(400);
@@ -187,13 +197,10 @@ try {
     }
 
     // 3. Generar ids determinísticos: pwa_<phone>_<date>_<matchId>
-    $phoneIdSafe = preg_replace('/[^a-zA-Z0-9]/', '', $phone);
     $nowIso = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.v\Z');
 
     /** @var array<int, array{id: string, row: array}> */
     $newRows = [];
-    /** @var array<int, string> */
-    $newIds = [];
     foreach ($data['bets'] as $bet) {
         if (!isset($bet['matchId'], $bet['homeTeam'], $bet['awayTeam'], $bet['homeScore'], $bet['awayScore'])) {
             throw new Exception('Cada bet debe tener matchId, homeTeam, awayTeam, homeScore, awayScore.');
@@ -206,8 +213,7 @@ try {
         if ($awayScore === false || $awayScore < 0 || $awayScore > 99) {
             throw new Exception('awayScore debe ser entero entre 0 y 99.');
         }
-        $id = sprintf('pwa_%s_%s_%s', $phoneIdSafe, $date, $bet['matchId']);
-        $newIds[] = $id;
+        $id = sprintf('pwa_%s_%s_%s', $phone, $date, $bet['matchId']);
         $newRows[] = [
             'id' => $id,
             'row' => [
@@ -225,17 +231,7 @@ try {
         ];
     }
 
-    // 4. Conectar a Sheets
-    $client = new Client();
-    $client->setApplicationName('Polla Mundialista PWA');
-    $client->setScopes([Sheets::SPREADSHEETS]);
-    if (!file_exists(SERVICE_ACCOUNT_KEY_FILE)) {
-        throw new Exception('Archivo de credenciales no encontrado.');
-    }
-    $client->setAuthConfig(SERVICE_ACCOUNT_KEY_FILE);
-    $service = new Sheets($client);
-
-    // 5. Leer la hoja existente (si existe) para detectar duplicados
+    // 4. Leer la hoja `apuestas` para detectar duplicados (idempotencia)
     /** @var array<string, int> $existingMap id => rowIndex (1-based) */
     $existingMap = [];
     /** @var array<int, array> $existingValues */
@@ -255,22 +251,13 @@ try {
             }
         }
     } catch (Exception $e) {
-        // Hoja no existe o está vacía. El cliente debió crearla manualmente.
-        // Si $hasHeaders es false, vamos a insertar headers + filas.
         error_log('save_pwa_bet: hoja apuestas no existe o error de lectura: ' . $e->getMessage());
     }
 
-    // 6. Detectar duplicados (idempotencia) y preparar inserts
+    // 5. Detectar duplicados y preparar inserts
     $inserts = [];
     $alreadyExists = [];
     $nextRow = count($existingValues) + 1;
-    if (!$hasHeaders && count($existingValues) > 0) {
-        $nextRow = count($existingValues) + 1;
-    } elseif ($hasHeaders) {
-        $nextRow = count($existingValues) + 1;
-    } else {
-        $nextRow = 1; // we'll insert headers first
-    }
 
     foreach ($newRows as $entry) {
         $id = $entry['id'];
@@ -282,11 +269,11 @@ try {
             'id' => $id,
             'rowIndex' => $nextRow
         ];
-        $existingMap[$id] = $nextRow; // protege contra duplicados dentro del mismo payload
+        $existingMap[$id] = $nextRow;
         $nextRow++;
     }
 
-    // 7. Si la hoja está vacía, agregar headers primero
+    // 6. Headers si la hoja está vacía
     $batchOps = [];
     if (!$hasHeaders) {
         $batchOps[] = [
@@ -295,7 +282,7 @@ try {
         ];
     }
 
-    // 8. Preparar batch update con los inserts
+    // 7. Preparar batch update con los inserts
     foreach ($inserts as $ins) {
         $entry = null;
         foreach ($newRows as $nr) {
@@ -308,7 +295,7 @@ try {
         ];
     }
 
-    // 9. Ejecutar batch
+    // 8. Ejecutar batch
     if (count($batchOps) > 0) {
         $body = new BatchUpdateValuesRequest([
             'valueInputOption' => 'RAW',
@@ -329,7 +316,10 @@ try {
     ]);
 
 } catch (Exception $e) {
-    http_response_code(500);
+    $code = http_response_code();
+    if ($code === 200 || !$code) {
+        http_response_code(500);
+    }
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()

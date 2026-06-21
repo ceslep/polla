@@ -10,7 +10,7 @@
     let bets = $state([]);
 
     $effect(() => {
-        if (pwaSession.phone && date) {
+        if (pwaSession.authUsername && pwaSession.authPassword && date) {
             load();
         }
     });
@@ -18,24 +18,17 @@
     async function load() {
         loading = true;
         try {
-            const all = await getPwaBets({ phone: pwaSession.phone || '', matchDate: date });
-            bets = all;
+            const result = await getPwaBets({
+                username: pwaSession.authUsername || '',
+                password: pwaSession.authPassword || '',
+                matchDate: date
+            });
+            bets = result.bets || [];
         } catch (e) {
             console.error('No pude cargar las apuestas:', e);
         } finally {
             loading = false;
         }
-    }
-
-    /** @param {string|null|undefined} iso */
-    function formatTime(iso) {
-        if (!iso) return '';
-        const d = new Date(iso);
-        return d.toLocaleString('es-CO', {
-            timeZone: 'America/Bogota',
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-        });
     }
 </script>
 

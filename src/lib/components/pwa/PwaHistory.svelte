@@ -7,7 +7,7 @@
     let byDate = $state(new Map());
 
     $effect(() => {
-        if (pwaSession.phone) {
+        if (pwaSession.authUsername && pwaSession.authPassword) {
             load();
         }
     });
@@ -15,7 +15,11 @@
     async function load() {
         loading = true;
         try {
-            const all = await getPwaBets({ phone: pwaSession.phone || '' });
+            const result = await getPwaBets({
+                username: pwaSession.authUsername || '',
+                password: pwaSession.authPassword || ''
+            });
+            const all = result.bets || [];
             const map = new Map();
             for (const b of all) {
                 const d = b.matchDate || 'sin fecha';
@@ -37,7 +41,7 @@
         <div class="mb-6 flex items-center gap-3">
             <button
                 class="w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
-                onclick={() => setStep('landing')}
+                onclick={() => setStep('form')}
                 aria-label="Volver"
             >←</button>
             <h2 class="text-2xl font-bold text-cyan-400">Mis apuestas</h2>
@@ -47,7 +51,11 @@
             Solo lectura. Las apuestas ya enviadas no se pueden modificar.
         </div>
 
-        {#if loading}
+        {#if !pwaSession.authUsername}
+            <div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 text-center">
+                <p class="text-amber-200">No has iniciado sesión.</p>
+            </div>
+        {:else if loading}
             <div class="text-center py-8">
                 <div class="text-5xl mb-3 animate-spin">⚙️</div>
                 <p class="text-gray-500">Cargando…</p>

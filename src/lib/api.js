@@ -8,6 +8,7 @@ const GET_BETS_URL = 'https://app.iedeoccidente.com/gs/get_bets.php';
 const CLEAR_BETS_URL = 'https://app.iedeoccidente.com/gs/clear_bets.php';
 const SAVE_PWA_BET_URL = 'https://app.iedeoccidente.com/gs/save_pwa_bet.php';
 const GET_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets.php';
+const LOGIN_PWA_URL = 'https://app.iedeoccidente.com/gs/login_pwa.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -392,14 +393,43 @@ export async function loadBetsFromSheets() {
  */
 
 /**
- * Envía las apuestas PWA. El backend hace INSERT-only (inmutable) y
- * devuelve 200 con saved=N + alreadyExists=M si algún id ya estaba.
+ * Autentica al participante contra la hoja `participantes`.
+ * @param {{ username: string, password: string, dev?: boolean }} payload
+ * @returns {Promise<{success: boolean, participant?: string, phone?: string, username?: string, dev?: boolean, error?: string}>}
+ */
+export async function loginPwa(payload) {
+    const response = await fetch(LOGIN_PWA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Envía las apuestas PWA. Auth via {username, password}. El backend hace
+ * INSERT-only (inmutable) y devuelve 200 con saved=N + alreadyExists=M
+ * si algún id ya estaba.
  * @param {{
  *   date: string,
  *   firstMatchTime: string,
- *   participant: string,
- *   phone: string,
- *   pin: string,
+ *   username: string,
+ *   password: string,
+ *   dev?: boolean,
  *   bets: PwaBet[]
  * }} payload
  * @returns {Promise<{success: boolean, saved: number, alreadyExists: number, message: string, window?: any, error?: string}>}
@@ -431,23 +461,29 @@ export async function savePwaBet(payload) {
 }
 
 /**
- * Lee apuestas PWA con filtros opcionales.
- * @param {{phone?: string, matchDate?: string, participant?: string}} [filters]
- * @returns {Promise<Array<{id: string, participant: string, phone: string, matchDate: string, matchId: string, homeTeam: string, awayTeam: string, homeScore: string|number, awayScore: string|number, submittedAt: string}>>}
+ * Lee las apuestas PWA del participante autenticado.
+ * @param {{ username: string, password: string, dev?: boolean, matchDate?: string }} payload
+ * @returns {Promise<{success: boolean, bets: Array<any>, total: number, participant?: string, phone?: string, error?: string}>}
  */
-export async function getPwaBets(filters = {}) {
+export async function getPwaBets(payload) {
     const response = await fetch(GET_PWA_BETS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             spreadsheetId: SHEETS_SPREADSHEET_ID,
-            ...filters
+            ...payload
         })
     });
 
-    const result = await response.json();
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
     if (!response.ok || !result.success) {
         throw new Error(result.error || `Error HTTP ${response.status}`);
     }
-    return result.bets || [];
+    return result;
 }

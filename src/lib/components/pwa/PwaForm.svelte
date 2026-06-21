@@ -1,5 +1,5 @@
 <script>
-    import { pwaSession, markSubmitted, setStep } from '../../pwa/session.svelte.js';
+    import { pwaSession, markSubmitted, setStep, logout } from '../../pwa/session.svelte.js';
     import { savePwaBet } from '../../api.js';
     import { firstMatchTimeCot } from '../../pwa/window.js';
 
@@ -13,6 +13,7 @@
     let error = $state('');
 
     const matches = $derived(windowState.matches || []);
+    const participant = $derived(pwaSession.authParticipant || '');
 
     /**
      * @param {number} matchId
@@ -56,8 +57,19 @@
         return n;
     });
 
+    const windowStillOpen = $derived(windowState?.status === 'open');
+
     async function submit() {
         if (!allFilled || submitting) return;
+        if (!windowStillOpen) {
+            error = 'La ventana de apuestas se cerró mientras llenabas el formulario.';
+            return;
+        }
+        if (!pwaSession.authUsername || !pwaSession.authPassword) {
+            error = 'Sesión inválida. Vuelve a iniciar sesión.';
+            logout();
+            return;
+        }
         if (!confirm(`¿Enviar tus apuestas para hoy (${windowState.date})?\n\nUna vez enviadas NO se pueden modificar.`)) {
             return;
         }
@@ -75,9 +87,8 @@
             const result = await savePwaBet({
                 date: windowState.date,
                 firstMatchTime: firstMatchTimeCot(windowState) || '00:00',
-                participant: pwaSession.participant || '',
-                phone: pwaSession.phone || '',
-                pin: (pwaSession.phone || '').replace(/\D/g, '').slice(-4),
+                username: pwaSession.authUsername,
+                password: pwaSession.authPassword,
                 bets
             });
             markSubmitted();
@@ -93,18 +104,29 @@
 
 <div class="min-h-screen bg-[#111] text-white p-4 md:p-8 flex flex-col items-center">
     <div class="w-full max-w-2xl">
-        <div class="mb-6 flex items-center gap-3">
-            <button
-                class="w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
-                onclick={() => setStep('pin')}
-                aria-label="Volver"
-            >←</button>
-            <h2 class="text-2xl font-bold text-cyan-400">Tus apuestas — {windowState.date}</h2>
+        <div class="mb-6">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-sm text-gray-400">Hola,</div>
+                    <h2 class="text-2xl font-bold text-cyan-400">{participant}</h2>
+                </div>
+                <button
+                    class="text-sm text-gray-400 hover:text-white px-3 py-2"
+                    onclick={logout}
+                >
+                    Cerrar sesión
+                </button>
+            </div>
+            <div class="text-sm text-gray-400 mt-2">
+                Apuestas para {windowState.date} · {matches.length} partido{matches.length !== 1 ? 's' : ''}
+            </div>
         </div>
 
-        <div class="text-sm text-gray-400 mb-4 text-center">
-            Marcador local (izq) — Marcador visitante (der). Una vez enviado, no se puede modificar.
-        </div>
+        {#if !windowStillOpen}
+            <div class="mb-4 bg-amber-500/15 border border-amber-500/40 rounded-xl p-3 text-amber-200 text-sm text-center">
+                ⚠️ La ventana de apuestas no está abierta. No podrás enviar.
+            </div>
+        {/if}
 
         <div class="space-y-3">
             {#each matches as m (m.id)}
@@ -159,7 +181,7 @@
             <button
                 class="w-full py-5 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 rounded-2xl text-white text-lg font-black shadow-lg shadow-green-500/30 transition-all min-h-14 disabled:opacity-30"
                 onclick={submit}
-                disabled={!allFilled || submitting}
+                disabled={!allFilled || submitting || !windowStillOpen}
             >
                 {submitting ? 'Enviando…' : '✓ Enviar apuestas'}
             </button>

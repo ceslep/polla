@@ -1,4 +1,5 @@
 <script>
+    import { onMount } from 'svelte';
     import { appState } from '../../stores.svelte.js';
     import { loadWorldCupMatches, loadBetsFromSheets } from '../../api.js';
     import { applyPhoneNameOverrides, parseManualBets } from '../../parser.js';
@@ -7,11 +8,14 @@
     import { getPwaBets } from '../../api.js';
 
     import PwaLanding from './PwaLanding.svelte';
-    import PwaSelect from './PwaSelect.svelte';
-    import PwaPin from './PwaPin.svelte';
+    import PwaLogin from './PwaLogin.svelte';
+    import PwaRanking from './PwaRanking.svelte';
     import PwaForm from './PwaForm.svelte';
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
+
+    const isDev = typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     /** @type {any} */
     let windowState = $state({
@@ -27,14 +31,19 @@
     let loading = $state(true);
     let doneSavedCount = $state(0);
 
-    $effect(() => {
+    onMount(() => {
+        load();
+        // Asegurar que las apuestas estén cargadas para el ranking público
         if (appState.bets.length === 0) {
             loadBets();
         }
     });
 
     $effect(() => {
-        load();
+        // Si la fecha de la sesión no es la ventana actual, resetear a landing
+        if (windowState?.date && pwaSession.date && pwaSession.date !== windowState.date && pwaSession.step !== 'done') {
+            // No reseteamos agresivamente, sólo si ya pasó la fecha
+        }
     });
 
     async function loadBets() {
@@ -61,15 +70,17 @@
         loading = true;
         try {
             const raw = await loadWorldCupMatches();
-            // loadWorldCupMatches() devuelve WorldCupMatchRaw[] (sin `id`).
-            // computeWindowState espera RawMatch[] con `id`. Mapeamos aquí.
             const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
             const s = computeWindowState(withIds);
-            if (s.status === 'open' && pwaSession.phone && s.date && pwaSession.date === s.date) {
-                const existing = await getPwaBets({ phone: pwaSession.phone, matchDate: s.date });
-                if (existing.length > 0) {
+            if (s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
+                const existing = await getPwaBets({
+                    username: pwaSession.authUsername,
+                    password: pwaSession.authPassword,
+                    matchDate: s.date
+                });
+                if (existing.bets && existing.bets.length > 0) {
                     pwaSession.submitted = true;
-                    if (pwaSession.step === 'landing' || pwaSession.step === 'select' || pwaSession.step === 'pin') {
+                    if (pwaSession.step === 'landing' || pwaSession.step === 'login' || pwaSession.step === 'ranking') {
                         setStep('done');
                     }
                 }
@@ -91,26 +102,17 @@
         }
     }
 
-    /** @param {string} name @param {string} phone */
-    function onSelect(name, phone) {
-        pwaSession.participant = name;
-        pwaSession.phone = phone;
-        setStep('pin');
+    function onLoginBack() {
+        setStep('landing');
     }
 
-    function onPinBack() {
-        pwaSession.phone = null;
-        setStep('select');
+    function onRankingBack() {
+        setStep('landing');
     }
 
     /** @param {number} savedCount */
     function onDone(savedCount) {
         doneSavedCount = savedCount;
-    }
-
-    /** @param {string} date */
-    function onLandingPickDate(date) {
-        pwaSession.date = date;
     }
 </script>
 
@@ -120,15 +122,11 @@
         <p class="text-gray-400">Cargando partidos del mundial…</p>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} onPickDate={onLandingPickDate} />
-{:else if pwaSession.step === 'select'}
-    <PwaSelect onSelect={onSelect} />
-{:else if pwaSession.step === 'pin'}
-    <PwaPin
-        participant={pwaSession.participant || ''}
-        phone={pwaSession.phone || ''}
-        onBack={onPinBack}
-    />
+    <PwaLanding state={windowState} {isDev} />
+{:else if pwaSession.step === 'login'}
+    <PwaLogin onBack={onLoginBack} {isDev} />
+{:else if pwaSession.step === 'ranking'}
+    <PwaRanking onBack={onRankingBack} />
 {:else if pwaSession.step === 'form'}
     <PwaForm windowState={windowState} onDone={onDone} />
 {:else if pwaSession.step === 'done'}
@@ -136,5 +134,5 @@
 {:else if pwaSession.step === 'history'}
     <PwaHistory />
 {:else}
-    <PwaLanding state={windowState} onPickDate={onLandingPickDate} />
+    <PwaLanding state={windowState} {isDev} />
 {/if}
