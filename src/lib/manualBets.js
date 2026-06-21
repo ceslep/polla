@@ -37,5 +37,15 @@ export const MANUAL_BETS = [
         'Message Id': 'manual_mleandro0210_2026-06-19_001',
         synthetic: true,
         source: 'mleandro0210 confirmó por WhatsApp app que envió este mensaje el 19/06/2026; el export no lo incluyó (mensaje no sincronizado al momento de exportar). Re-verificado en la app de WhatsApp por el admin.'
-    }
+    },
+    {
+    "Time": "2026/6/11 11:00:39",
+    "Formatted Name": "Jhon Esposo Diana Gómez",
+    "Display Name": "Yohn Alcaraz",
+    "Message": "Mexico vs Sudáfrica\n1-2\nCorea del sur vs checa\n1-2\n\nCampeón Alemania\nSubcampeon colombia\nGoleador  luis diaz",
+    "Caption": "",
+    "Type": "chat",
+    "Phone": "+57 322 4422883",
+    "Message Id": "false_120363407879464968@g.us_ACD3C5E8CC5270FC4A115AACE98D1FEC_37168764428447@lid"
+  },
 ];
