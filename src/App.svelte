@@ -20,6 +20,7 @@
     import StatsModal from './lib/components/StatsModal.svelte';
     import MovementModal from './lib/components/MovementModal.svelte';
     import MalformedMessagesModal from './lib/components/MalformedMessagesModal.svelte';
+    import PwaApp from './lib/components/pwa/PwaApp.svelte';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -42,6 +43,7 @@
     let adminMessage = $state('');
     let selectedParticipantName = $state(/** @type {string|null} */ (null));
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
+    let isPwaRoute = $state(false);
     const isDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     /** @param {any} bet */
@@ -55,12 +57,19 @@
             const name = decodeURIComponent(hash.split('/')[1]);
             selectedParticipantName = name;
             showRankingModal = false;
+            isPwaRoute = false;
         } else if (hash === 'ranking') {
             showRankingModal = true;
+            selectedParticipantName = null;
+            isPwaRoute = false;
+        } else if (hash === 'apostar' || hash.startsWith('apostar/')) {
+            isPwaRoute = true;
+            showRankingModal = false;
             selectedParticipantName = null;
         } else {
             showRankingModal = false;
             selectedParticipantName = null;
+            isPwaRoute = false;
         }
     }
 
@@ -324,6 +333,9 @@
     });
 </script>
 
+{#if isPwaRoute}
+    <PwaApp />
+{:else}
 <main class="min-h-screen bg-[#111] text-white selection:bg-cyan-500/30">
     {#if appState.sheetsUnavailable}
         <div class="bg-red-500/15 border-b border-red-500/30 text-red-200 text-sm">
@@ -676,6 +688,7 @@
         }}
     />
 </main>
+{/if}
 
 <style>
     :global(body) {

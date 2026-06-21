@@ -6,6 +6,8 @@ const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/world
 const SAVE_BETS_URL = 'https://app.iedeoccidente.com/gs/save_bets.php';
 const GET_BETS_URL = 'https://app.iedeoccidente.com/gs/get_bets.php';
 const CLEAR_BETS_URL = 'https://app.iedeoccidente.com/gs/clear_bets.php';
+const SAVE_PWA_BET_URL = 'https://app.iedeoccidente.com/gs/save_pwa_bet.php';
+const GET_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -374,4 +376,78 @@ export async function loadBetsFromSheets() {
         deduped.push(bet);
     }
     return dropOrganizerBets(dropOverLimitMessages(deduped));
+}
+
+/* ============================================================================
+ * PWA endpoints
+ * ========================================================================= */
+
+/**
+ * @typedef {Object} PwaBet
+ * @property {number} matchId
+ * @property {string} homeTeam
+ * @property {string} awayTeam
+ * @property {number} homeScore
+ * @property {number} awayScore
+ */
+
+/**
+ * Envía las apuestas PWA. El backend hace INSERT-only (inmutable) y
+ * devuelve 200 con saved=N + alreadyExists=M si algún id ya estaba.
+ * @param {{
+ *   date: string,
+ *   firstMatchTime: string,
+ *   participant: string,
+ *   phone: string,
+ *   pin: string,
+ *   bets: PwaBet[]
+ * }} payload
+ * @returns {Promise<{success: boolean, saved: number, alreadyExists: number, message: string, window?: any, error?: string}>}
+ */
+export async function savePwaBet(payload) {
+    const response = await fetch(SAVE_PWA_BET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        const err = new Error(result.error || `Error HTTP ${response.status}`);
+        // @ts-ignore
+        err.window = result.window;
+        throw err;
+    }
+    return result;
+}
+
+/**
+ * Lee apuestas PWA con filtros opcionales.
+ * @param {{phone?: string, matchDate?: string, participant?: string}} [filters]
+ * @returns {Promise<Array<{id: string, participant: string, phone: string, matchDate: string, matchId: string, homeTeam: string, awayTeam: string, homeScore: string|number, awayScore: string|number, submittedAt: string}>>}
+ */
+export async function getPwaBets(filters = {}) {
+    const response = await fetch(GET_PWA_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...filters
+        })
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result.bets || [];
 }
