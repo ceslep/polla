@@ -34,7 +34,7 @@ export default defineConfig({
     },
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: 'script',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'balon.png', 'countries.json'],
       manifest: {
         id: '/polla/',

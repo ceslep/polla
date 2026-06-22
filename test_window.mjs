@@ -51,6 +51,43 @@ const t5 = new Date('2026-06-25T15:00:00Z');
 const s5 = computeWindowState(allMatches, t5);
 console.log(`  25 jun 10:00 COT: status=${s5.status}, msg="${s5.message}"`);
 
+// Caso 6 (regresión bug 2026-06-22): el JSON de openfootball lista los
+// partidos en orden por estadio/grupo, NO por hora COT. France (16:00 COT)
+// aparecía antes que Argentina (12:00 COT) — el código tomaba el primero
+// del array y la ventana cerraba a las 15:59 en vez de 11:59. Después del
+// fix, debe tomar el más temprano por utcMs.
+console.log('\n=== Regresión: 22 jun 2026 con 4 partidos (orden del JSON) ===');
+const realJun22 = [
+    { id: 5, date: '2026-06-22', time: '17:00 UTC-4', team1: 'France',   team2: 'Iraq' },
+    { id: 6, date: '2026-06-22', time: '20:00 UTC-4', team1: 'Norway',   team2: 'Senegal' },
+    { id: 7, date: '2026-06-22', time: '12:00 UTC-5', team1: 'Argentina', team2: 'Austria' },
+    { id: 8, date: '2026-06-22', time: '20:00 UTC-7', team1: 'Jordan',   team2: 'Algeria' },
+];
+// 22 jun 05:00 COT = 22 jun 10:00 UTC (ventana abierta, antes del 1er partido)
+const tJun22 = new Date('2026-06-22T10:00:00Z');
+const sJun22 = computeWindowState(realJun22, tJun22);
+console.log(`  22 jun 05:00 COT: status=${sJun22.status}, firstMatchCOT=${sJun22.firstMatchLocalTime}`);
+console.log(`    closeAt: ${sJun22.closeAt}  (esperado 2026-06-22T16:59:00.000Z = 11:59 COT)`);
+console.log(`    message: ${sJun22.message}`);
+
+let pass = 0, fail = 0;
+function check(label, ok) {
+    const tag = ok ? 'OK  ' : 'FAIL';
+    console.log(tag, label);
+    if (ok) pass++; else fail++;
+}
+check('firstMatchLocalTime = 12:00 (Argentina vs Austria, el más temprano en COT)',
+      sJun22.firstMatchLocalTime === '12:00');
+check('closeAt = 2026-06-22T16:59:00.000Z (11:59 COT)',
+      sJun22.closeAt === '2026-06-22T16:59:00.000Z');
+check('status = open (05:00 COT está dentro de la ventana)',
+      sJun22.status === 'open');
+const team1s = (sJun22.matches || []).map(m => m.team1);
+check('matches incluye Argentina', team1s.includes('Argentina'));
+
+console.log(`\n  ${pass} pass, ${fail} fail`);
+if (fail > 0) process.exit(1);
+
 console.log('\n=== firstMatchTimeCot + nowCotParts ===');
 console.log('  firstMatchTimeCot(s2):', firstMatchTimeCot(s2));
 console.log('  nowCotParts(t2):', nowCotParts(t2));

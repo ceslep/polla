@@ -1,9 +1,11 @@
 <script>
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
     import { promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
+    import PwaShareBets from './PwaShareBets.svelte';
+    import GoalsAnalysisModal from './GoalsAnalysisModal.svelte';
 
-    /** @type {{ state: any, isDev?: boolean, devTestDate?: string }} */
-    let { state: windowState, isDev = false, devTestDate = '' } = $props();
+    /** @type {{ state: any, isDev?: boolean, devTestDate?: string, bets?: any[], todayDate?: string }} */
+    let { state: windowState, isDev = false, devTestDate = '', bets = [], todayDate = '' } = $props();
 
     const installState = getInstallState();
 
@@ -11,8 +13,20 @@
     // En dev mode el botón siempre se puede pulsar aunque la ventana esté cerrada.
     const canBet = $derived(isDev || isWindowOpen);
 
+    /** True si hay al menos una apuesta de tipo score para `todayDate`. */
+    const hasShareableBets = $derived.by(() => {
+        for (const b of bets) {
+            if (b.type === 'score' && b.matchDate === todayDate && b.participant) return true;
+        }
+        return false;
+    });
+
     function goRank() {
         setStep('ranking');
+    }
+
+    function goTodayBets() {
+        setStep('today-bets');
     }
 
     function goResults() {
@@ -32,8 +46,20 @@
         setStep('tutorial');
     }
 
+    function goShare() {
+        showShareModal = true;
+    }
+
+    function goGoals() {
+        showGoalsModal = true;
+    }
+
     /** Abre/cierra el modal con instrucciones manuales de instalación. */
     let showManualInstall = $state(false);
+    /** Abre/cierra el modal de mensaje para WhatsApp. */
+    let showShareModal = $state(false);
+    /** Abre/cierra el modal de análisis de goles. */
+    let showGoalsModal = $state(false);
 </script>
 
 <div class="min-h-screen relative overflow-hidden flex flex-col items-center text-white p-4 md:p-8">
@@ -126,6 +152,45 @@
                 </div>
             </button>
 
+            <!-- Apuestas de hoy (público) -->
+            <button
+                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                onclick={goTodayBets}
+            >
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110">📅</div>
+                    <div class="flex-1">
+                        <div class="font-black text-lg">Apuestas de hoy</div>
+                        <div class="text-xs text-gray-400">Cómo van ganando — orden alfabético</div>
+                    </div>
+                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
+                </div>
+            </button>
+
+            <!-- Mensaje para WhatsApp (admin) -->
+            <button
+                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                onclick={goShare}
+                disabled={!hasShareableBets}
+                title={hasShareableBets ? 'Generar mensaje para pegar en el grupo de WhatsApp' : 'Aún no hay apuestas para hoy'}
+                data-pwa-tutorial="share-card"
+            >
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110">📤</div>
+                    <div class="flex-1">
+                        <div class="font-black text-lg">Mensaje para WhatsApp</div>
+                        <div class="text-xs text-gray-400">
+                            {#if hasShareableBets}
+                                Pega las apuestas de hoy en el grupo
+                            {:else}
+                                Aún no hay apuestas de hoy en la hoja <span class="text-cyan-400 font-mono">apuestas</span>
+                            {/if}
+                        </div>
+                    </div>
+                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
+                </div>
+            </button>
+
             <!-- Resultados del mundial (público) -->
             <button
                 class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
@@ -136,6 +201,21 @@
                     <div class="flex-1">
                         <div class="font-black text-lg">Resultados del mundial</div>
                         <div class="text-xs text-gray-400">Partidos, goleadores y posiciones</div>
+                    </div>
+                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
+                </div>
+            </button>
+
+            <!-- Análisis de goles (público) -->
+            <button
+                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                onclick={goGoals}
+            >
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110">⚽</div>
+                    <div class="flex-1">
+                        <div class="font-black text-lg">Análisis de goles</div>
+                        <div class="text-xs text-gray-400">1.er vs 2.º tiempo · top goleadores · remontadas</div>
                     </div>
                     <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
                 </div>
@@ -339,5 +419,15 @@
                 </button>
             </div>
         </div>
+    {/if}
+
+    <!-- Modal: mensaje para WhatsApp (genera texto de apuestas del día) -->
+    {#if showShareModal}
+        <PwaShareBets {bets} {todayDate} onClose={() => showShareModal = false} />
+    {/if}
+
+    <!-- Modal: análisis de goles -->
+    {#if showGoalsModal}
+        <GoalsAnalysisModal onClose={() => showGoalsModal = false} />
     {/if}
 </div>

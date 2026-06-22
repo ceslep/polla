@@ -105,13 +105,18 @@ export function computeWindowState(matches, now) {
     const _now = now || new Date();
 
     // Construir mapa de días COT que tienen al menos un partido.
-    /** @type {Map<string, {firstMatch: RawMatch, firstCotTime: string, openMs: number, closeMs: number}>} */
+    /** @type {Map<string, {firstMatch: RawMatch, firstMatchUtcMs: number, firstCotTime: string, openMs: number, closeMs: number}>} */
     const days = new Map();
 
     for (const m of matches || []) {
         const cot = matchLocalToCot(m.date, m.time);
         if (!cot) continue;
-        if (!days.has(cot.cotDate)) {
+        const existing = days.get(cot.cotDate);
+        // Reemplazar si no hay entrada previa, o si este match es más
+        // temprano en COT. El JSON de openfootball NO está ordenado por
+        // hora COT (viene por estadio/grupo): el 22 jun 2026 listaba
+        // France (16:00 COT) antes que Argentina (12:00 COT).
+        if (!existing || cot.utcMs < existing.firstMatchUtcMs) {
             // open = inicio del día COT (00:00 COT)
             const [y, mo, d] = cot.cotDate.split('-').map(Number);
             // Construir el epoch ms para 00:00 COT de ese día:
@@ -122,6 +127,7 @@ export function computeWindowState(matches, now) {
             const closeMs = openMs + h * 3600 * 1000 + mi * 60 * 1000 - 60 * 1000;
             days.set(cot.cotDate, {
                 firstMatch: m,
+                firstMatchUtcMs: cot.utcMs,
                 firstCotTime: cot.cotTime,
                 openMs,
                 closeMs

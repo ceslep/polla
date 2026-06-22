@@ -191,6 +191,13 @@ is dead UI, do not add a 2-pt tier.
   `assets/serviceaccount.json` (service-account key, not in repo) on the
   server. The `*_horas_extras.php` files belong to an unrelated app
   sharing the same host — leave them alone.
+- **`computeWindowState` siempre toma el partido MÁS TEMPRANO en COT de
+  cada día**, no el primero del array de openfootball. El JSON viene
+  ordenado por estadio/grupo, NO por hora COT — el 2026-06-22 listaba
+  France (17:00 UTC-4 = 16:00 COT) antes que Argentina (12:00 UTC-5 =
+  12:00 COT). El entry del Map en `src/lib/pwa/window.js` incluye
+  `firstMatchUtcMs` para comparar al iterar. Cubierto por
+  `test_window.mjs` caso 6 (regresión).
 - **`cruces-no-calificables.md`** in the repo root is a one-off parser
   smoke-test report (manually checked on `polla.json`); not part of the
   app. **`consola.log`** is untracked debug stdout; do not commit.

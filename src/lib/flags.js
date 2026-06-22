@@ -1,4 +1,4 @@
-import countries from '../../public/countries.json';
+import countries from '../../public/countries.json' with { type: 'json' };
 import { normalizeTeamName } from './parser.js';
 
 /**

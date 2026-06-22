@@ -12,8 +12,10 @@
     import PwaChangePassword from './PwaChangePassword.svelte';
     import PwaEmailPromptModal from './PwaEmailPromptModal.svelte';
     import PwaForm from './PwaForm.svelte';
+    import PwaTodayBets from './PwaTodayBets.svelte';
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
+    import ReloadPrompt from './ReloadPrompt.svelte';
     import WorldCupResultsModal from '../WorldCupResultsModal.svelte';
     import MovementModal from '../MovementModal.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
@@ -72,8 +74,16 @@
         setStep('landing');
     }
 
-    /** @type {{ isDev?: boolean }} */
-    let { isDev: isDevProp = undefined } = $props();
+    /**
+     * @typedef {Object} PwaAppProps
+     * @property {boolean} [isDev]
+     * @property {import('svelte/store').Writable<boolean>} [needRefresh]
+     * @property {import('svelte/store').Writable<boolean>} [offlineReady]
+     * @property {(reloadPage?: boolean) => Promise<void>} [updateServiceWorker]
+     */
+
+    /** @type {PwaAppProps} */
+    let { isDev: isDevProp = undefined, needRefresh, offlineReady, updateServiceWorker } = $props();
     const isDev = $derived(isDevProp !== undefined ? isDevProp : (
         (import.meta?.env?.DEV === true) ||
         (typeof window !== 'undefined' &&
@@ -157,6 +167,8 @@
      */
     const nowOverride = $derived(isDev ? todayCot() : null);
     const devTestDate = $derived(nowOverride ? nowCotParts(nowOverride).date : '');
+    /** Fecha COT que la PWA está mostrando como "hoy" (en dev = devTestDate, en prod = hoy real). */
+    const todayDate = $derived(devTestDate || nowCotParts(new Date()).date);
 
     onMount(() => {
         // En dev: setear pwaSession.date a la fecha simulada (hoy en COT)
@@ -234,7 +246,8 @@
                         awayTeam: normalizeTeamName(m.team2),
                         awayShort: m.team2,
                         homeScore: m.score.ft[0],
-                        awayScore: m.score.ft[1]
+                        awayScore: m.score.ft[1],
+                        resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
                     }));
                 console.log('[PWA] Matches cargados:', pwaNormalizedMatches.length, 'finalizados de', withIds.length, 'totales');
             }
@@ -363,7 +376,8 @@
                             awayTeam: normalizeTeamName(m.team2),
                             awayShort: m.team2,
                             homeScore: m.score.ft[0],
-                            awayScore: m.score.ft[1]
+                            awayScore: m.score.ft[1],
+                            resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
                         }));
                     await loadAndScorePwaBets();
                     let s = computeWindowState(withIds, nowOverride || undefined);
@@ -409,6 +423,10 @@
     }
 
     function onRankingBack() {
+        setStep('landing');
+    }
+
+    function onTodayBetsBack() {
         setStep('landing');
     }
 
@@ -479,11 +497,13 @@
         </button>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {todayDate} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
     <PwaRanking bets={pwaScoredBets} onBack={onRankingBack} />
+{:else if pwaSession.step === 'today-bets'}
+    <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} onBack={onTodayBetsBack} />
 {:else if pwaSession.step === 'tutorial'}
     <TutorialPage onClose={closeTutorial} />
 {:else if pwaSession.step === 'change-password'}
@@ -512,8 +532,11 @@
         />
     </div>
 {:else}
-    <PwaLanding state={windowState} {isDev} />
+    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} />
 {/if}
+
+<!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->
+<ReloadPrompt {needRefresh} {offlineReady} {updateServiceWorker} />
 
 <!-- Tour in-app (Driver.js) — siempre montado; arranca con trigger=true -->
 <OnboardingTour

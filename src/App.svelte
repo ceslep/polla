@@ -1,5 +1,6 @@
 <script>
     import { onMount } from 'svelte';
+    import { useRegisterSW } from 'virtual:pwa-register/svelte';
     import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, parseManualBets, reparseMissingBets } from './lib/parser.js';
@@ -21,6 +22,43 @@
     import MovementModal from './lib/components/MovementModal.svelte';
     import MalformedMessagesModal from './lib/components/MalformedMessagesModal.svelte';
     import PwaApp from './lib/components/pwa/PwaApp.svelte';
+
+    /**
+     * Registro y control del Service Worker. Vive aquí (en App, el componente
+     * raíz) para que se registre UNA sola vez y los hijos (PwaApp, ReloadPrompt)
+     * puedan leer los stores y llamar `updateServiceWorker`. Configuramos
+     * polling cada 60 min y on visibility change en el `onRegistered` del
+     * propio ReloadPrompt (se monta a través de PwaApp).
+     */
+    const { needRefresh, offlineReady, updateServiceWorker } = useRegisterSW({
+        onRegistered(swr) {
+            console.log('[PWA] SW registered:', swr?.scope || 'no scope');
+            if (swr) {
+                setInterval(() => swr.update(), 60 * 60 * 1000);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        swr.update();
+                    }
+                });
+            }
+        },
+        onRegisterError(error) {
+            console.log('[PWA] SW registration error:', error);
+        }
+    });
+
+    /** Fuerza el check de updates y recarga con la nueva versión. */
+    async function forceCheckForUpdates() {
+        try {
+            const reg = await navigator.serviceWorker?.getRegistration();
+            if (reg) {
+                await reg.update();
+            }
+            await updateServiceWorker(true);
+        } catch (err) {
+            console.warn('[PWA] force update failed:', err);
+        }
+    }
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -335,7 +373,7 @@
 </script>
 
 {#if isPwaRoute}
-    <PwaApp {isDev} />
+    <PwaApp {isDev} {needRefresh} {offlineReady} {updateServiceWorker} />
 {:else}
 <main class="min-h-screen bg-[#111] text-white selection:bg-cyan-500/30">
     {#if appState.sheetsUnavailable}
@@ -451,6 +489,16 @@
                     disabled={appState.isLoading}
                 >
                     📁
+                </button>
+
+                <button
+                    class="hidden md:flex w-11 h-11 items-center justify-center bg-white/5 hover:bg-white/15 rounded-xl text-base transition-all border border-white/10 disabled:opacity-50"
+                    onclick={forceCheckForUpdates}
+                    disabled={appState.isLoading || appState.saving}
+                    title="Buscar actualización de la app (service worker) y recargar"
+                    aria-label="Buscar actualización de la app"
+                >
+                    ⬇️
                 </button>
 
                 {#if isDev}
