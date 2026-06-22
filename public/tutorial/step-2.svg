@@ -1,111 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo exportar el chat de WhatsApp">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo iniciar sesión en la PWA">
   <style>
     .bg { fill: #f8fafc; }
     .phone { fill: #1f2937; }
-    .screen { fill: #ece5dd; }
-    .header { fill: #075e54; }
-    .bubble-in { fill: white; stroke: #d4d4d8; }
-    .bubble-out { fill: #dcf8c6; }
-    .bubble-text { font: 400 9px system-ui, sans-serif; fill: #1f2937; }
-    .bubble-time { font: 400 7px system-ui, sans-serif; fill: #6b7280; }
-    .header-text { font: 600 11px system-ui, sans-serif; fill: white; }
-    .header-sub { font: 400 8px system-ui, sans-serif; fill: #a7f3d0; }
+    .screen { fill: #0a0a0a; }
+    .header { fill: #064e3b; }
+    .header-text { font: 700 11px system-ui, sans-serif; fill: white; }
+    .label { font: 600 10px system-ui, sans-serif; fill: #94a3b8; }
+    .field { fill: #1e293b; stroke: #334155; }
+    .field-text { font: 600 11px ui-monospace, monospace; fill: #e2e8f0; }
+    .field-hint { font: 400 8px system-ui, sans-serif; fill: #64748b; }
+    .btn { fill: #10b981; }
+    .btn-text { font: 700 11px system-ui, sans-serif; fill: white; }
     .annot { font: 500 11px system-ui, sans-serif; fill: #dc2626; }
     .annot-line { stroke: #dc2626; stroke-width: 1.5; fill: none; }
     .annot-dot { fill: #dc2626; }
     .step-circle { fill: #dc2626; }
     .step-num { font: 700 11px system-ui, sans-serif; fill: white; }
     .step-text { font: 500 12px system-ui, sans-serif; fill: #0f172a; }
-    .icon-dots { fill: white; }
-    .menu { fill: white; stroke: #d4d4d8; }
-    .menu-item { font: 500 10px system-ui, sans-serif; fill: #1f2937; }
-    .menu-active { fill: #e0e7ff; }
+    .icon-padlock { fill: #fbbf24; }
   </style>
 
   <rect class="bg" width="600" height="400" rx="16"/>
 
-  <!-- Title -->
-  <text font="700 18px system-ui, sans-serif" fill="#0f172a" x="300" y="32" text-anchor="middle">Exportá tu chat de WhatsApp</text>
+  <text font="700 18px system-ui, sans-serif" fill="#0f172a" x="300" y="30" text-anchor="middle">Cómo iniciar sesión en la PWA</text>
 
   <!-- Phone mockup -->
   <g transform="translate(70, 60)">
-    <rect class="phone" width="140" height="290" rx="14"/>
-    <rect class="screen" x="6" y="22" width="128" height="266" rx="4"/>
+    <rect class="phone" width="160" height="310" rx="16"/>
+    <rect class="screen" x="6" y="22" width="148" height="286" rx="6"/>
 
     <!-- Status bar -->
-    <text font="600 7px system-ui" fill="#1f2937" x="70" y="32" text-anchor="middle">9:41</text>
+    <text font="600 7px system-ui" fill="#94a3b8" x="80" y="32" text-anchor="middle">9:41</text>
 
-    <!-- Chat header -->
-    <rect class="header" x="6" y="38" width="128" height="22"/>
-    <text class="header-text" x="14" y="49">← Polla Mundial 2026</text>
-    <text class="header-sub" x="14" y="57">en línea</text>
+    <!-- Header -->
+    <rect class="header" x="6" y="38" width="148" height="38"/>
+    <text class="header-text" x="80" y="56" text-anchor="middle">⚽ POLLA 2026</text>
+    <text font="400 8px system-ui" fill="#a7f3d0" x="80" y="68" text-anchor="middle">Apuesta los marcadores del día</text>
 
-    <!-- Three dots menu (HIGHLIGHTED) -->
-    <g transform="translate(118, 48)">
-      <circle class="icon-dots" cx="0" cy="0" r="1.4"/>
-      <circle class="icon-dots" cx="0" cy="4" r="1.4"/>
-      <circle class="icon-dots" cx="0" cy="8" r="1.4"/>
+    <!-- Padlock icon -->
+    <g transform="translate(80, 95)">
+      <rect class="icon-padlock" x="-12" y="-2" width="24" height="20" rx="2"/>
+      <path stroke="#92400e" stroke-width="1.5" fill="none" d="M -7 -2 v -6 a 7 7 0 0 1 14 0 v 6"/>
+      <circle fill="#92400e" cx="0" cy="8" r="2"/>
     </g>
 
-    <!-- Open menu (the dropdown) -->
-    <g transform="translate(60, 62)">
-      <rect class="menu" width="68" height="56" rx="2"/>
-      <rect class="menu-active" x="0" y="0" width="68" height="14"/>
-      <text class="menu-item" x="6" y="10">Info del grupo</text>
-      <text class="menu-item" x="6" y="24">Buscar</text>
-      <text class="menu-item" x="6" y="38">Silenciar</text>
-      <text class="menu-item" x="6" y="52">Más ▾</text>
+    <!-- Username field -->
+    <g transform="translate(16, 135)">
+      <text class="label" x="0" y="0">USUARIO (10 dígitos)</text>
+      <rect class="field" y="6" width="128" height="26" rx="6"/>
+      <text class="field-text" x="8" y="24">3117250869</text>
     </g>
 
-    <!-- Chat bubbles below -->
-    <g transform="translate(14, 130)">
-      <rect class="bubble-in" width="80" height="22" rx="6"/>
-      <text class="bubble-text" x="4" y="10">México 2-0</text>
-      <text class="bubble-text" x="4" y="19">Sudáfri</text>
+    <!-- Password field -->
+    <g transform="translate(16, 178)">
+      <text class="label" x="0" y="0">CONTRASEÑA (4 dígitos)</text>
+      <rect class="field" y="6" width="128" height="26" rx="6"/>
+      <text class="field-text" x="8" y="24">••••</text>
     </g>
-    <g transform="translate(44, 158)">
-      <rect class="bubble-out" width="86" height="22" rx="6"/>
-      <text class="bubble-text" x="4" y="10">Brasil 3 vs</text>
-      <text class="bubble-text" x="4" y="19">Marruecos 1</text>
+
+    <!-- Submit button -->
+    <g transform="translate(16, 230)">
+      <rect class="btn" width="128" height="34" rx="8"/>
+      <text class="btn-text" x="64" y="22" text-anchor="middle">Apostar →</text>
     </g>
+
+    <!-- Hint at bottom -->
+    <text font="400 8px system-ui" fill="#64748b" x="80" y="282" text-anchor="middle">Sin cuenta? Pedile al admin</text>
   </g>
 
-  <!-- Annotation arrow 1: from dots icon to text -->
-  <path class="annot-line" d="M 198 110 Q 230 100 250 95"/>
-  <circle class="annot-dot" cx="200" cy="110" r="3"/>
-
-  <!-- Right side: 3 steps list -->
+  <!-- Right side: 3 steps -->
   <g transform="translate(330, 80)">
-    <!-- Step 1 -->
     <g transform="translate(0, 0)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
       <text class="step-num" x="14" y="18" text-anchor="middle">1</text>
-      <text class="step-text" x="36" y="12">Tocá los 3 puntos ⋮</text>
-      <text class="step-text" x="36" y="26" fill="#47569" font-weight="400">arriba a la derecha</text>
+      <text class="step-text" x="36" y="12">Usuario</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">últimos 10 de tu cel</text>
     </g>
-
-    <!-- Step 2 -->
     <g transform="translate(0, 64)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
       <text class="step-num" x="14" y="18" text-anchor="middle">2</text>
-      <text class="step-text" x="36" y="12">Elegí "Más"</text>
-      <text class="step-text" x="36" y="26" fill="#47569" font-weight="400">al final del menú</text>
+      <text class="step-text" x="36" y="12">Contraseña</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">últimos 4 dígitos</text>
     </g>
-
-    <!-- Step 3 -->
     <g transform="translate(0, 128)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
       <text class="step-num" x="14" y="18" text-anchor="middle">3</text>
-      <text class="step-text" x="36" y="12">"Exportar chat"</text>
-      <text class="step-text" x="36" y="26" fill="#47569" font-weight="400">sin multimedia, .zip</text>
+      <text class="step-text" x="36" y="12">"Apostar"</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">listo, ya estás adentro</text>
     </g>
-
-    <!-- Step 4 -->
-    <g transform="translate(0, 192)">
-      <circle class="step-circle" cx="14" cy="14" r="14"/>
-      <text class="step-num" x="14" y="18" text-anchor="middle">4</text>
-      <text class="step-text" x="36" y="12">Descomprimí el .zip</text>
-      <text class="step-text" x="36" y="26" fill="#47569" font-weight="400">queda un archivo .json</text>
+    <g transform="translate(0, 200)">
+      <circle class="step-circle" cx="14" cy="14" r="14" fill="#10b981"/>
+      <text class="step-num" x="14" y="18" text-anchor="middle">✓</text>
+      <text class="step-text" x="36" y="18" fill="#0f172a" font-weight="500">Si no te acordás, pedíselos al admin</text>
     </g>
   </g>
 </svg>

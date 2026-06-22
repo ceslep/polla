@@ -196,7 +196,7 @@
             </div>
         {/if}
 
-        <div class="space-y-3">
+        <div class="space-y-3" data-pwa-tutorial="matches">
             {#each matches as m (m.id)}
                 {@const s = scores[m.id] || { home: null, away: null }}
                 {@const complete = isMatchComplete(m.id)}
@@ -216,7 +216,7 @@
                         </div>
 
                         <!-- Score inputs -->
-                        <div class="flex items-center gap-1.5 shrink-0">
+                        <div class="flex items-center gap-1.5 shrink-0" data-pwa-tutorial="inputs">
                             <input
                                 type="number"
                                 inputmode="numeric"
@@ -281,6 +281,7 @@
                 class="w-full py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white text-lg font-black shadow-xl shadow-emerald-500/30 transition-all min-h-14 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
                 onclick={openConfirm}
                 disabled={!allFilled || submitting || (!windowStillOpen && !isDev)}
+                data-pwa-tutorial="submit"
             >
                 {#if submitting}
                     <span class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>

@@ -11,8 +11,6 @@ const GET_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets.php';
 const GET_ALL_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_all_pwa_bets.php';
 const LOGIN_PWA_URL = 'https://app.iedeoccidente.com/gs/login_pwa.php';
 const CHANGE_PWA_PASSWORD_URL = 'https://app.iedeoccidente.com/gs/change_pwa_password.php';
-const GET_PREFS_URL = 'https://app.iedeoccidente.com/gs/get_prefs.php';
-const SAVE_PREFS_URL = 'https://app.iedeoccidente.com/gs/save_prefs.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -287,51 +285,6 @@ export async function clearBetsFromSheets() {
         body: JSON.stringify({
             spreadsheetId: SHEETS_SPREADSHEET_ID,
             worksheetTitle: SHEETS_WORKSHEET
-        })
-    });
-
-    const result = await response.json();
-    if (!response.ok || !result.success) {
-        throw new Error(result.error || `Error HTTP ${response.status}`);
-    }
-    return result;
-}
-
-/**
- * Carga las preferencias de un participante desde Google Sheets (hoja "prefs").
- * @param {string} phone  Teléfono con cualquier formato; el PHP normaliza a last-10.
- * @returns {Promise<{ success: boolean, prefs: { phone: string, seen_tour: boolean } }>}
- */
-export async function loadPrefsFromSheets(phone) {
-    const response = await fetch(GET_PREFS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            spreadsheetId: SHEETS_SPREADSHEET_ID,
-            phone
-        })
-    });
-
-    const result = await response.json();
-    if (!response.ok || !result.success) {
-        throw new Error(result.error || `Error HTTP ${response.status}`);
-    }
-    return result;
-}
-
-/**
- * Marca seen_tour=true para el participante. UPSERT por phone.
- * @param {string} phone
- * @returns {Promise<{ success: boolean, action: string, prefs: object }>}
- */
-export async function saveSeenTourToSheets(phone) {
-    const response = await fetch(SAVE_PREFS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            spreadsheetId: SHEETS_SPREADSHEET_ID,
-            phone,
-            seen_tour: true
         })
     });
 

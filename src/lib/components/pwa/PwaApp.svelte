@@ -4,7 +4,7 @@
     import { loadWorldCupMatches, loadBetsFromSheets, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
     import { applyPhoneNameOverrides, parseManualBets, normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, tomorrowCot, nowCotParts } from '../../pwa/window.js';
-    import { pwaSession, setStep } from '../../pwa/session.svelte.js';
+    import { pwaSession, setStep, hasSeenPwaTour, markPwaTourSeen } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
@@ -15,6 +15,41 @@
     import PwaHistory from './PwaHistory.svelte';
     import WorldCupResultsModal from '../WorldCupResultsModal.svelte';
     import MovementModal from '../MovementModal.svelte';
+    import OnboardingTour from '../OnboardingTour.svelte';
+    import TutorialPage from '../TutorialPage.svelte';
+    import { tourSteps } from '../tutorialSteps.js';
+
+    /**
+     * Disparador del tour in-app. Se activa tras el primer login exitoso
+     * si el usuario nunca vio el tour (flag en sessionStorage).
+     */
+    let triggerOnboardingTour = $state(false);
+
+    async function handleTourDone() {
+        triggerOnboardingTour = false;
+        markPwaTourSeen();
+    }
+
+    /**
+     * Llamado por PwaLogin / PwaChangePassword cuando el usuario termina
+     * de autenticarse (login o cambio de password). Si nunca vio el tour,
+     * dispara el Driver.js overlay. Caso contrario, va directo al form.
+     * @param {string} [participant]
+     * @param {string} [phone]
+     */
+    function handleAuthSuccess(participant, phone) {
+        if (!hasSeenPwaTour()) {
+            // Pequeño delay para que el form termine de montar y los
+            // selectores [data-pwa-tutorial] existan en el DOM.
+            setTimeout(() => {
+                triggerOnboardingTour = true;
+            }, 350);
+        }
+    }
+
+    function closeTutorial() {
+        setStep('landing');
+    }
 
     /** @type {{ isDev?: boolean }} */
     let { isDev: isDevProp = undefined } = $props();
@@ -406,11 +441,13 @@
 {:else if pwaSession.step === 'landing'}
     <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} />
 {:else if pwaSession.step === 'login'}
-    <PwaLogin onBack={onLoginBack} {isDev} />
+    <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
     <PwaRanking bets={pwaScoredBets} onBack={onRankingBack} />
+{:else if pwaSession.step === 'tutorial'}
+    <TutorialPage onClose={closeTutorial} />
 {:else if pwaSession.step === 'change-password'}
-    <PwaChangePassword {isDev} />
+    <PwaChangePassword {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.submitted || pwaSession.step === 'done'}
     <!-- Guard: si ya envió apuestas hoy, forzar 'done' sin importar el step -->
     <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} />
@@ -435,3 +472,10 @@
 {:else}
     <PwaLanding state={windowState} {isDev} />
 {/if}
+
+<!-- Tour in-app (Driver.js) — siempre montado; arranca con trigger=true -->
+<OnboardingTour
+    steps={tourSteps}
+    trigger={triggerOnboardingTour}
+    onDone={handleTourDone}
+/>

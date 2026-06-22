@@ -10,6 +10,7 @@
  */
 
 const SESSION_KEY = 'pwaSession';
+const TOUR_KEY = 'pwaSeenTour';
 
 const COT_TZ = 'America/Bogota';
 
@@ -23,7 +24,7 @@ function todayCot() {
 
 /**
  * @typedef {Object} PwaSession
- * @property {'landing'|'login'|'ranking'|'change-password'|'form'|'done'|'history'|'results'|'movement'} step
+ * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'form'|'done'|'history'|'results'|'movement'} step
  * @property {string|null} authParticipant - nombre del participante (columna A de la hoja `participantes`)
  * @property {string|null} authPhone - phone (columna B de la hoja, last 10 digits)
  * @property {string|null} authUsername - last 10 digits (== authPhone)
@@ -46,6 +47,42 @@ const initial = loadFromStorage() || {
 };
 
 export const pwaSession = $state(initial);
+
+/**
+ * ¿El usuario ya vio el tour de la PWA en esta pestaña?
+ * Persistido en sessionStorage con clave separada (no se borra con logout,
+ * porque el tour es por-dispositivo, no por-cuenta).
+ * @returns {boolean}
+ */
+export function hasSeenPwaTour() {
+    try {
+        return sessionStorage.getItem(TOUR_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Marca el tour como visto. Idempotente.
+ */
+export function markPwaTourSeen() {
+    try {
+        sessionStorage.setItem(TOUR_KEY, 'true');
+    } catch {
+        // sessionStorage puede fallar en modo privado de Safari; ignorar
+    }
+}
+
+/**
+ * Resetea el flag del tour. Útil para testing o para "ver de nuevo".
+ */
+export function resetPwaTour() {
+    try {
+        sessionStorage.removeItem(TOUR_KEY);
+    } catch {
+        // ignorar
+    }
+}
 
 /**
  * Resetea a un estado conocido.

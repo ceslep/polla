@@ -3,8 +3,8 @@
     import { loginPwa } from '../../api.js';
     import { pwaSession, loginAs, setStep } from '../../pwa/session.svelte.js';
 
-    /** @type {{ onBack: () => void, isDev?: boolean }} */
-    let { onBack, isDev = false } = $props();
+    /** @type {{ onBack: () => void, isDev?: boolean, onSuccess?: (participant: string, phone: string) => void }} */
+    let { onBack, isDev = false, onSuccess = () => {} } = $props();
 
     const REMEMBER_KEY = 'pwaRememberedUser';
 
@@ -71,13 +71,19 @@
                 return;
             }
             persistRemember();
+            const participant = result.participant || username;
+            const phone = result.phone || username;
             loginAs(
-                result.participant || username,
-                result.phone || username,
+                participant,
+                phone,
                 result.username || username,
                 password,
                 result.mustChangePassword === true
             );
+            // Callback al padre (PwaApp) para que dispare el tour si corresponde.
+            // Lo hacemos DESPUÉS de loginAs para que el step ya esté en 'form'
+            // (o 'change-password') y los selectores del form puedan existir.
+            onSuccess(participant, phone);
         } catch (e) {
             error = e instanceof Error ? e.message : 'Error desconocido';
         } finally {

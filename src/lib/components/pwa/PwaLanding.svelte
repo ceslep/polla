@@ -1,12 +1,20 @@
 <script>
+    import { onMount } from 'svelte';
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
+    import { initInstallPrompt, promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
 
     /** @type {{ state: any, isDev?: boolean, devTestDate?: string }} */
     let { state, isDev = false, devTestDate = '' } = $props();
 
+    const installState = getInstallState();
+
     const isWindowOpen = $derived(state?.status === 'open');
     // En dev mode el botón siempre se puede pulsar aunque la ventana esté cerrada.
     const canBet = $derived(isDev || isWindowOpen);
+
+    onMount(() => {
+        initInstallPrompt();
+    });
 
     function goRank() {
         setStep('ranking');
@@ -23,6 +31,10 @@
     function goBet() {
         if (!canBet) return;
         setStep('login');
+    }
+
+    function goTutorial() {
+        setStep('tutorial');
     }
 </script>
 
@@ -86,6 +98,21 @@
         </div>
 
         <div class="space-y-3">
+            <!-- Tutorial (público, sin login) -->
+            <button
+                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                onclick={goTutorial}
+            >
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110">📖</div>
+                    <div class="flex-1">
+                        <div class="font-black text-lg">¿Cómo funciona?</div>
+                        <div class="text-xs text-gray-400">Tutorial paso a paso</div>
+                    </div>
+                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
+                </div>
+            </button>
+
             <!-- Ver ranking (público) -->
             <button
                 class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
@@ -172,4 +199,65 @@
             </a>
         </div>
     </div>
+
+    <!-- Botón flotante: instalar PWA (Chrome/Edge/Desktop) -->
+    {#if installState.canShowNative && !installState.installed}
+        <button
+            type="button"
+            class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold shadow-2xl shadow-emerald-500/40 animate-slide-up flex items-center gap-2 max-w-[calc(100vw-2rem)]"
+            onclick={promptInstall}
+            aria-label="Instalar la app en tu dispositivo"
+        >
+            <span class="text-xl">📲</span>
+            <span>Instalar app</span>
+        </button>
+    {/if}
+
+    <!-- Modal iOS: instrucciones manuales (Safari no expone beforeinstallprompt) -->
+    {#if installState.isIos && !installState.installed && !installState.iosDismissed}
+        <div
+            class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+            onclick={(/** @type {MouseEvent} */ e) => { if (e.target === e.currentTarget) dismissIosHint(); }}
+            onkeydown={(/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') dismissIosHint(); }}
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="ios-install-title"
+        >
+            <div class="glass-strong rounded-3xl p-6 max-w-md w-full space-y-4 animate-slide-up" aria-hidden="false">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 ring-1 ring-emerald-500/40 flex items-center justify-center text-2xl">📲</div>
+                    <h3 id="ios-install-title" class="text-lg font-bold text-white">Instala la app</h3>
+                </div>
+                <p class="text-gray-300 text-sm">
+                    Para tener la polla siempre a mano en tu iPhone o iPad:
+                </p>
+                <ol class="space-y-3 text-sm text-gray-200">
+                    <li class="flex items-start gap-3">
+                        <span class="text-emerald-400 font-black text-lg shrink-0">1.</span>
+                        <span>
+                            Toca el botón
+                            <span class="inline-flex items-center justify-center w-6 h-6 mx-1 rounded bg-white/10 text-blue-400 align-middle" aria-hidden="true">⬆</span>
+                            <strong class="text-white">Compartir</strong> en la barra del navegador.
+                        </span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="text-emerald-400 font-black text-lg shrink-0">2.</span>
+                        <span>Elige <strong class="text-white">Añadir a pantalla de inicio</strong> <span class="text-gray-400" aria-hidden="true">⊞</span>.</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="text-emerald-400 font-black text-lg shrink-0">3.</span>
+                        <span>Toca <strong class="text-white">Añadir</strong>.</span>
+                    </li>
+                </ol>
+                <button
+                    type="button"
+                    class="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold transition-all min-h-12"
+                    onclick={dismissIosHint}
+                >
+                    Entendido
+                </button>
+            </div>
+        </div>
+    {/if}
 </div>

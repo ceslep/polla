@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD, refreshTourPref, markTourSeen } from './lib/stores.svelte.js';
+    import { appState, findMatchForBet, findMatchSuggestion, applyMatchSuggestion, dismissMatchSuggestion, participants, safeFormatDate, uniqueBets, MIN_POINTS_THRESHOLD } from './lib/stores.svelte.js';
     import { loadMatches, loadMatchesFromGitHub, loadWorldCupMatches, compareBetWithMatch, saveBetsToSheets, loadBetsFromSheets, clearBetsFromSheets } from './lib/api.js';
     import { normalizeTeamName, parseWhatsAppExport, applyPhoneNameOverrides, parseManualBets, reparseMissingBets } from './lib/parser.js';
     import DropZone from './lib/components/DropZone.svelte';
@@ -21,9 +21,6 @@
     import MovementModal from './lib/components/MovementModal.svelte';
     import MalformedMessagesModal from './lib/components/MalformedMessagesModal.svelte';
     import PwaApp from './lib/components/pwa/PwaApp.svelte';
-    import OnboardingTour from './lib/components/OnboardingTour.svelte';
-    import TutorialPage from './lib/components/TutorialPage.svelte';
-    import { tourSteps } from './lib/components/tutorialSteps.js';
 
     let selectedBet = $state(/** @type {any} */ (null));
     let mobileMenuOpen = $state(false);
@@ -47,10 +44,6 @@
     let selectedParticipantName = $state(/** @type {string|null} */ (null));
     let analysisSummary = $state(/** @type {{ summary: { total: number, updated: number, errors: number }, errors: string[], winners: Array<{participant: string, points: number, rank: number}> }} */ ({ summary: { total: 0, updated: 0, errors: 0 }, errors: [], winners: [] }));
     let isPwaRoute = $state(false);
-    let isTutorialRoute = $state(false);
-    let triggerOnboardingTour = $state(false);
-    /** Forzador manual desde el header (override de Sheets, útil en dev). */
-    let manualTourRequest = 0;
     const isDev = (import.meta?.env?.DEV === true) ||
         (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
 
@@ -66,27 +59,18 @@
             selectedParticipantName = name;
             showRankingModal = false;
             isPwaRoute = false;
-            isTutorialRoute = false;
         } else if (hash === 'ranking') {
             showRankingModal = true;
             selectedParticipantName = null;
             isPwaRoute = false;
-            isTutorialRoute = false;
         } else if (hash === 'apostar' || hash.startsWith('apostar/')) {
             isPwaRoute = true;
             showRankingModal = false;
             selectedParticipantName = null;
-            isTutorialRoute = false;
-        } else if (hash === 'tutorial') {
-            isTutorialRoute = true;
-            showRankingModal = false;
-            selectedParticipantName = null;
-            isPwaRoute = false;
         } else {
             showRankingModal = false;
             selectedParticipantName = null;
             isPwaRoute = false;
-            isTutorialRoute = false;
         }
     }
 
@@ -333,35 +317,6 @@
         } finally {
             isLoadingFromSheets = false;
         }
-        // Tras el primer refresh, intentar disparar el tour in-app.
-        // No-op si no hay phone (e.g. primer load sin subir nada) o si ya
-        // lo vio (lo detecta refreshTourPref).
-        await maybeStartOnboardingTour();
-    }
-
-    /**
-     * Identifica el phone del usuario actual a partir de appState.bets
-     * (el primero que tenga phone no vacío) y consulta Sheets para ver
-     * si ya vio el tour. Si no lo vio, dispara el tour.
-     */
-    async function maybeStartOnboardingTour() {
-        if (appState.tourCheckDone && appState.seenTour !== false) return;
-        if (isTutorialRoute) return;
-        const phoneBet = appState.bets.find((b) => b.phone && String(b.phone).trim() !== '');
-        if (!phoneBet) return; // sin phone todavía → no sabemos quién es
-        appState.currentUserPhone = String(phoneBet.phone);
-        const seen = await refreshTourPref();
-        if (!seen) {
-            // Pequeño delay para que la UI se asiente y el selector exista.
-            setTimeout(() => {
-                triggerOnboardingTour = true;
-            }, 500);
-        }
-    }
-
-    async function handleTourDone() {
-        triggerOnboardingTour = false;
-        await markTourSeen();
     }
 
     onMount(() => {
@@ -381,8 +336,6 @@
 
 {#if isPwaRoute}
     <PwaApp {isDev} />
-{:else if isTutorialRoute}
-    <TutorialPage onClose={() => { window.location.hash = '/'; }} />
 {:else}
 <main class="min-h-screen bg-[#111] text-white selection:bg-cyan-500/30">
     {#if appState.sheetsUnavailable}
@@ -482,16 +435,6 @@
                 </button>
 
                 <button
-                    class="px-3 md:px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 rounded-xl text-sm font-semibold transition-all border border-indigo-500/30 text-indigo-300 min-h-11"
-                    onclick={() => {
-                        window.location.hash = '/tutorial';
-                    }}
-                    title="¿Cómo funciona la polla? Abrí el tutorial"
-                >
-                    <span class="hidden sm:inline">📖 </span>Tutorial
-                </button>
-
-                <button
                     class="hidden md:flex px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-500/20 min-h-11 disabled:opacity-50"
                     onclick={() => {
                         if (isDev) {
@@ -541,22 +484,16 @@
             <div class="max-w-2xl mx-auto mt-20 text-center">
                 <h2 class="text-4xl font-bold mb-4">🏆 ¡Bienvenido a la Polla!</h2>
                 <p class="text-gray-400 mb-12">Carga tu exportación de WhatsApp para empezar a calcular puntos.</p>
-                <div data-tutorial="dropzone">
-                    <DropZone />
-                </div>
+                <DropZone />
             </div>
         {:else}
-            <div data-tutorial="ranking">
-                <StatsGrid onPendingClick={() => showPendingModal = true} onRankingClick={() => showRankingModal = true} />
-            </div>
-            <div data-tutorial="bets">
-                <BetTable
-                    onSelectBet={handleSelectBet}
-                    onApplySuggestion={handleApplySuggestion}
-                    onDismissSuggestion={handleDismissSuggestion}
-                    selectedParticipantName={selectedParticipantName}
-                />
-            </div>
+            <StatsGrid onPendingClick={() => showPendingModal = true} onRankingClick={() => showRankingModal = true} />
+            <BetTable
+                onSelectBet={handleSelectBet}
+                onApplySuggestion={handleApplySuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
+                selectedParticipantName={selectedParticipantName}
+            />
         {/if}
     </div>
 
@@ -747,7 +684,6 @@
         onStats={() => showStatsModal = true}
         onMovement={() => showMovementModal = true}
         onMalformed={() => showMalformedModal = true}
-        onTutorial={() => { window.location.hash = '/tutorial'; }}
         onRefresh={refreshFromSheets}
         onAnalyze={() => {
             adminAction = () => analyzeBets(true);
@@ -761,12 +697,6 @@
             adminMessage = "Se requiere clave de administrador para borrar todos los datos de Google Sheets.";
             showAdminModal = true;
         }}
-    />
-
-    <OnboardingTour
-        steps={tourSteps}
-        trigger={triggerOnboardingTour}
-        onDone={handleTourDone}
     />
 </main>
 {/if}

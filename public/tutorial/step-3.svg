@@ -1,84 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo subir tu archivo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo enviar tus apuestas">
   <style>
     .bg { fill: #f8fafc; }
-    .browser { fill: white; stroke: #cbd5e1; stroke-width: 1.5; }
-    .browser-bar { fill: #f1f5f9; }
-    .url { fill: #cbd5e1; }
-    .url-text { font: 400 10px ui-monospace, monospace; fill: #475569; }
-    .tab { fill: white; stroke: #cbd5e1; }
-    .tab-text { font: 500 10px system-ui, sans-serif; fill: #334155; }
-    .dropzone { fill: #eff6ff; stroke: #3b82f6; stroke-width: 2; stroke-dasharray: 6 4; }
-    .dropzone-text { font: 600 14px system-ui, sans-serif; fill: #1e40af; }
-    .dropzone-sub { font: 400 11px system-ui, sans-serif; fill: #3b82f6; }
-    .icon-upload { fill: #3b82f6; }
-    .header { fill: #1e3a8a; }
-    .header-text { font: 700 14px system-ui, sans-serif; fill: white; }
-    .step-circle { fill: #3b82f6; }
-    .step-num { font: 700 12px system-ui, sans-serif; fill: white; }
-    .step-text { font: 500 13px system-ui, sans-serif; fill: #0f172a; }
+    .phone { fill: #1f2937; }
+    .screen { fill: #0a0a0a; }
+    .header { fill: #064e3b; }
+    .header-text { font: 700 10px system-ui, sans-serif; fill: white; }
+    .date-text { font: 400 8px system-ui, sans-serif; fill: #a7f3d0; }
+    .row { fill: #1e293b; }
+    .row-alt { fill: #172033; }
+    .team { font: 600 10px system-ui, sans-serif; fill: #e2e8f0; }
+    .vs { font: 400 8px system-ui, sans-serif; fill: #64748b; }
+    .input { fill: #0f172a; stroke: #475569; }
+    .input-text { font: 700 12px ui-monospace, monospace; fill: #10b981; }
+    .input-hint { font: 400 7px system-ui, sans-serif; fill: #64748b; }
+    .btn { fill: #10b981; }
+    .btn-text { font: 700 11px system-ui, sans-serif; fill: white; }
+    .annot { font: 500 11px system-ui, sans-serif; fill: #dc2626; }
+    .annot-line { stroke: #dc2626; stroke-width: 1.5; fill: none; stroke-dasharray: 3 2; }
+    .annot-dot { fill: #dc2626; }
+    .step-circle { fill: #dc2626; }
+    .step-num { font: 700 11px system-ui, sans-serif; fill: white; }
+    .step-text { font: 500 12px system-ui, sans-serif; fill: #0f172a; }
+    .arrow { fill: #fbbf24; }
   </style>
 
   <rect class="bg" width="600" height="400" rx="16"/>
 
-  <text font="700 18px system-ui, sans-serif" fill="#0f172a" x="300" y="30" text-anchor="middle">Subí tu archivo a la app</text>
+  <text font="700 18px system-ui, sans-serif" fill="#0f172a" x="300" y="30" text-anchor="middle">Cómo enviar tus apuestas</text>
 
-  <!-- Browser window mockup -->
-  <g transform="translate(40, 60)">
-    <rect class="browser" width="380" height="290" rx="8"/>
+  <!-- Phone mockup -->
+  <g transform="translate(60, 50)">
+    <rect class="phone" width="160" height="320" rx="16"/>
+    <rect class="screen" x="6" y="22" width="148" height="296" rx="6"/>
 
-    <!-- Title bar -->
-    <rect class="browser-bar" width="380" height="32" rx="8"/>
-    <rect class="browser-bar" y="20" width="380" height="12"/>
-    <circle cx="16" cy="16" r="5" fill="#ef4444"/>
-    <circle cx="32" cy="16" r="5" fill="#f59e0b"/>
-    <circle cx="48" cy="16" r="5" fill="#10b981"/>
+    <!-- Status bar -->
+    <text font="600 7px system-ui" fill="#94a3b8" x="80" y="32" text-anchor="middle">9:41</text>
 
-    <!-- Tab -->
-    <rect class="tab" x="70" y="6" width="160" height="22" rx="3"/>
-    <text class="tab-text" x="80" y="20">⚽ Polla Mundial 2026</text>
+    <!-- Header -->
+    <rect class="header" x="6" y="38" width="148" height="32"/>
+    <text class="header-text" x="80" y="53" text-anchor="middle">Partidos del 14/06</text>
+    <text class="date-text" x="80" y="64" text-anchor="middle">Cierra a las 12:00</text>
 
-    <!-- URL bar -->
-    <rect class="url" x="70" y="40" width="290" height="20" rx="10"/>
-    <text class="url-text" x="84" y="54">ceslep.github.io/polla/</text>
+    <!-- Match 1: Mexico vs Sudafrica -->
+    <g transform="translate(12, 80)">
+      <rect class="row" width="136" height="50" rx="6"/>
+      <text class="team" x="10" y="14">México</text>
+      <text class="input-hint" x="10" y="24">home</text>
+      <text class="vs" x="68" y="20" text-anchor="middle">vs</text>
+      <text class="team" x="126" y="14" text-anchor="end">Sudáfri</text>
+      <text class="input-hint" x="126" y="24" text-anchor="end">away</text>
+      <!-- inputs -->
+      <rect class="input" x="22" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="37" y="42" text-anchor="middle">2</text>
+      <text class="input-hint" x="37" y="49" text-anchor="middle">2-0 ✓</text>
+      <rect class="input" x="84" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="99" y="42" text-anchor="middle">0</text>
+    </g>
 
-    <!-- App header -->
-    <rect class="header" x="0" y="68" width="380" height="36"/>
-    <text class="header-text" x="190" y="91" text-anchor="middle">⚽ POLLA MUNDIAL 2026</text>
+    <!-- Match 2 -->
+    <g transform="translate(12, 138)">
+      <rect class="row-alt" width="136" height="50" rx="6"/>
+      <text class="team" x="10" y="14">Corea</text>
+      <text class="vs" x="68" y="20" text-anchor="middle">vs</text>
+      <text class="team" x="126" y="14" text-anchor="end">Chequia</text>
+      <rect class="input" x="22" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="37" y="42" text-anchor="middle">1</text>
+      <rect class="input" x="84" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="99" y="42" text-anchor="middle">0</text>
+    </g>
 
-    <!-- Dropzone -->
-    <g transform="translate(40, 130)">
-      <rect class="dropzone" width="300" height="120" rx="12"/>
-      <!-- Upload icon -->
-      <g transform="translate(135, 25)">
-        <path class="icon-upload" d="M15 0 a15 15 0 0 0 -15 15 v15 a15 15 0 0 0 15 15 h12 l -3 -3 a2 2 0 0 1 0 -3 l3 -3 h-12 a9 9 0 0 1 0 -18 h12 a9 9 0 0 1 9 9 v3 l-3 -3 a2 2 0 0 1 0 -3 l3 -3 v-9 a15 15 0 0 0 -15 -15 z" transform="scale(1) translate(0,5)"/>
-      </g>
-      <text class="dropzone-text" x="150" y="78" text-anchor="middle">Arrastrá tu .json acá</text>
-      <text class="dropzone-sub" x="150" y="98" text-anchor="middle">o hacé click para elegirlo</text>
+    <!-- Match 3 (partially shown) -->
+    <g transform="translate(12, 196)">
+      <rect class="row" width="136" height="50" rx="6"/>
+      <text class="team" x="10" y="14">USA</text>
+      <text class="vs" x="68" y="20" text-anchor="middle">vs</text>
+      <text class="team" x="126" y="14" text-anchor="end">Paraguay</text>
+      <rect class="input" x="22" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="37" y="42" text-anchor="middle">3</text>
+      <rect class="input" x="84" y="30" width="30" height="16" rx="3"/>
+      <text class="input-text" x="99" y="42" text-anchor="middle">1</text>
+    </g>
+
+    <!-- Submit button -->
+    <g transform="translate(12, 258)">
+      <rect class="btn" width="136" height="36" rx="8"/>
+      <text class="btn-text" x="68" y="23" text-anchor="middle">Enviar apuestas ✓</text>
     </g>
   </g>
 
-  <!-- Right side: instructions -->
-  <g transform="translate(440, 80)">
+  <!-- Annotation arrow to the first input -->
+  <path class="annot-line" d="M 240 145 Q 280 130 310 110"/>
+  <circle class="annot-dot" cx="240" cy="145" r="3"/>
+
+  <!-- Right side: 3 steps -->
+  <g transform="translate(330, 80)">
     <g transform="translate(0, 0)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
-      <text class="step-num" x="14" y="19" text-anchor="middle">1</text>
-      <text class="step-text" x="36" y="12">Andá a la app</text>
-      <text class="step-text" x="36" y="28" font-weight="400" fill="#475569">ceslep.github.io/polla</text>
+      <text class="step-num" x="14" y="18" text-anchor="middle">1</text>
+      <text class="step-text" x="36" y="12">Poné el marcador</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">un número por equipo</text>
     </g>
-    <g transform="translate(0, 70)">
+    <g transform="translate(0, 64)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
-      <text class="step-num" x="14" y="19" text-anchor="middle">2</text>
-      <text class="step-text" x="36" y="12">Subí el .json</text>
-      <text class="step-text" x="36" y="28" font-weight="400" fill="#475569">arrastrando o click</text>
+      <text class="step-num" x="14" y="18" text-anchor="middle">2</text>
+      <text class="step-text" x="36" y="12">Repetí para todos</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">los partidos del día</text>
     </g>
-    <g transform="translate(0, 140)">
+    <g transform="translate(0, 128)">
       <circle class="step-circle" cx="14" cy="14" r="14"/>
-      <text class="step-num" x="14" y="19" text-anchor="middle">3</text>
-      <text class="step-text" x="36" y="12">¡Listo!</text>
-      <text class="step-text" x="36" y="28" font-weight="400" fill="#475569">tus apuestas aparecen</text>
+      <text class="step-num" x="14" y="18" text-anchor="middle">3</text>
+      <text class="step-text" x="36" y="12">Dale "Enviar"</text>
+      <text class="step-text" x="36" y="26" fill="#475569" font-weight="400">quedan guardadas</text>
+    </g>
+    <g transform="translate(0, 200)">
+      <circle class="step-circle" cx="14" cy="14" r="14" fill="#f59e0b"/>
+      <text class="step-num" x="14" y="18" text-anchor="middle">!</text>
+      <text class="step-text" x="36" y="18" fill="#0f172a" font-weight="500">Solo podés mandar UNA vez por día</text>
     </g>
   </g>
-
-  <!-- arrow from upload icon -->
-  <path d="M 250 230 Q 280 200 320 180" stroke="#dc2626" stroke-width="1.5" fill="none" stroke-dasharray="3 2"/>
 </svg>

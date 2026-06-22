@@ -1,13 +1,15 @@
-// tutorialSteps.js — Textos en español para el tutorial de pollaweb.
+// tutorialSteps.js — Textos en español para el tutorial de la PWA.
 //
 // Dos consumos:
-//   1. In-app tour (Driver.js): pasos cortos que apuntan a elementos del DOM
-//      con `selector` y resumen las acciones principales.
-//   2. Standalone /tutorial (Embla carousel): slides con título, descripción
-//      e imagen SVG de mayor detalle, linkable desde fuera de la app.
+//   1. In-app tour (Driver.js): pasos cortos que se disparan tras el
+//      primer login exitoso y resaltan partes del PwaForm con
+//      selectores [data-pwa-tutorial="..."].
+//   2. Standalone /tutorial (Embla carousel): 5 slides linkables
+//      desde el botón "Tutorial" del PwaLanding, sin requerir login.
 //
-// El campo `selector` puede ser `null` cuando el paso no apunta a un elemento
-// concreto (e.g. el primer paso de bienvenida) — Driver.js lo centra en pantalla.
+// El campo `selector` puede ser `null` cuando el paso no apunta a un
+// elemento concreto (e.g. mensaje de bienvenida) — Driver.js lo
+// centra en pantalla.
 
 /**
  * @typedef {Object} TourStep
@@ -18,34 +20,35 @@
  * @property {'top'|'bottom'|'left'|'right'} [side]  Lado preferido del popover
  */
 
+/** Pasos del tour in-app (Driver.js). Se disparan tras login. */
 /** @type {TourStep[]} */
 export const tourSteps = [
     {
-        id: 'welcome',
+        id: 'welcome-pwa',
         selector: null,
-        title: '¡Bienvenido a la polla! 🏆',
-        description: 'Acá vas a ver el ranking de todos los participantes y los marcadores del Mundial 2026.',
+        title: '¡Listo, ya estás adentro! 🎉',
+        description: 'Tu login funcionó. Ahora vamos a mandarte al formulario para que pongas tus apuestas del día.',
         side: 'bottom',
     },
     {
-        id: 'upload',
-        selector: '[data-tutorial="dropzone"]',
-        title: 'Subí tu chat de WhatsApp',
-        description: 'Si todavía no lo hiciste, exportá el chat del grupo y arrastrá el .json acá.',
-        side: 'bottom',
-    },
-    {
-        id: 'ranking',
-        selector: '[data-tutorial="ranking"]',
-        title: 'Tu ranking en vivo',
-        description: 'Acá ves los puntos. Se actualiza cada vez que se juega un partido.',
+        id: 'pwa-matches',
+        selector: '[data-pwa-tutorial="matches"]',
+        title: 'Acá están los partidos del día',
+        description: 'Cada fila es un partido que se juega hoy. Solo los que tengan ventana abierta aparecen.',
         side: 'top',
     },
     {
-        id: 'bets',
-        selector: '[data-tutorial="bets"]',
-        title: 'Tus apuestas',
-        description: 'Hacé click en una fila para ver el detalle: resultado real, puntos ganados, etc.',
+        id: 'pwa-inputs',
+        selector: '[data-pwa-tutorial="inputs"]',
+        title: 'Poné tu marcador',
+        description: 'Tocá el casillero del equipo local y del visitante. Tenés que poner los dos.',
+        side: 'top',
+    },
+    {
+        id: 'pwa-submit',
+        selector: '[data-pwa-tutorial="submit"]',
+        title: 'Cuando termines, dale "Enviar"',
+        description: 'Solo podés mandar UNA vez por día. Después de enviar no se puede cambiar.',
         side: 'top',
     },
 ];
@@ -59,45 +62,44 @@ export const tourSteps = [
  * @property {string[]=} tips   Bullets opcionales
  */
 
-/** @type {TutorialSlide[]} */
+/** Slides del /tutorial standalone (Embla carousel). Accesible desde PwaLanding. */
 export const tutorialSlides = [
     {
         id: 'intro',
         title: '¿Qué es la polla?',
-        description: 'Una competencia entre todos los participantes del grupo. Cada uno manda sus apuestas por WhatsApp y el que más puntos suma al final del Mundial gana.',
+        description: 'Cada jornada elegís un marcador para cada partido del día. El que más puntos suma al final del Mundial gana.',
         image: '/tutorial/step-1.svg',
         tips: [
-            'Apostás marcador por partido, campeón, subcampeón y goleador',
+            'Apostás el marcador exacto de cada partido',
             'Gana quien tenga más puntos al terminar el torneo',
         ],
     },
     {
-        id: 'export',
-        title: 'Cómo exportar el chat de WhatsApp',
-        description: 'Desde el chat del grupo, seguí estos pasos para bajar el archivo con tus apuestas.',
+        id: 'login',
+        title: 'Cómo iniciar sesión',
+        description: 'Necesitás un usuario y una contraseña. Si no los tenés, pedíselos al admin del grupo.',
         image: '/tutorial/step-2.svg',
         tips: [
-            'Andá al chat del grupo de la polla',
-            'Tocá los 3 puntos ⋮ arriba a la derecha',
-            'Elegí "Más" → "Exportar chat"',
-            'Sin multimedia, formato .zip',
+            'Tu usuario = últimos 10 dígitos de tu cel',
+            'Tu contraseña = últimos 4 dígitos',
+            'Apretá "Apostar" para entrar',
         ],
     },
     {
-        id: 'upload',
-        title: 'Cómo subir tu archivo',
-        description: 'Descomprimí el .zip (te queda un .json) y subilo a la app.',
+        id: 'form',
+        title: 'Cómo enviar tus apuestas',
+        description: 'Una vez logueado, vas a ver la lista de partidos del día. Poné el marcador de cada uno y dale "Enviar".',
         image: '/tutorial/step-3.svg',
         tips: [
-            'Andá a ceslep.github.io/polla',
-            'Arrastrá el .json al recuadro azul',
-            'O hacé click y elegilo desde tu compu',
+            'Tocá cada casillero y poné el número',
+            'Tenés que completar todos los partidos',
+            'Solo podés mandar UNA vez por día',
         ],
     },
     {
         id: 'ranking',
         title: 'Cómo se ve el ranking',
-        description: 'La tabla muestra posición, puntos totales y cuántos aciertos exactos / parciales / fallos tuviste.',
+        description: 'Después de cada partido se actualiza la tabla. Podés ver dónde quedás y cuántos puntos sacaste.',
         image: '/tutorial/step-4.svg',
         tips: [
             'Hacé click en una fila para ver el detalle',

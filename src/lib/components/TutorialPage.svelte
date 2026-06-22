@@ -45,6 +45,7 @@
 </script>
 
 <div class="tutorial-page" role="dialog" aria-label="Tutorial de la polla">
+    <div class="tutorial-bg" aria-hidden="true"></div>
     <header class="tutorial-header">
         <button type="button" class="close-btn" onclick={close} aria-label="Volver">
             ← Volver
@@ -124,7 +125,26 @@
         display: flex;
         flex-direction: column;
         min-height: 100vh;
-        background: #f8fafc;
+        background: #0a0a0a;
+        color: #e2e8f0;
+        position: relative;
+    }
+
+    .tutorial-bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background:
+            radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.18), transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(6, 182, 212, 0.14), transparent 50%);
+        pointer-events: none;
+    }
+
+    .tutorial-header,
+    .embla,
+    .tutorial-footer {
+        position: relative;
+        z-index: 1;
     }
 
     .tutorial-header {
@@ -132,7 +152,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 16px 20px;
-        background: #1e3a8a;
+        background: #064e3b;
         color: white;
         position: sticky;
         top: 0;
@@ -184,9 +204,10 @@
     }
 
     .slide-card {
-        background: white;
+        background: #111827;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 16px;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
         overflow: hidden;
         max-width: 600px;
         margin: 0 auto;
@@ -214,21 +235,21 @@
     .slide-title {
         font-size: 22px;
         font-weight: 700;
-        color: #0f172a;
+        color: #34d399;
         margin: 0 0 12px;
     }
 
     .slide-description {
         font-size: 15px;
         line-height: 1.55;
-        color: #475569;
+        color: #cbd5e1;
         margin: 0 0 16px;
     }
 
     .slide-tips {
         margin: 0;
         padding-left: 20px;
-        color: #475569;
+        color: #cbd5e1;
     }
 
     .slide-tips li {
@@ -242,21 +263,21 @@
         align-items: center;
         justify-content: space-between;
         padding: 16px 20px 24px;
-        background: white;
-        border-top: 1px solid #e2e8f0;
+        background: #111827;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
         position: sticky;
         bottom: 0;
     }
 
     .nav-btn {
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
+        background: #1e293b;
+        border: 1px solid #334155;
         border-radius: 50%;
         width: 44px;
         height: 44px;
         font-size: 18px;
         font-weight: 700;
-        color: #475569;
+        color: #cbd5e1;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -265,8 +286,8 @@
     }
 
     .nav-btn:hover:not(:disabled) {
-        background: #e2e8f0;
-        color: #0f172a;
+        background: #334155;
+        color: #f1f5f9;
     }
 
     .nav-btn:disabled {
@@ -275,14 +296,14 @@
     }
 
     .nav-btn.primary {
-        background: #2563eb;
+        background: #10b981;
         color: white;
-        border-color: #2563eb;
+        border-color: #10b981;
     }
 
     .nav-btn.primary:hover {
-        background: #1d4ed8;
-        border-color: #1d4ed8;
+        background: #059669;
+        border-color: #059669;
     }
 
     .dots {
@@ -295,14 +316,14 @@
         height: 10px;
         border-radius: 50%;
         border: none;
-        background: #cbd5e1;
+        background: #475569;
         cursor: pointer;
         padding: 0;
         transition: all 0.15s;
     }
 
     .dot.is-active {
-        background: #2563eb;
+        background: #10b981;
         transform: scale(1.25);
     }
 

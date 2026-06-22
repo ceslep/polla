@@ -61,8 +61,8 @@
         const driveSteps = toDriveSteps(steps);
         driverInstance = driver({
             animate: true,
-            overlayColor: '#0f172a',
-            overlayOpacity: 0.55,
+            overlayColor: '#000000',
+            overlayOpacity: 0.7,
             smoothScroll: true,
             allowClose: true,
             showProgress: true,

@@ -1,16 +1,22 @@
-/* OnboardingTour.css — overrides sobre driver.js para el tema de pollaweb */
+/* OnboardingTour.css — overrides sobre driver.js para el tema de la PWA.
+ *
+ * La PWA tiene fondo oscuro con acentos emerald/cyan. Adaptamos el
+ * popover a ese tema para que el tour se vea integrado.
+ */
 
 .driver-popover {
-    border-radius: 12px !important;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
     padding: 18px !important;
     max-width: 320px !important;
     min-width: 280px !important;
+    background-color: #0f172a !important;  /* slate-900 */
+    color: #e2e8f0 !important;             /* slate-200 */
 }
 
 .driver-popover-title {
-    font-size: 18px !important;
-    color: #0f172a !important;
+    font-size: 17px !important;
+    color: #34d399 !important;            /* emerald-400 */
     font-weight: 700 !important;
     margin-bottom: 8px !important;
 }
@@ -18,16 +24,16 @@
 .driver-popover-description {
     font-size: 14px !important;
     line-height: 1.5 !important;
-    color: #475569 !important;
+    color: #cbd5e1 !important;            /* slate-300 */
 }
 
 .driver-popover-progress-text {
     font-size: 12px !important;
-    color: #94a3b8 !important;
+    color: #94a3b8 !important;            /* slate-400 */
 }
 
 .driver-popover-footer {
-    margin-top: 16px !important;
+    margin-top: 14px !important;
     gap: 8px;
 }
 
@@ -36,36 +42,38 @@
     padding: 6px 12px !important;
     font-size: 13px !important;
     font-weight: 600 !important;
-    border: 1px solid #e2e8f0 !important;
-    background-color: #f8fafc !important;
-    color: #334155 !important;
+    border: 1px solid #334155 !important; /* slate-700 */
+    background-color: #1e293b !important; /* slate-800 */
+    color: #cbd5e1 !important;            /* slate-300 */
+    text-shadow: none !important;
     transition: all 0.15s ease !important;
 }
 
 .driver-popover-footer button:hover,
 .driver-popover-footer button:focus {
-    background-color: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
+    background-color: #334155 !important;
+    color: #f1f5f9 !important;
+    border-color: #475569 !important;
 }
 
-/* Botón "Siguiente" / "¡Entendido!" destacado en azul */
+/* Botón "Siguiente" / "¡Entendido!" destacado en emerald (color de marca PWA) */
 .driver-popover-next-btn,
 .driver-popover-done-btn {
-    background-color: #2563eb !important;
+    background-color: #10b981 !important; /* emerald-500 */
     color: white !important;
-    border-color: #2563eb !important;
+    border-color: #10b981 !important;
 }
 
 .driver-popover-next-btn:hover,
 .driver-popover-done-btn:hover,
 .driver-popover-next-btn:focus,
 .driver-popover-done-btn:focus {
-    background-color: #1d4ed8 !important;
-    border-color: #1d4ed8 !important;
+    background-color: #059669 !important; /* emerald-600 */
+    border-color: #059669 !important;
 }
 
 .driver-popover-close-btn {
-    color: #94a3b8 !important;
+    color: #64748b !important;
     font-size: 22px !important;
     width: 28px !important;
     height: 28px !important;
@@ -73,14 +81,14 @@
 
 .driver-popover-close-btn:hover,
 .driver-popover-close-btn:focus {
-    color: #475569 !important;
+    color: #cbd5e1 !important;
 }
 
 .driver-popover-arrow {
-    border-color: #fff !important;
+    border-color: #0f172a !important;
 }
 
-/* Elemento destacado: borde azul */
+/* Elemento destacado: borde emerald brillante */
 .driver-active-element {
-    border-radius: 8px !important;
+    border-radius: 12px !important;
 }

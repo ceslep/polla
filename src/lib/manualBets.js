@@ -48,4 +48,16 @@ export const MANUAL_BETS = [
     "Phone": "+57 322 4422883",
     "Message Id": "false_120363407879464968@g.us_ACD3C5E8CC5270FC4A115AACE98D1FEC_37168764428447@lid"
   },
+    {
+        Time: '2026/6/21 06:35:00',
+        'Formatted Name': '+57 315 6389889',
+        'Display Name': 'Huguito P ',
+        Message: 'España 5 Arabia Saudita 1 \nBelgica 4 iran 2 \nUruguay 4 Cabo Verde 2 \nnew zealand 3 Cape Verde 1',
+        Caption: '',
+        Type: 'chat',
+        Phone: '+57 315 6389889',
+        'Message Id': 'manual_huguito_p_2026-06-21_001',
+        synthetic: true,
+        source: 'Huguito P confirmó que envió este mensaje el 21/06/2026; el export no lo incluyó (mensaje no sincronizado al momento de exportar). Re-verificado en la app de WhatsApp por el admin.'
+    },
 ];
