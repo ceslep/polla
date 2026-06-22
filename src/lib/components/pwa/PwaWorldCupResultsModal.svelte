@@ -1,7 +1,7 @@
 <script>
-    import { FLAG_MAP } from '../parser.js';
-    import { loadWorldCupMatches } from '../api.js';
-    import { getFlagData } from '../flags.js';
+    import { FLAG_MAP } from '../../parser.js';
+    import { loadWorldCupMatches } from '../../api.js';
+    import { getFlagData } from '../../flags.js';
 
     let { onClose } = $props();
 

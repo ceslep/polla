@@ -157,9 +157,35 @@ is dead UI, do not add a 2-pt tier.
   `onclick={...}` attributes.
 - Types via JSDoc `@typedef` in `src/lib/types.js`; reference as
   `/** @type {import('./types.js').Bet} */`.
-- Router: `svelte-spa-router` (hash-based).
+- Router: `svelte-spa-router` (hash-based). Actualmente el router está
+  en `src/App.svelte` pero es trivial (un `if/else` que redirige a la
+  PWA). La lógica real vive en `pwaSession.step` (Svelte 5 runes) y
+  `PwaApp.svelte`.
 - Heavy `console.log` debug output is left in `parser.js`, `api.js`, and
-  `App.svelte` for match-debugging — do not strip without a reason.
+  `PwaApp.svelte` for match-debugging — do not strip without a reason.
+
+## Estado de mantenimiento (jun-2026)
+
+- **PWA (`src/lib/components/pwa/`, `src/lib/pwa/`, endpoints PWA en
+  `src/lib/api.js`):** ÚNICA app activa. Todo desarrollo nuevo va acá.
+- **App principal (`src/App.svelte` + archivos renombrados a
+  `src/lib/components/_archived_*.svelte`):** APAGADA. No se desarrolla,
+  no se fixea, no se deploya por cambios acá. `src/App.svelte` es ahora
+  un redirector puro a `/#/apostar` (mantiene solo el service worker
+  para que `ReloadPrompt` siga funcionando). Los archivos `_*_archived_*`
+  quedan en repo por histórico; no están en el bundle (excluidos del
+  tsconfig) y nada los importa.
+- **Hojas de Sheets:** `datos` (legacy, no se escribe más) y `apuestas`
+  (PWA, fuente de verdad única). NO eliminar `datos` — queda como
+  histórico.
+- **Entry point único:** `https://<host>/#/apostar`. Cualquier otro hash
+  (`/`, `#/ranking`, `#/participant/<nombre>`, etc.) redirige ahí vía
+  `redirectToPwa()` en `src/App.svelte`.
+- **Cálculos:** 100% desde openfootball (`worldcup.json`) en
+  `PwaApp.svelte load()`. `appState.bets` (WhatsApp legacy) ya no se
+  carga en ningún lado del código activo.
+- **Deploys:** `npm run deploy` se justifica sólo por cambios en PWA,
+  endpoints PWA en `api.js`, o `src/App.svelte` (redirector).
 
 ## Gotchas
 

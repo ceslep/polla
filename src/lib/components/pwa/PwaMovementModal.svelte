@@ -1,5 +1,5 @@
 <script>
-    import { computeMovement, getLatestFinishedDate, MIN_POINTS_THRESHOLD } from '../stores.svelte.js';
+    import { computeMovement, getLatestFinishedDate, MIN_POINTS_THRESHOLD } from '../../stores.svelte.js';
 
     /** @type {{ bets: any[], matches: any[], winners?: Array<{participant: string, points: number, rank: number}>, onClose: () => void, onRefresh?: () => void, loading?: boolean }} */
     let { bets = [], matches = [], winners = /** @type {Array<{participant: string, points: number, rank: number}>} */ ([]), onClose, onRefresh = undefined, loading = false } = $props();

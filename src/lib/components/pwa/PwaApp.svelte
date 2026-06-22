@@ -1,8 +1,8 @@
 <script>
     import { onMount } from 'svelte';
-    import { appState, findMatchForBet } from '../../stores.svelte.js';
-    import { loadWorldCupMatches, loadBetsFromSheets, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
-    import { applyPhoneNameOverrides, parseManualBets, normalizeTeamName } from '../../parser.js';
+    import { findMatchForBet } from '../../stores.svelte.js';
+    import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
+    import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
     import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen } from '../../pwa/session.svelte.js';
 
@@ -16,8 +16,8 @@
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
     import ReloadPrompt from './ReloadPrompt.svelte';
-    import WorldCupResultsModal from '../WorldCupResultsModal.svelte';
-    import MovementModal from '../MovementModal.svelte';
+    import WorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
+    import MovementModal from './PwaMovementModal.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
     import TutorialPage from '../TutorialPage.svelte';
     import { tourSteps } from '../tutorialSteps.js';
@@ -178,9 +178,6 @@
             pwaSession.date = devTestDate;
         }
         load();
-        if (appState.bets.length === 0) {
-            loadBets();
-        }
     });
 
     // Cuando el usuario navega a 'movement' o 'ranking', re-fetcheamos los
@@ -197,26 +194,6 @@
             }
         }
     });
-
-    async function loadBets() {
-        try {
-            const sheetsBets = await loadBetsFromSheets();
-            const manualBets = parseManualBets();
-            if (sheetsBets.length > 0) {
-                const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
-                    ...bet,
-                    verified: false,
-                    status: /** @type {any} */ ('pending'),
-                    points: Number(bet.points) || 0
-                })));
-                appState.bets = [...betsToAnalyze, ...manualBets];
-            } else if (manualBets.length > 0) {
-                appState.bets = manualBets;
-            }
-        } catch (e) {
-            console.error('Error cargando apuestas:', e);
-        }
-    }
 
     /**
      * Carga todos los PWA bets (público, sin auth), los transforma al formato
@@ -448,8 +425,8 @@
     /**
      * Calcula los winners desde los PWA bets scoreados.
      * Misma lógica que `calculateWinners` en MovementModal pero aplicada
-     * a los bets que la PWA carga desde la hoja `apuestas` (no a los
-     * bets de WhatsApp que viven en `appState.bets`).
+     * a los bets que la PWA carga desde la hoja `apuestas` (fuente de
+     * verdad única de la PWA).
      *
      * Incluye TODOS los participantes (incluso con 0 puntos) para que el
      * movement y el ranking los muestren a todos.
