@@ -4,7 +4,7 @@
     import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
-    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen } from '../../pwa/session.svelte.js';
+    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
@@ -12,12 +12,14 @@
     import PwaChangePassword from './PwaChangePassword.svelte';
     import PwaEmailPromptModal from './PwaEmailPromptModal.svelte';
     import PwaForm from './PwaForm.svelte';
-    import PwaTodayBets from './PwaTodayBets.svelte';
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
+    import PwaTodayBets from './PwaTodayBets.svelte';
     import ReloadPrompt from './ReloadPrompt.svelte';
-    import WorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
-    import MovementModal from './PwaMovementModal.svelte';
+    import CacheClearButton from './CacheClearButton.svelte';
+    import PwaWorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
+    import PwaMovementModal from './PwaMovementModal.svelte';
+    import PwaIntro from './PwaIntro.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
     import TutorialPage from '../TutorialPage.svelte';
     import { tourSteps } from '../tutorialSteps.js';
@@ -27,6 +29,23 @@
      * si el usuario nunca vio el tour (flag en sessionStorage).
      */
     let triggerOnboardingTour = $state(false);
+
+    /**
+     * Intro Three.js: se reproduce una vez por sesión al montar PwaApp.
+     * `showIntro` empieza en `true` si no hay flag en sessionStorage
+     * (primera visita) y en `false` si ya lo vio en esta pestaña.
+     * `hasSeenPwaIntro()` retorna `false` ante cualquier error de lectura
+     * → default seguro = mostrar el intro. Cuando el componente termina su
+     * animación, llama `handleIntroClose()` que persiste el flag y desmonta
+     * el overlay. Mientras el intro corre, la carga de partidos ocurre
+     * detrás (`load()` se llama igual en `onMount`).
+     */
+    let showIntro = $state(!hasSeenPwaIntro());
+
+    function handleIntroClose() {
+        markPwaIntroSeen();
+        showIntro = false;
+    }
 
     async function handleTourDone() {
         triggerOnboardingTour = false;
@@ -496,16 +515,15 @@
     <PwaHistory {isDev} />
 {:else if pwaSession.step === 'results'}
     <div class="text-white">
-        <WorldCupResultsModal onClose={onModalClose} />
+        <PwaWorldCupResultsModal onClose={onModalClose} />
     </div>
 {:else if pwaSession.step === 'movement'}
     <div class="text-white">
-        <MovementModal
+        <PwaMovementModal
             bets={pwaScoredBets}
             matches={pwaNormalizedMatches}
             winners={pwaScoredBets.length > 0 ? computePwaWinners(pwaScoredBets) : []}
             onClose={onModalClose}
-            onRefresh={() => loadAndScorePwaBets()}
         />
     </div>
 {:else}
@@ -515,9 +533,22 @@
 <!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->
 <ReloadPrompt {needRefresh} {offlineReady} {updateServiceWorker} />
 
+<!-- Botón flotante "Borrar cache" (top-right). Para que usuarios con SW viejo
+     o cache stale puedan forzar un reset completo sin esperar 24h. -->
+<CacheClearButton />
+
 <!-- Tour in-app (Driver.js) — siempre montado; arranca con trigger=true -->
 <OnboardingTour
     steps={tourSteps}
     trigger={triggerOnboardingTour}
     onDone={handleTourDone}
+    onSkip={handleTourDone}
 />
+
+<!-- Intro Three.js (overlay fullscreen). Se reproduce una vez por sesión
+     al montar PwaApp. Mientras corre, la carga de partidos y el render del
+     PWA ocurren detrás. Cuando termina su animación + 2s de tail, se
+     desmonta y queda el contenido del PWA visible. -->
+{#if showIntro}
+    <PwaIntro onClose={handleIntroClose} />
+{/if}

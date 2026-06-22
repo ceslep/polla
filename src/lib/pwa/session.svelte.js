@@ -11,6 +11,7 @@
 
 const SESSION_KEY = 'pwaSession';
 const TOUR_KEY = 'pwaSeenTour';
+const INTRO_KEY = 'pwaSeenIntro';
 
 const COT_TZ = 'America/Bogota';
 
@@ -32,6 +33,7 @@ function todayCot() {
  * @property {string|null} date - YYYY-MM-DD en COT (fecha de la sesión)
  * @property {boolean} submitted - true si ya envió apuestas para esta fecha
  * @property {boolean} mustChangePassword - true si el backend indica que hay que cambiar la pass antes de apostar
+ * @property {boolean} mustProvideEmail - true si el backend indica que la columna E (email) está vacía
  */
 
 /** @type {PwaSession} */
@@ -43,7 +45,8 @@ const initial = loadFromStorage() || {
     authPassword: null,
     date: todayCot(),
     submitted: false,
-    mustChangePassword: false
+    mustChangePassword: false,
+    mustProvideEmail: false
 };
 
 export const pwaSession = $state(initial);
@@ -85,6 +88,44 @@ export function resetPwaTour() {
 }
 
 /**
+ * ¿El usuario ya vio la animación intro Three.js de la PWA en esta pestaña?
+ * Persistido en sessionStorage con clave separada del tour. El intro se
+ * muestra una vez por sesión; cerrar y abrir la pestaña lo vuelve a mostrar.
+ * @returns {boolean}
+ */
+export function hasSeenPwaIntro() {
+    try {
+        return sessionStorage.getItem(INTRO_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Marca el intro como visto. Idempotente. Lo llama PwaApp cuando el
+ * componente PwaIntro termina su animación y se desmonta.
+ */
+export function markPwaIntroSeen() {
+    try {
+        sessionStorage.setItem(INTRO_KEY, 'true');
+    } catch {
+        // sessionStorage puede fallar en modo privado de Safari; ignorar
+    }
+}
+
+/**
+ * Resetea el flag del intro. Útil para testing o para "ver de nuevo"
+ * desde la consola del navegador.
+ */
+export function resetPwaIntro() {
+    try {
+        sessionStorage.removeItem(INTRO_KEY);
+    } catch {
+        // ignorar
+    }
+}
+
+/**
  * Resetea a un estado conocido.
  * @param {Partial<PwaSession>} [overrides]
  */
@@ -97,6 +138,7 @@ export function resetPwaSession(overrides) {
     pwaSession.date = overrides?.date || todayCot();
     pwaSession.submitted = overrides?.submitted || false;
     pwaSession.mustChangePassword = overrides?.mustChangePassword ?? false;
+    pwaSession.mustProvideEmail = overrides?.mustProvideEmail ?? false;
     persist();
 }
 
@@ -108,38 +150,62 @@ export function setStep(/** @type {PwaSession['step']} */ step) {
 
 /**
  * Marca la sesión como autenticada. Después de esto, los formularios pueden
- * enviar apuestas con las credenciales en el payload. Si `mustChangePassword`
- * es true, salta a la pantalla de cambio de contraseña en vez de ir al form.
+ * enviar apuestas con las credenciales en el payload.
+ *
+ * Routing de step según flags del backend:
+ *   - mustChangePassword=true  → 'change-password' (cambia pass → 'email-prompt' → 'form')
+ *   - mustProvideEmail=true    → 'email-prompt' directo (registra email → 'form')
+ *   - ambos false              → 'form' directo
+ *
+ * El modal de email-prompt es inescapable (sin opciones de skip); ver
+ * PwaEmailPromptModal.svelte.
+ *
  * @param {string} participant - nombre (columna A de `participantes`)
  * @param {string} phone - phone (columna B)
  * @param {string} username - last 10 digits (== phone)
  * @param {string} password - last 4 digits (columna C)
  * @param {boolean} [mustChangePassword=false] - si true, step inicial es 'change-password'
+ * @param {boolean} [mustProvideEmail=false] - si true y mustChangePassword=false, step inicial es 'email-prompt'
  */
-export function loginAs(/** @type {string} */ participant, /** @type {string} */ phone, /** @type {string} */ username, /** @type {string} */ password, /** @type {boolean} */ mustChangePassword = false) {
+export function loginAs(/** @type {string} */ participant, /** @type {string} */ phone, /** @type {string} */ username, /** @type {string} */ password, /** @type {boolean} */ mustChangePassword = false, /** @type {boolean} */ mustProvideEmail = false) {
     pwaSession.authParticipant = participant;
     pwaSession.authPhone = phone;
     pwaSession.authUsername = username;
     pwaSession.authPassword = password;
     pwaSession.mustChangePassword = mustChangePassword;
-    pwaSession.step = mustChangePassword ? 'change-password' : 'form';
+    pwaSession.mustProvideEmail = mustProvideEmail;
+    if (mustChangePassword) {
+        pwaSession.step = 'change-password';
+    } else if (mustProvideEmail) {
+        pwaSession.step = 'email-prompt';
+    } else {
+        pwaSession.step = 'form';
+    }
     persist();
 }
 
 /** Actualiza la contraseña en sesión (después de un cambio exitoso) y
- * avanza al paso de email-prompt (modal de notificaciones). El form real
- * no se monta hasta que el modal de email se cierra vía completeEmailPrompt.
+ * avanza al paso de email-prompt (modal de notificaciones obligatorio).
+ * El form real no se monta hasta que el modal de email se cierra vía
+ * completeEmailPrompt. Esto aplica tanto para el primer cambio
+ * (mustChangePassword era true) como para cuando el usuario ya tenía la
+ * pass cambiada pero nunca había registrado email (mustProvideEmail=true).
  */
 export function completePasswordChange(/** @type {string} */ newPassword) {
     pwaSession.authPassword = newPassword;
     pwaSession.mustChangePassword = false;
+    // Si el usuario ya tenía email, el modal igualmente se muestra después
+    // del cambio de pass (re-entrada). Para saltarlo necesitaríamos
+    // re-consultar el backend; por simplicidad, siempre se muestra.
     pwaSession.step = 'email-prompt';
     persist();
 }
 
-/** Cierra el modal de email-prompt y avanza al form. Se llama cuando el
- * usuario guarda email, descarta el modal o responde "no, gracias". */
+/** Cierra el modal de email-prompt y avanza al form. Se llama únicamente
+ * cuando el usuario guarda un email válido (no hay opción de skip; ver
+ * PwaEmailPromptModal.svelte). */
 export function completeEmailPrompt() {
+    pwaSession.mustProvideEmail = false;
     pwaSession.step = 'form';
     persist();
 }
@@ -167,7 +233,8 @@ function persist() {
             authPassword: pwaSession.authPassword,
             date: pwaSession.date,
             submitted: pwaSession.submitted,
-            mustChangePassword: pwaSession.mustChangePassword
+            mustChangePassword: pwaSession.mustChangePassword,
+            mustProvideEmail: pwaSession.mustProvideEmail
         }));
     } catch (e) {
         // sessionStorage puede fallar en modo privado de Safari; ignorar
@@ -181,9 +248,12 @@ function loadFromStorage() {
         const data = JSON.parse(raw);
         // Si la fecha guardada no es hoy en COT, descartar (nueva jornada)
         if (data.date !== todayCot()) return null;
-        // Normalizar: sesiones guardadas antes de la feature no tienen mustChangePassword
+        // Normalizar: sesiones guardadas antes de la feature no tienen estos flags
         if (typeof data.mustChangePassword !== 'boolean') {
             data.mustChangePassword = false;
+        }
+        if (typeof data.mustProvideEmail !== 'boolean') {
+            data.mustProvideEmail = false;
         }
         return data;
     } catch {

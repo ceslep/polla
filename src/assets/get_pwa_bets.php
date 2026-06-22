@@ -16,6 +16,7 @@
  * Respuesta:
  *   200 { success: true, bets: [ ... ], total: N }
  *   401 { success: false, error: "..." }
+ *   403 { success: false, error: "Debes cambiar tu contraseña / registrar email" }
  */
 
 require __DIR__ . '/vendor/autoload.php';
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  * pero se hace el lookup real en la hoja `participantes` para que el nombre
  * del participante sea el real (no "Dev User").
  *
- * @return array{participant: string, phone: string}
+ * @return array{participant: string, phone: string, passwordChanged: bool, email: string}
  */
 function authenticate(string $spreadsheetId, string $username, string $password, bool $dev, Sheets $service): array {
     if (!$dev) {
@@ -89,9 +90,18 @@ function authenticate(string $spreadsheetId, string $username, string $password,
 
         if ($rowPhoneLast10 !== '' && $rowPhoneLast10 === $usernameLast10
             && $rowPasswordLast4 !== '' && $rowPasswordLast4 === $passwordLast4) {
+            // Columna D: TRUE/FALSE. TRUE = el usuario YA cambió su contraseña.
+            $rowMustChangeRaw = strtolower(trim((string)($row[3] ?? '')));
+            $passwordChanged = in_array($rowMustChangeRaw, ['true', '1', 'yes', 'si'], true);
+
+            // Columna E: email (puede estar vacía).
+            $email = trim((string)($row[4] ?? ''));
+
             return [
                 'participant' => trim((string)($row[0] ?? '')),
-                'phone' => $rowPhoneLast10
+                'phone' => $rowPhoneLast10,
+                'passwordChanged' => $passwordChanged,
+                'email' => $email
             ];
         }
     }
@@ -135,6 +145,24 @@ try {
 
     $auth = authenticate($spreadsheetId, $username, $password, $dev, $service);
     $authedPhone = $auth['phone'];
+
+    // Gates de cumplimiento: D = passwordChanged, E = email.
+    if (empty($auth['passwordChanged'])) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Debes cambiar tu contraseña antes de consultar tus apuestas.'
+        ]);
+        exit;
+    }
+    if (empty($auth['email'])) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Debes registrar un correo electrónico antes de consultar tus apuestas.'
+        ]);
+        exit;
+    }
 
     $range = WORKSHEET . '!A1:K50000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);

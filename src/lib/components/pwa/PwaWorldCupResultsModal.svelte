@@ -2,6 +2,7 @@
     import { FLAG_MAP } from '../../parser.js';
     import { loadWorldCupMatches } from '../../api.js';
     import { getFlagData } from '../../flags.js';
+    import { matchLocalToCot, nowCotParts } from '../../pwa/window.js';
 
     let { onClose } = $props();
 
@@ -55,6 +56,54 @@
         { key: 'Final', label: 'Final' },
     ];
 
+    /**
+     * Orden cronológico de las rondas del mundial 2026, de más reciente
+     * (Final = índice 0) a más antiguo (Matchday 1). El sort usa este array
+     * para decidir quién va primero dentro de cada bucket.
+     *
+     * Los matchdays de grupo se ordenan por número (1..20). El 20 es un
+     * techo seguro: el 2026 tiene ~12 matchdays de grupos pero se deja
+     * margen por si el JSON trae más.
+     */
+    const MATCHDAY_ORDER = [
+        'Final',
+        'Match for third place',
+        'Semi-final',
+        'Quarter-final',
+        'Round of 16',
+        'Round of 32',
+        ...Array.from({ length: 20 }, (_, i) => `Matchday ${20 - i}`)
+    ];
+
+    /**
+     * Índice cronológico de un round (0 = Final, el más reciente).
+     * Devuelve null si el round no está reconocido — el sort pone esos al
+     * final de su bucket.
+     * @param {string|undefined} round
+     * @returns {number|null}
+     */
+    function matchdayIndex(round) {
+        if (!round) return null;
+        const idx = MATCHDAY_ORDER.indexOf(round);
+        return idx === -1 ? null : idx;
+    }
+
+    /** Día actual en COT (YYYY-MM-DD). Se usa para bucketear pendientes. */
+    const todayCot = $derived(nowCotParts(new Date()).date);
+
+    /**
+     * Bucket del partido:
+     *   0 = pendiente del día actual (COT)
+     *   1 = finalizado (de cualquier día)
+     *   2 = pendiente de otro día
+     * @param {any} m
+     * @param {string} cotDate
+     */
+    function bucket(m, cotDate) {
+        if (m.score?.ft != null) return 1;
+        return cotDate === todayCot ? 0 : 2;
+    }
+
     const isGroupFilter = $derived(selectedFilter.startsWith('Group '));
     const isKnockoutFilter = $derived(!isGroupFilter && selectedFilter !== 'all');
 
@@ -67,7 +116,7 @@
         return [...teams].sort();
     });
 
-    const filteredMatches = $derived(() => {
+    const filteredMatches = $derived.by(() => {
         let result = [...matches];
 
         if (selectedFilter === 'all') {
@@ -86,22 +135,38 @@
             );
         }
 
-        // Sort: finished matches first (descending by date/time), then pending (also descending by date/time)
-        result.sort((a, b) => {
-            const aFinished = a.score?.ft != null;
-            const bFinished = b.score?.ft != null;
-            
-            if (aFinished && !bFinished) return -1;
-            if (!aFinished && bFinished) return 1;
-
-            const dateTimeA = new Date(`${a.date}T${(a.time || '00:00').split(' ')[0]}`).getTime();
-            const dateTimeB = new Date(`${b.date}T${(b.time || '00:00').split(' ')[0]}`).getTime();
-
-            // All sections descending (newest/latest first)
-            return dateTimeB - dateTimeA;
+        // Pre-computar COT date y bucket para cada match (memoizado dentro del $derived).
+        /** @type {{m: any, bucket: number, utcMs: number, matchdayIdx: number|null}[]} */
+        const enriched = result.map(m => {
+            const cot = matchLocalToCot(m.date, m.time);
+            const cotDate = cot?.cotDate || m.date;
+            const utcMs = cot?.utcMs
+                ?? new Date(`${m.date}T${(m.time || '00:00').split(' ')[0]}`).getTime();
+            return {
+                m,
+                bucket: bucket(m, cotDate),
+                utcMs,
+                matchdayIdx: matchdayIndex(m.round)
+            };
         });
 
-        return result;
+        enriched.sort((a, b) => {
+            // 1) Bucket primero: pendiente-hoy → finalizados → pendiente-otros.
+            if (a.bucket !== b.bucket) return a.bucket - b.bucket;
+
+            // 2) Mismo bucket: por matchday desc, desconocido al final.
+            if (a.matchdayIdx == null && b.matchdayIdx == null) {
+                return b.utcMs - a.utcMs;
+            }
+            if (a.matchdayIdx == null) return 1;
+            if (b.matchdayIdx == null) return -1;
+            if (a.matchdayIdx !== b.matchdayIdx) return a.matchdayIdx - b.matchdayIdx;
+
+            // 3) Mismo matchday: desempate por fecha+hora desc.
+            return b.utcMs - a.utcMs;
+        });
+
+        return enriched.map(e => e.m);
     });
 
     const statsByGroup = $derived.by(() => {
@@ -394,7 +459,7 @@
                     </optgroup>
                 </select>
                 <div class="text-sm text-gray-400 whitespace-nowrap">
-                    {filteredMatches().length}
+                    {filteredMatches.length}
                 </div>
             </div>
 
@@ -418,7 +483,7 @@
                         {/if}
                     </div>
                     <div class="text-sm text-gray-400">
-                        {filteredMatches().length} partidos
+                        {filteredMatches.length} partidos
                     </div>
                 </div>
 
@@ -456,7 +521,7 @@
                         Reintentar
                     </button>
                 </div>
-            {:else if filteredMatches().length === 0}
+            {:else if filteredMatches.length === 0}
                 <div class="text-center py-12">
                     <div class="text-5xl mb-4">🔍</div>
                     <p class="text-gray-400">No hay partidos para este filtro</p>
@@ -527,7 +592,7 @@
                 {/if}
             {:else}
                 <div class="space-y-3">
-                    {#each filteredMatches() as match, idx}
+                    {#each filteredMatches as match, idx}
                         {@const isExpanded = expandedMatch === idx}
                         {@const team1Tbd = isTbd(match.team1)}
                         {@const team2Tbd = isTbd(match.team2)}

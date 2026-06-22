@@ -3,6 +3,21 @@ import { normalizeTeamName, dropOverLimitMessages, dropOrganizerBets } from './p
 const CONFIG_URL = 'https://app.iedeoccidente.com/pollaweb/config.php';
 const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
 
+/**
+ * Fetch sin pasar por el cache HTTP del navegador (`cache: 'no-store'`).
+ * Combinado con la estrategia `NetworkOnly` del SW (vite.config.ts), garantiza
+ * que cada petición al JSON de openfootball vaya a la red y traiga la versión
+ * más reciente, sin que un cache stale haga que los usuarios vean resultados
+ * viejos (ej. un partido ya finalizado mostrándose como "Pendiente").
+ *
+ * @param {string} url
+ * @param {RequestInit} [init]
+ * @returns {Promise<Response>}
+ */
+function fetchNoCache(url, init = {}) {
+    return fetch(url, { cache: 'no-store', ...init });
+}
+
 const SAVE_BETS_URL = 'https://app.iedeoccidente.com/gs/save_bets.php';
 const GET_BETS_URL = 'https://app.iedeoccidente.com/gs/get_bets.php';
 const CLEAR_BETS_URL = 'https://app.iedeoccidente.com/gs/clear_bets.php';
@@ -42,7 +57,7 @@ async function getConfig() {
  */
 export async function loadMatchesFromGitHub() {
     try {
-        const response = await fetch(GITHUB_MATCHES_URL);
+        const response = await fetchNoCache(GITHUB_MATCHES_URL);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
@@ -177,7 +192,7 @@ export function compareBetWithMatch(bet, match) {
  * @returns {Promise<WorldCupMatchRaw[]>}
  */
 export async function loadWorldCupMatches() {
-    const response = await fetch(GITHUB_MATCHES_URL);
+    const response = await fetchNoCache(GITHUB_MATCHES_URL);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     return data.matches || [];
@@ -398,7 +413,7 @@ export async function loadBetsFromSheets() {
 /**
  * Autentica al participante contra la hoja `participantes`.
  * @param {{ username: string, password: string, dev?: boolean }} payload
- * @returns {Promise<{success: boolean, participant?: string, phone?: string, username?: string, mustChangePassword?: boolean, dev?: boolean, error?: string}>}
+ * @returns {Promise<{success: boolean, participant?: string, phone?: string, username?: string, mustChangePassword?: boolean, mustProvideEmail?: boolean, dev?: boolean, error?: string}>}
  */
 export async function loginPwa(payload) {
     const response = await fetch(LOGIN_PWA_URL, {

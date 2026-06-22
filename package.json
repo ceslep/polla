@@ -15,6 +15,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.12.3",
+    "@types/three": "^0.184.1",
     "gh-pages": "^6.3.0",
     "json5": "^2.2.3",
     "jsonlint": "^1.6.3",
@@ -29,6 +30,7 @@
     "driver.js": "^1.4.0",
     "embla-carousel-svelte": "^8.6.0",
     "svelte-spa-router": "^5.1.0",
-    "tailwindcss": "^4.3.1"
+    "tailwindcss": "^4.3.1",
+    "three": "^0.169.0"
   }
 }

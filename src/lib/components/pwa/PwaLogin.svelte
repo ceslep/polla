@@ -78,7 +78,8 @@
                 phone,
                 result.username || username,
                 password,
-                result.mustChangePassword === true
+                result.mustChangePassword === true,
+                result.mustProvideEmail === true
             );
             // Callback al padre (PwaApp) para que dispare el tour si corresponde.
             // Lo hacemos DESPUÉS de loginAs para que el step ya esté en 'form'

@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-8622b4e3'], (function (workbox) { 'use strict';
+define(['./workbox-650259a1'], (function (workbox) { 'use strict';
 
   self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -85,7 +85,7 @@ define(['./workbox-8622b4e3'], (function (workbox) { 'use strict';
     "revision": "2e9e9e0ed77a63a0797c19e34461a2d9"
   }, {
     "url": "/polla/index.html",
-    "revision": "0.263uf993hao"
+    "revision": "0.u6rbrrmaoj4"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/polla/index.html"), {
@@ -95,12 +95,9 @@ define(['./workbox-8622b4e3'], (function (workbox) { 'use strict';
     "cacheName": "gs-no-cache",
     plugins: []
   }), 'GET');
-  workbox.registerRoute(/^https:\/\/raw\.githubusercontent\.com\/openfootball\//, new workbox.CacheFirst({
-    "cacheName": "openfootball-matches",
-    plugins: [new workbox.ExpirationPlugin({
-      maxAgeSeconds: 86400,
-      maxEntries: 16
-    })]
+  workbox.registerRoute(/^https:\/\/raw\.githubusercontent\.com\/openfootball\//, new workbox.NetworkOnly({
+    "cacheName": "openfootball-no-cache",
+    plugins: []
   }), 'GET');
   workbox.registerRoute(/^https:\/\/app\.iedeoccidente\.com\/pollaweb\//, new workbox.StaleWhileRevalidate({
     "cacheName": "polla-config",

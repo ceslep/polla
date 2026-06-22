@@ -152,9 +152,18 @@ function authenticate(string $spreadsheetId, string $username, string $password,
 
         if ($rowPhoneLast10 !== '' && $rowPhoneLast10 === $usernameLast10
             && $rowPasswordLast4 !== '' && $rowPasswordLast4 === $passwordLast4) {
+            // Columna D: TRUE/FALSE. TRUE = el usuario YA cambió su contraseña.
+            $rowMustChangeRaw = strtolower(trim((string)($row[3] ?? '')));
+            $passwordChanged = in_array($rowMustChangeRaw, ['true', '1', 'yes', 'si'], true);
+
+            // Columna E: email (puede estar vacía si el usuario nunca lo registró).
+            $email = trim((string)($row[4] ?? ''));
+
             return [
                 'participant' => trim((string)($row[0] ?? '')),
-                'phone' => $rowPhoneLast10
+                'phone' => $rowPhoneLast10,
+                'passwordChanged' => $passwordChanged,
+                'email' => $email
             ];
         }
     }
@@ -212,6 +221,27 @@ try {
     $auth = authenticate($spreadsheetId, $username, $password, $dev, $service);
     $participant = $auth['participant'];
     $phone = $auth['phone'];
+
+    // 1b. Gates de cumplimiento: D = passwordChanged, E = email.
+    // Defense-in-depth — el frontend ya enruta, pero un POST directo a este
+    // endpoint NO debe poder apostar sin haber pasado por el flujo de
+    // change-password y email-prompt.
+    if (empty($auth['passwordChanged'])) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Debes cambiar tu contraseña antes de apostar.'
+        ]);
+        exit;
+    }
+    if (empty($auth['email'])) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Debes registrar un correo electrónico antes de apostar.'
+        ]);
+        exit;
+    }
 
     // 2. Validar ventana (server-side, hora COT)
     $window = validateWindow($date, $firstMatchTime);

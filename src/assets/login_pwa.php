@@ -17,7 +17,8 @@
  *   D: passwordChanged ("TRUE"/"FALSE"): TRUE significa que el usuario YA
  *      cambió su contraseña; FALSE (o vacío) significa que aún no la cambió
  *      y el frontend debe obligarlo a hacerlo antes de poder apostar.
- *   E: email (opcional, para notificaciones; lo escribe save_pwa_email.php)
+ *   E: email (opcional, para notificaciones; lo escribe save_pwa_email.php).
+ *      Si está vacío, el frontend debe forzar al usuario a registrar uno.
  *
  * El username que el usuario digita en la PWA son los últimos 10 dígitos
  * del celular (sin prefijo país). La contraseña son los últimos 4 dígitos
@@ -34,7 +35,7 @@
  * hostname es localhost.
  *
  * Respuestas:
- *   200 { success: true, participant, phone, username, mustChangePassword }
+ *   200 { success: true, participant, phone, username, mustChangePassword, mustProvideEmail }
  *   401 { success: false, error: "Credenciales inválidas" }
  *   400 { success: false, error: "Faltan campos" }
  */
@@ -141,12 +142,18 @@ try {
             $alreadyChanged = in_array($rowMustChangeRaw, ['true', '1', 'yes', 'si'], true);
             $mustChangePassword = !$alreadyChanged;
 
+            // Columna E: email. Si está vacía, el frontend debe obligar al
+            // usuario a registrar uno (independiente de D).
+            $rowEmail = trim((string)($row[4] ?? ''));
+            $mustProvideEmail = $rowEmail === '';
+
             echo json_encode([
                 'success' => true,
                 'participant' => trim((string)($row[0] ?? '')),
                 'phone' => $rowPhoneLast10,
                 'username' => $rowPhoneLast10,
-                'mustChangePassword' => $mustChangePassword
+                'mustChangePassword' => $mustChangePassword,
+                'mustProvideEmail' => $mustProvideEmail
             ]);
             exit;
         }

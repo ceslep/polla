@@ -69,14 +69,16 @@ export default defineConfig({
             options: { cacheName: 'gs-no-cache' }
           },
           {
-            // openfootball: cachear 24h. La lista de partidos no cambia
-            // durante el torneo, así que se puede servir offline.
+            // openfootball: NetworkOnly. NUNCA cachear. La lista de partidos
+            // y resultados cambia durante el torneo en vivo, y un cache
+            // stale hacía que los usuarios vieran "Pendiente" hasta 24h
+            // después de que openfootball actualizara el JSON. El trade-off
+            // es perder offline para esta ruta, pero los partidos de openfootball
+            // ya están en el precache del SW (las URLs en /2026/worldcup.json
+            // no se fetchean — solo el JSON principal).
             urlPattern: /^https:\/\/raw\.githubusercontent\.com\/openfootball\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'openfootball-matches',
-              expiration: { maxAgeSeconds: 60 * 60 * 24, maxEntries: 16 }
-            }
+            handler: 'NetworkOnly',
+            options: { cacheName: 'openfootball-no-cache' }
           },
           {
             // FIFA rankings / config: stale-while-revalidate
