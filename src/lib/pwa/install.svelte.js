@@ -55,8 +55,10 @@ export function initInstallPrompt() {
     if (typeof window === 'undefined') return;
     state.isIos = detectIos();
     state.installed = detectInstalled();
+    console.log('[PWA] initInstallPrompt — installed?', state.installed, 'isIos?', state.isIos);
 
     window.addEventListener('beforeinstallprompt', (/** @type {any} */ e) => {
+        console.log('[PWA] beforeinstallprompt fired');
         // Prevenir el mini-infobar de Chrome; usamos nuestro botón propio.
         e.preventDefault();
         state.deferredPrompt = e;
@@ -64,6 +66,7 @@ export function initInstallPrompt() {
     });
 
     window.addEventListener('appinstalled', () => {
+        console.log('[PWA] appinstalled');
         state.installed = true;
         state.canShowNative = false;
         state.deferredPrompt = null;

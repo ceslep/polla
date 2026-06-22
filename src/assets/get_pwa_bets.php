@@ -67,7 +67,7 @@ function authenticate(string $spreadsheetId, string $username, string $password,
         ? substr($passwordClean, -4)
         : $passwordClean;
 
-    $range = PARTICIPANTS_WORKSHEET . '!A2:C1000';
+    $range = PARTICIPANTS_WORKSHEET . '!A2:E1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 

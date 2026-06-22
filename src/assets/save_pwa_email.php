@@ -1,41 +1,43 @@
 <?php
 /**
- * change_pwa_password.php - Cambia la contraseña de un participante PWA
+ * save_pwa_email.php - Guarda (o limpia) el email de notificaciones de un
+ * participante PWA en la hoja `participantes`.
  *
- * Destino en producción: https://app.iedeoccidente.com/gs/change_pwa_password.php
+ * Destino en producción: https://app.iedeoccidente.com/gs/save_pwa_email.php
  *
- * Autentica al participante con {username, currentPassword} (mismas reglas
- * de limpieza que login_pwa.php: últimos 10 dígitos del phone y últimos 4
- * del password actual). Si coincide, escribe la nueva contraseña en la
- * columna C y marca la columna D como TRUE para no volver a pedir el cambio.
+ * El email es OPCIONAL: el frontend puede enviar `email: ''` para borrarlo.
+ * El backend valida formato con filter_var(FILTER_VALIDATE_EMAIL) cuando viene
+ * no vacío. Autentica al participante con {username, currentPassword}
+ * (mismas reglas de limpieza que login_pwa.php: últimos 10 dígitos del phone
+ * y últimos 4 del password).
  *
  * Esquema de la hoja "participantes" (5 columnas A:E):
  *   A: participant
  *   B: phone
  *   C: password
  *   D: mustChangePassword (TRUE/FALSE)
- *   E: email (opcional, lo escribe save_pwa_email.php)
+ *   E: email               (opcional, esta feature la agregó)
  *
  * Petición (POST, JSON):
  *   {
  *     "spreadsheetId": "...",
  *     "username": "3218552353",
  *     "currentPassword": "2353",
- *     "newPassword": "9876",
+ *     "email": "nombre@dominio.com"  // o "" para borrar
  *     "dev": false
  *   }
  *
  * Validaciones:
  *   - username: 10 dígitos exactos
  *   - currentPassword: 4 dígitos exactos
- *   - newPassword: 4 dígitos exactos
- *   - newPassword debe ser distinto de currentPassword
+ *   - email: si viene no vacío, debe pasar filter_var FILTER_VALIDATE_EMAIL
+ *           y no superar 254 caracteres (límite RFC 5321)
  *
  * En modo `dev: true` no se escribe en Sheets (sólo valida formato y simula
- * el cambio). En producción, escribe en la fila correspondiente.
+ * el guardado). En producción, escribe en la fila correspondiente.
  *
  * Respuestas:
- *   200 { success: true }
+ *   200 { success: true, email: "..." }
  *   401 { success: false, error: "Credenciales inválidas" }
  *   400 { success: false, error: "..." }
  */
@@ -44,7 +46,6 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Google\Client;
 use Google\Service\Sheets;
-use Google\Service\Sheets\ValueRange;
 use Google\Service\Sheets\BatchUpdateValuesRequest;
 
 const SERVICE_ACCOUNT_KEY_FILE = __DIR__ . '/assets/serviceaccount.json';
@@ -72,7 +73,7 @@ try {
         throw new Exception('JSON inválido: ' . json_last_error_msg());
     }
 
-    foreach (['spreadsheetId', 'username', 'currentPassword', 'newPassword'] as $field) {
+    foreach (['spreadsheetId', 'username', 'currentPassword', 'email'] as $field) {
         if (!isset($data[$field])) {
             throw new Exception("Falta el campo requerido: $field");
         }
@@ -81,7 +82,7 @@ try {
     $spreadsheetId = $data['spreadsheetId'];
     $username = trim($data['username']);
     $currentPassword = trim($data['currentPassword']);
-    $newPassword = trim($data['newPassword']);
+    $email = trim((string)$data['email']);
     $dev = $data['dev'] === true;
 
     if (!preg_match('/^\d{10}$/', $username)) {
@@ -90,15 +91,15 @@ try {
     if (!preg_match('/^\d{4}$/', $currentPassword)) {
         throw new Exception('La contraseña actual debe tener exactamente 4 dígitos.');
     }
-    if (!preg_match('/^\d{4}$/', $newPassword)) {
-        throw new Exception('La nueva contraseña debe tener exactamente 4 dígitos.');
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception('El email no tiene un formato válido.');
     }
-    if ($newPassword === $currentPassword) {
-        throw new Exception('La nueva contraseña debe ser distinta de la actual.');
+    if (strlen($email) > 254) {
+        throw new Exception('El email no puede superar 254 caracteres.');
     }
 
     $client = new Client();
-    $client->setApplicationName('Polla Mundialista PWA Change Password');
+    $client->setApplicationName('Polla Mundialista PWA Save Email');
     $client->setScopes([Sheets::SPREADSHEETS]);
     if (!file_exists(SERVICE_ACCOUNT_KEY_FILE)) {
         throw new Exception('Archivo de credenciales no encontrado.');
@@ -106,7 +107,9 @@ try {
     $client->setAuthConfig(SERVICE_ACCOUNT_KEY_FILE);
     $service = new Sheets($client);
 
-    // 1. Leer la hoja para encontrar la fila del usuario
+    // 1. Leer la hoja para encontrar la fila del usuario (A2:E1000 para
+    //    incluir la columna E aunque no la usemos aquí — debe existir el
+    //    header).
     $range = WORKSHEET . '!A2:E1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
@@ -145,13 +148,13 @@ try {
     // 2. Calcular el rowIndex real de Sheets (1-based, +2 porque arrancamos en A2)
     $sheetRow = $matchedRowIndex + 2;
 
-    // 3. Escribir nueva contraseña (col C) y marcar mustChangePassword=TRUE (col D)
+    // 3. Escribir email en columna E (string vacío para borrar)
     $body = new BatchUpdateValuesRequest([
         'valueInputOption' => 'RAW',
         'data' => [
             [
-                'range' => WORKSHEET . "!C{$sheetRow}:D{$sheetRow}",
-                'values' => [[$newPassword, 'TRUE']]
+                'range' => WORKSHEET . "!E{$sheetRow}:E{$sheetRow}",
+                'values' => [[$email]]
             ]
         ]
     ]);
@@ -159,7 +162,10 @@ try {
 
     echo json_encode([
         'success' => true,
-        'message' => 'Contraseña actualizada correctamente.'
+        'email' => $email,
+        'message' => $email === ''
+            ? 'Email eliminado.'
+            : 'Email guardado correctamente.'
     ]);
 
 } catch (Exception $e) {

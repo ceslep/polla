@@ -2,8 +2,8 @@
     import { changePwaPassword } from '../../api.js';
     import { pwaSession, completePasswordChange, logout } from '../../pwa/session.svelte.js';
 
-    /** @type {{ isDev?: boolean, onSuccess?: () => void }} */
-    let { isDev = false, onSuccess = () => {} } = $props();
+    /** @type {{ isDev?: boolean, onPasswordChanged?: () => void }} */
+    let { isDev = false, onPasswordChanged = () => {} } = $props();
 
     let newPassword = $state('');
     let confirmPassword = $state('');
@@ -88,7 +88,7 @@
                 newPassword
             });
             completePasswordChange(newPassword);
-            onSuccess();
+            onPasswordChanged();
         } catch (e) {
             error = e instanceof Error ? e.message : 'Error desconocido';
         } finally {

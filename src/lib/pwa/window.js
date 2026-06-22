@@ -235,8 +235,8 @@ export function nowCotParts(now) {
 
 /**
  * Devuelve un `Date` que al formatear en COT da la fecha de mañana.
- * Útil para tests de la PWA en dev: la ventana se computa contra mañana
- * en vez de hoy, permitiendo enviar apuestas para partidos futuros.
+ * Útil para tests de la PWA en dev cuando se quieren probar partidos
+ * del día siguiente sin esperar a mañana.
  *
  * El "mediodía COT" (= 17:00 UTC del mismo día) se usa para que el
  * formateo en COT siempre caiga en la fecha correcta sin riesgo de
@@ -255,4 +255,27 @@ export function tomorrowCot(now) {
     const [y, m, d] = todayStr.split('-').map(Number);
     const tomorrow = new Date(Date.UTC(y, m - 1, d + 1, 17, 0, 0));
     return tomorrow;
+}
+
+/**
+ * Devuelve un `Date` que al formatear en COT da la fecha de hoy.
+ * Útil para tests de la PWA en dev: la ventana se computa contra el día
+ * actual (en COT) en vez de mañana, permitiendo enviar apuestas para los
+ * partidos de hoy.
+ *
+ * El "mediodía COT" (= 17:00 UTC del mismo día) se usa para que el
+ * formateo en COT siempre caiga en la fecha correcta sin riesgo de
+ * borde por zona horaria.
+ *
+ * @param {Date} [now] - fecha base (default: new Date())
+ * @returns {Date} Date que al formatear en COT da hoy
+ */
+export function todayCot(now) {
+    const base = now || new Date();
+    const fmtToday = new Intl.DateTimeFormat('en-CA', {
+        timeZone: COT_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const todayStr = fmtToday.format(base);
+    const [y, m, d] = todayStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 17, 0, 0));
 }

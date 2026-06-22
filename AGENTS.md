@@ -31,6 +31,7 @@ node test_accuracy.mjs    # smoke test for globalAccuracy/participantAccuracy in
 node test_team_stats.mjs  # smoke test for teamStandingsFromTeams in teamStats.js
 node test_compare_bet.mjs # smoke test for compareBetWithMatch (home/away inversion)
 node test_manual_bets.mjs # smoke test for parseManualBets (MANUAL_BETS injection)
+node test_save_email.mjs  # smoke test for savePwaEmail + email regex + 'email-prompt' step wiring
 ```
 
 Run from the repo root. `polla.json` is the sample WhatsApp export
@@ -129,6 +130,25 @@ is dead UI, do not add a 2-pt tier.
     en Sheets (UPSERT por `id`), las apuestas manuales sobreviven aunque
     se borre la entrada del array — el array funciona como backfill si
     Sheets se reinicia.
+ 9. **PWA email prompt** — `src/lib/components/pwa/PwaEmailPromptModal.svelte`
+    se muestra tras un cambio de contraseña exitoso (sólo aparece en el
+    primer login, cuando `mustChangePassword === true`). El step
+    `email-prompt` (en `src/lib/pwa/session.svelte.js`) se inserta
+    entre `change-password` y `form`: `completePasswordChange()` ahora
+    salta a `email-prompt` en vez de `form`; sólo cuando el modal se
+    cierra (`completeEmailPrompt()`) se avanza a `form`. El modal
+    ofrece dos botones iniciales: **"Sí, quiero notificaciones"** y
+    **"No, gracias"**. Si elige sí, aparece un input con validación en
+    vivo (`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`) y se llama a
+    `savePwaEmail()` (`src/lib/api.js`) que hace POST a
+    `https://app.iedeoccidente.com/gs/save_pwa_email.php`. El email se
+    guarda en la **columna E** de la hoja `participantes` (mismo
+    spreadsheet, header `email`); un string vacío lo borra. La columna
+    E es opcional — el resto de los endpoints que leen la hoja
+    (`login_pwa.php`, `change_pwa_password.php`, `save_pwa_bet.php`,
+    `get_pwa_bets.php`) ya usan el rango `A2:E1000` de forma
+    retrocompatible. El modal se descarta con la X, con Escape o con
+    "Omitir" — el email queda simplemente en blanco.
 
 ## Conventions
 

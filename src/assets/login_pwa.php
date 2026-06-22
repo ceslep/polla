@@ -9,7 +9,7 @@
  * 10 dígitos del username enviado, y cuya columna C (password) — también
  * limpiada — termine en los mismos 4 dígitos de la contraseña enviada.
  *
- * Esquema de la hoja "participantes" (4 columnas A:D):
+ * Esquema de la hoja "participantes" (5 columnas A:E):
  *   A: participant (nombre a mostrar)
  *   B: phone (celular completo, puede incluir prefijo país y separadores:
  *      "+57 321 8552353", "0057 1 321 855 2353", "3218552353", etc.)
@@ -17,6 +17,7 @@
  *   D: passwordChanged ("TRUE"/"FALSE"): TRUE significa que el usuario YA
  *      cambió su contraseña; FALSE (o vacío) significa que aún no la cambió
  *      y el frontend debe obligarlo a hacerlo antes de poder apostar.
+ *   E: email (opcional, para notificaciones; lo escribe save_pwa_email.php)
  *
  * El username que el usuario digita en la PWA son los últimos 10 dígitos
  * del celular (sin prefijo país). La contraseña son los últimos 4 dígitos
@@ -108,7 +109,7 @@ try {
     $client->setAuthConfig(SERVICE_ACCOUNT_KEY_FILE);
     $service = new Sheets($client);
 
-    $range = WORKSHEET . '!A2:D1000';
+    $range = WORKSHEET . '!A2:E1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 

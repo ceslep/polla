@@ -1,20 +1,15 @@
 <script>
-    import { onMount } from 'svelte';
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
-    import { initInstallPrompt, promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
+    import { promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
 
     /** @type {{ state: any, isDev?: boolean, devTestDate?: string }} */
-    let { state, isDev = false, devTestDate = '' } = $props();
+    let { state: windowState, isDev = false, devTestDate = '' } = $props();
 
     const installState = getInstallState();
 
-    const isWindowOpen = $derived(state?.status === 'open');
+    const isWindowOpen = $derived(windowState?.status === 'open');
     // En dev mode el botón siempre se puede pulsar aunque la ventana esté cerrada.
     const canBet = $derived(isDev || isWindowOpen);
-
-    onMount(() => {
-        initInstallPrompt();
-    });
 
     function goRank() {
         setStep('ranking');
@@ -36,6 +31,9 @@
     function goTutorial() {
         setStep('tutorial');
     }
+
+    /** Abre/cierra el modal con instrucciones manuales de instalación. */
+    let showManualInstall = $state(false);
 </script>
 
 <div class="min-h-screen relative overflow-hidden flex flex-col items-center text-white p-4 md:p-8">
@@ -64,7 +62,7 @@
                 <div class="text-amber-300/80">Fecha y hora ignoradas · login real contra gsheets</div>
                 {#if devTestDate}
                     <div class="text-amber-300/80 pt-1 border-t border-amber-500/20">
-                        🧪 Fecha de prueba: <span class="font-mono text-amber-200">{devTestDate}</span> (mañana)
+                        🧪 Fecha de prueba: <span class="font-mono text-amber-200">{devTestDate}</span> (hoy)
                     </div>
                 {/if}
             </div>
@@ -77,16 +75,16 @@
                     <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
                     DEV — ventana siempre abierta
                 </div>
-            {:else if state?.status === 'open'}
+            {:else if windowState?.status === 'open'}
                 <div class="inline-flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/40 rounded-full px-4 py-1.5 text-emerald-300 text-sm font-medium">
                     <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                    Apuestas abiertas · cierran {state.firstMatchLocalTime} (hora Colombia)
+                    Apuestas abiertas · cierran {windowState.firstMatchLocalTime} (hora Colombia)
                 </div>
-            {:else if state?.status === 'closed'}
+            {:else if windowState?.status === 'closed'}
                 <div class="inline-flex items-center gap-2 bg-red-500/15 border border-red-500/40 rounded-full px-4 py-1.5 text-red-300 text-sm font-medium">
                     🔒 Ventana cerrada
                 </div>
-            {:else if state?.status === 'upcoming'}
+            {:else if windowState?.status === 'upcoming'}
                 <div class="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/40 rounded-full px-4 py-1.5 text-amber-300 text-sm font-medium">
                     ⏳ Próximamente
                 </div>
@@ -179,9 +177,9 @@
                                 Modo pruebas — usa partidos del día más cercano
                             {:else if isWindowOpen}
                                 Inicia sesión con tu celular
-                            {:else if state?.status === 'upcoming'}
+                            {:else if windowState?.status === 'upcoming'}
                                 Disponible cuando abra la ventana
-                            {:else if state?.status === 'closed'}
+                            {:else if windowState?.status === 'closed'}
                                 La ventana de hoy ya cerró
                             {:else}
                                 No hay partidos próximos
@@ -193,10 +191,19 @@
             </button>
         </div>
 
-        <div class="text-center mt-8">
-            <a href="#/" class="text-gray-500 hover:text-gray-300 text-sm underline">
+        <div class="text-center mt-8 space-y-2">
+            <a href="#/" class="text-gray-500 hover:text-gray-300 text-sm underline block">
                 ← Volver a la app principal
             </a>
+            {#if !installState.installed}
+                <button
+                    type="button"
+                    onclick={() => showManualInstall = true}
+                    class="text-gray-500 hover:text-gray-300 text-sm underline"
+                >
+                    📲 ¿Cómo instalar la app?
+                </button>
+            {/if}
         </div>
     </div>
 
@@ -254,6 +261,79 @@
                     type="button"
                     class="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold transition-all min-h-12"
                     onclick={dismissIosHint}
+                >
+                    Entendido
+                </button>
+            </div>
+        </div>
+    {/if}
+
+    <!-- Modal: instrucciones manuales de instalación (Android/Chrome/Edge) -->
+    {#if showManualInstall}
+        <div
+            class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+            onclick={(/** @type {MouseEvent} */ e) => { if (e.target === e.currentTarget) showManualInstall = false; }}
+            onkeydown={(/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') showManualInstall = false; }}
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="manual-install-title"
+        >
+            <div class="glass-strong rounded-3xl p-6 max-w-md w-full space-y-4 animate-slide-up" aria-hidden="false">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 ring-1 ring-emerald-500/40 flex items-center justify-center text-2xl">📲</div>
+                    <h3 id="manual-install-title" class="text-lg font-bold text-white">Instala la app</h3>
+                </div>
+                <p class="text-gray-300 text-sm">
+                    Si el botón <strong class="text-white">"Instalar app"</strong> no aparece arriba, instala manualmente desde el menú del navegador:
+                </p>
+                {#if installState.isIos}
+                    <ol class="space-y-3 text-sm text-gray-200">
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">1.</span>
+                            <span>
+                                Toca el botón
+                                <span class="inline-flex items-center justify-center w-6 h-6 mx-1 rounded bg-white/10 text-blue-400 align-middle" aria-hidden="true">⬆</span>
+                                <strong class="text-white">Compartir</strong> en la barra del navegador.
+                            </span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">2.</span>
+                            <span>Elige <strong class="text-white">Añadir a pantalla de inicio</strong> <span class="text-gray-400" aria-hidden="true">⊞</span>.</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">3.</span>
+                            <span>Toca <strong class="text-white">Añadir</strong>.</span>
+                        </li>
+                    </ol>
+                {:else}
+                    <ol class="space-y-3 text-sm text-gray-200">
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">1.</span>
+                            <span>
+                                Abre el menú del navegador
+                                <span class="inline-flex items-center justify-center w-5 h-5 mx-1 rounded bg-white/10 align-middle text-xs" aria-hidden="true">⋮</span>
+                                (Chrome/Edge: arriba a la derecha).
+                            </span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">2.</span>
+                            <span>Elige <strong class="text-white">"Instalar app"</strong> o <strong class="text-white">"Añadir a pantalla de inicio"</strong>.</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-emerald-400 font-black text-lg shrink-0">3.</span>
+                            <span>Confirma con <strong class="text-white">Instalar</strong>.</span>
+                        </li>
+                    </ol>
+                    <p class="text-xs text-gray-500 pt-2 border-t border-white/10">
+                        Si el menú no muestra esa opción, abre esta URL en Chrome o Edge desktop
+                        (algunos navegadores no soportan instalación de PWA).
+                    </p>
+                {/if}
+                <button
+                    type="button"
+                    class="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold transition-all min-h-12"
+                    onclick={() => showManualInstall = false}
                 >
                     Entendido
                 </button>

@@ -130,7 +130,7 @@ function authenticate(string $spreadsheetId, string $username, string $password,
         ? substr($passwordClean, -4)
         : $passwordClean;
 
-    $range = PARTICIPANTS_WORKSHEET . '!A2:C1000';
+    $range = PARTICIPANTS_WORKSHEET . '!A2:E1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 
@@ -239,11 +239,11 @@ try {
         }
         $homeScore = filter_var($bet['homeScore'], FILTER_VALIDATE_INT);
         $awayScore = filter_var($bet['awayScore'], FILTER_VALIDATE_INT);
-        if ($homeScore === false || $homeScore < 0 || $homeScore > 99) {
-            throw new Exception('homeScore debe ser entero entre 0 y 99.');
+        if ($homeScore === false || $homeScore < 0 || $homeScore > 9) {
+            throw new Exception('homeScore debe ser entero entre 0 y 9.');
         }
-        if ($awayScore === false || $awayScore < 0 || $awayScore > 99) {
-            throw new Exception('awayScore debe ser entero entre 0 y 99.');
+        if ($awayScore === false || $awayScore < 0 || $awayScore > 9) {
+            throw new Exception('awayScore debe ser entero entre 0 y 9.');
         }
         $id = sprintf('pwa_%s_%s_%s', $phone, $date, $bet['matchId']);
         $newRows[] = [

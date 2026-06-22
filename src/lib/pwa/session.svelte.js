@@ -6,7 +6,7 @@
  * sessionStorage para sobrevivir a recargas accidentales pero NO a cierre
  * de pestaña (es por sesión).
  *
- * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'form' | 'done' | 'history' | 'results' | 'movement'
+ * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'form' | 'done' | 'history' | 'results' | 'movement'
  */
 
 const SESSION_KEY = 'pwaSession';
@@ -24,7 +24,7 @@ function todayCot() {
 
 /**
  * @typedef {Object} PwaSession
- * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'form'|'done'|'history'|'results'|'movement'} step
+ * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'form'|'done'|'history'|'results'|'movement'} step
  * @property {string|null} authParticipant - nombre del participante (columna A de la hoja `participantes`)
  * @property {string|null} authPhone - phone (columna B de la hoja, last 10 digits)
  * @property {string|null} authUsername - last 10 digits (== authPhone)
@@ -126,10 +126,20 @@ export function loginAs(/** @type {string} */ participant, /** @type {string} */
     persist();
 }
 
-/** Actualiza la contraseña en sesión (después de un cambio exitoso) y avanza al form. */
+/** Actualiza la contraseña en sesión (después de un cambio exitoso) y
+ * avanza al paso de email-prompt (modal de notificaciones). El form real
+ * no se monta hasta que el modal de email se cierra vía completeEmailPrompt.
+ */
 export function completePasswordChange(/** @type {string} */ newPassword) {
     pwaSession.authPassword = newPassword;
     pwaSession.mustChangePassword = false;
+    pwaSession.step = 'email-prompt';
+    persist();
+}
+
+/** Cierra el modal de email-prompt y avanza al form. Se llama cuando el
+ * usuario guarda email, descarta el modal o responde "no, gracias". */
+export function completeEmailPrompt() {
     pwaSession.step = 'form';
     persist();
 }

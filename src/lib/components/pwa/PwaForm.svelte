@@ -42,7 +42,7 @@
             scores[matchId] = { ...(scores[matchId] || {}), [side]: null };
         } else {
             const n = parseInt(v, 10);
-            if (!isNaN(n) && n >= 0 && n <= 99) {
+            if (!isNaN(n) && n >= 0 && n <= 9) {
                 scores[matchId] = { ...(scores[matchId] || {}), [side]: n };
             }
         }
@@ -221,7 +221,7 @@
                                 type="number"
                                 inputmode="numeric"
                                 min="0"
-                                max="99"
+                                max="9"
                                 value={s.home ?? ''}
                                 oninput={(e) => handleScoreInput(m.id, 'home', e)}
                                 class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"
@@ -231,7 +231,7 @@
                                 type="number"
                                 inputmode="numeric"
                                 min="0"
-                                max="99"
+                                max="9"
                                 value={s.away ?? ''}
                                 oninput={(e) => handleScoreInput(m.id, 'away', e)}
                                 class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"

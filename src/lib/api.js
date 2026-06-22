@@ -11,6 +11,7 @@ const GET_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets.php';
 const GET_ALL_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_all_pwa_bets.php';
 const LOGIN_PWA_URL = 'https://app.iedeoccidente.com/gs/login_pwa.php';
 const CHANGE_PWA_PASSWORD_URL = 'https://app.iedeoccidente.com/gs/change_pwa_password.php';
+const SAVE_PWA_EMAIL_URL = 'https://app.iedeoccidente.com/gs/save_pwa_email.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -431,6 +432,36 @@ export async function loginPwa(payload) {
  */
 export async function changePwaPassword(payload) {
     const response = await fetch(CHANGE_PWA_PASSWORD_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Guarda (o limpia) el email de notificaciones del participante autenticado.
+ * El backend valida currentPassword contra la hoja y, si coincide, escribe
+ * (o borra, con `email: ''`) la columna E de `participantes`.
+ * @param {{ username: string, currentPassword: string, email: string, dev?: boolean }} payload
+ * @returns {Promise<{success: boolean, email?: string, message?: string, error?: string}>}
+ */
+export async function savePwaEmail(payload) {
+    const response = await fetch(SAVE_PWA_EMAIL_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

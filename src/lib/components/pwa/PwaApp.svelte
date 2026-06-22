@@ -3,13 +3,14 @@
     import { appState, findMatchForBet } from '../../stores.svelte.js';
     import { loadWorldCupMatches, loadBetsFromSheets, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
     import { applyPhoneNameOverrides, parseManualBets, normalizeTeamName } from '../../parser.js';
-    import { computeWindowState, matchesOnCotDate, matchLocalToCot, tomorrowCot, nowCotParts } from '../../pwa/window.js';
-    import { pwaSession, setStep, hasSeenPwaTour, markPwaTourSeen } from '../../pwa/session.svelte.js';
+    import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
+    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
     import PwaRanking from './PwaRanking.svelte';
     import PwaChangePassword from './PwaChangePassword.svelte';
+    import PwaEmailPromptModal from './PwaEmailPromptModal.svelte';
     import PwaForm from './PwaForm.svelte';
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
@@ -47,6 +48,26 @@
         }
     }
 
+    /**
+     * Llamado por PwaChangePassword cuando el backend confirmó el cambio de
+     * contraseña. El componente ya llamó a `completePasswordChange()` que
+     * movió el step a 'email-prompt', así que el render block se hace cargo.
+     */
+    function handlePasswordChanged() {
+        // No-op: PwaChangePassword invocó completePasswordChange() que
+        // movió el step a 'email-prompt'. La rama de render correspondiente
+        // montará PwaEmailPromptModal en el próximo tick.
+    }
+
+    /**
+     * Llamado por PwaEmailPromptModal al cerrarse (con o sin email guardado).
+     * Avanza el step a 'form' y dispara el tour si corresponde.
+     */
+    function handleEmailPromptClose() {
+        completeEmailPrompt();
+        handleAuthSuccess(pwaSession.authParticipant || undefined, pwaSession.authPhone || undefined);
+    }
+
     function closeTutorial() {
         setStep('landing');
     }
@@ -64,7 +85,7 @@
      * con partidos más cercano (pasado o futuro), ignorando el estado real
      * (closed / upcoming / open). No se hacen llamadas a Sheets en este modo.
      * Si se pasa `nowOverride`, se fuerza ese día COT como "hoy" para el
-     * dev (permite probar con partidos de mañana en local).
+     * dev (permite probar con partidos de hoy en local).
      * @param {any[]} rawMatches
      * @param {any} _originalState
      * @param {Date} [nowOverride]
@@ -84,7 +105,7 @@
         const todayFmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit'
         });
-        // Si hay override (ej. "mañana" en dev), usarlo como referencia.
+        // Si hay override (ej. "hoy" en dev), usarlo como referencia.
         // Si no, usar el día COT real.
         const refDate = nowOverride || new Date();
         const today = todayFmt.format(refDate);
@@ -128,18 +149,19 @@
     let pwaNormalizedMatches = $state([]);
 
     /**
-     * En dev mode, override de fecha: la PWA simula "mañana" para poder
-     * probar el envío de apuestas para partidos futuros. El override se
-     * aplica tanto a `computeWindowState` (para mostrar los partidos de
-     * mañana) como a `pwaSession.date` (para que el check de "ya envió"
-     * compare contra mañana y no haya colisión).
+     * En dev mode, override de fecha: la PWA simula "hoy" (en COT) para
+     * poder probar el envío de apuestas para los partidos del día actual.
+     * El override se aplica tanto a `computeWindowState` (para mostrar
+     * los partidos de hoy) como a `pwaSession.date` (para que el check
+     * de "ya envió" opere contra el mismo día simulado).
      */
-    const nowOverride = $derived(isDev ? tomorrowCot() : null);
+    const nowOverride = $derived(isDev ? todayCot() : null);
     const devTestDate = $derived(nowOverride ? nowCotParts(nowOverride).date : '');
 
     onMount(() => {
-        // En dev: setear pwaSession.date a mañana para que el check de
-        // "ya envió apuestas" no se dispare contra hoy.
+        // En dev: setear pwaSession.date a la fecha simulada (hoy en COT)
+        // para que el check de "ya envió apuestas" no se dispare contra
+        // una fecha distinta.
         if (isDev && devTestDate) {
             pwaSession.date = devTestDate;
         }
@@ -317,51 +339,55 @@
     async function load() {
         loading = true;
         try {
-            const raw = await loadWorldCupMatches();
-            const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
-            // Guardar los matches crudos para que MovementModal los use
-            // (no pueden ir a appState.matches porque ese espera formato Match normalizado).
-            rawMatches = withIds;
-            // Matches normalizados para scoring (computeMovement / findMatchForBet
-            // / compareBetWithMatch esperan este formato).
-            pwaNormalizedMatches = withIds
-                .filter((/** @type {any} */ m) => m.score?.ft)
-                .map((/** @type {any} */ m) => ({
-                    id: m.id,
-                    date: m.date,
-                    time: m.time,
-                    ground: m.ground,
-                    homeTeam: normalizeTeamName(m.team1),
-                    homeShort: m.team1,
-                    awayTeam: normalizeTeamName(m.team2),
-                    awayShort: m.team2,
-                    homeScore: m.score.ft[0],
-                    awayScore: m.score.ft[1]
-                }));
-            // Cargar y scorear los PWA bets para que MovementModal los pueda usar.
-            await loadAndScorePwaBets();
-            // En dev mode, pasar `nowOverride` (mañana) para que la ventana
-            // se compute contra la fecha de prueba.
-            let s = computeWindowState(withIds, nowOverride || undefined);
-            // En dev, si la ventana real no tiene matches, usar el día más cercano.
-            // Si hay `nowOverride` (ej. "mañana" en dev), forzamos ese día.
-            s = buildDevState(withIds, s, nowOverride || undefined);
-            if (!isDev && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
-                const existing = await getPwaBets({
-                    username: pwaSession.authUsername,
-                    password: pwaSession.authPassword,
-                    matchDate: s.date
-                });
-                if (existing.bets && existing.bets.length > 0) {
-                    pwaSession.submitted = true;
-                    if (pwaSession.step === 'landing' || pwaSession.step === 'login' || pwaSession.step === 'ranking') {
-                        setStep('done');
+            // Race contra un timeout de 20s para que un fetch colgado no
+            // deje la PWA en "Cargando…" para siempre. Si vence, se va al
+            // catch con un mensaje accionable y el botón "Reintentar".
+            const LOAD_TIMEOUT_MS = 20000;
+            const timeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout: la carga tomó más de 20s. Revisa tu conexión.')), LOAD_TIMEOUT_MS)
+            );
+            await Promise.race([
+                (async () => {
+                    const raw = await loadWorldCupMatches();
+                    const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
+                    rawMatches = withIds;
+                    pwaNormalizedMatches = withIds
+                        .filter((/** @type {any} */ m) => m.score?.ft)
+                        .map((/** @type {any} */ m) => ({
+                            id: m.id,
+                            date: m.date,
+                            time: m.time,
+                            ground: m.ground,
+                            homeTeam: normalizeTeamName(m.team1),
+                            homeShort: m.team1,
+                            awayTeam: normalizeTeamName(m.team2),
+                            awayShort: m.team2,
+                            homeScore: m.score.ft[0],
+                            awayScore: m.score.ft[1]
+                        }));
+                    await loadAndScorePwaBets();
+                    let s = computeWindowState(withIds, nowOverride || undefined);
+                    s = buildDevState(withIds, s, nowOverride || undefined);
+                    if (!isDev && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
+                        const existing = await getPwaBets({
+                            username: pwaSession.authUsername,
+                            password: pwaSession.authPassword,
+                            matchDate: s.date
+                        });
+                        if (existing.bets && existing.bets.length > 0) {
+                            pwaSession.submitted = true;
+                            if (pwaSession.step === 'landing' || pwaSession.step === 'login' || pwaSession.step === 'ranking') {
+                                setStep('done');
+                            }
+                        }
                     }
-                }
-            }
-            windowState = s;
+                    windowState = s;
+                })(),
+                timeout
+            ]);
         } catch (e) {
             console.error('Error cargando partidos:', e);
+            const isTimeout = e instanceof Error && e.message.startsWith('Timeout');
             windowState = {
                 status: 'no-matches',
                 date: null,
@@ -369,7 +395,9 @@
                 closeAt: null,
                 firstMatchLocalTime: null,
                 matches: null,
-                message: 'Error al cargar el calendario. Reintenta en unos segundos.'
+                message: isTimeout
+                    ? 'La carga tardó demasiado. Revisa tu conexión y reintenta.'
+                    : 'Error al cargar el calendario. Reintenta en unos segundos.'
             };
         } finally {
             loading = false;
@@ -437,6 +465,18 @@
     <div class="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-8">
         <div class="text-6xl mb-4 animate-spin">⚙️</div>
         <p class="text-gray-400">Cargando partidos del mundial…</p>
+        <p class="text-gray-600 text-xs mt-2">Si esto tarda más de 20s, reintenta.</p>
+    </div>
+{:else if windowState.status === 'no-matches' && windowState.message && (windowState.message.startsWith('La carga') || windowState.message.startsWith('Error'))}
+    <div class="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-8 text-center">
+        <div class="text-6xl mb-4">⚠️</div>
+        <p class="text-gray-300 max-w-md mb-6">{windowState.message}</p>
+        <button
+            class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 rounded-2xl text-white font-bold transition-all min-h-12"
+            onclick={() => load()}
+        >
+            🔄 Reintentar
+        </button>
     </div>
 {:else if pwaSession.step === 'landing'}
     <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} />
@@ -447,7 +487,9 @@
 {:else if pwaSession.step === 'tutorial'}
     <TutorialPage onClose={closeTutorial} />
 {:else if pwaSession.step === 'change-password'}
-    <PwaChangePassword {isDev} onSuccess={handleAuthSuccess} />
+    <PwaChangePassword {isDev} onPasswordChanged={handlePasswordChanged} />
+{:else if pwaSession.step === 'email-prompt'}
+    <PwaEmailPromptModal onClose={handleEmailPromptClose} />
 {:else if pwaSession.submitted || pwaSession.step === 'done'}
     <!-- Guard: si ya envió apuestas hoy, forzar 'done' sin importar el step -->
     <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} />
