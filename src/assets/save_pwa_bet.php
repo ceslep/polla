@@ -12,9 +12,10 @@
  *   - `dev: true` salta la validación de credenciales (uso exclusivo en
  *     localhost). El frontend sólo envía este flag cuando hostname es dev.
  *
- * Esquema de la hoja "apuestas" (10 columnas A:J):
- *   A:id, B:participant, C:phone, D:matchDate, E:matchId,
- *   F:homeTeam, G:awayTeam, H:homeScore, I:awayScore, J:submittedAt
+ * Esquema de la hoja "apuestas" (11 columnas A:K, alineado con seed_apuestas_from_json.php):
+ *   A:id, B:timestamp (COT, formato WhatsApp 'n/j/y H:i'),
+ *   C:participant, D:phone, E:matchDate, F:(vacía),
+ *   G:homeTeam, H:awayTeam, I:homeScore, J:awayScore, K:submittedAt (ISO)
  *
  * Petición (POST, JSON):
  *   {
@@ -52,7 +53,7 @@ const TIMEZONE = 'America/Bogota';
 const COT_OFFSET_HOURS = -5;
 
 const HEADERS = [
-    'id', 'participant', 'phone', 'matchDate', 'matchId',
+    'id', 'timestamp', 'participant', 'phone', 'matchDate', '',
     'homeTeam', 'awayTeam', 'homeScore', 'awayScore', 'submittedAt'
 ];
 
@@ -102,30 +103,58 @@ function validateWindow(string $date, string $firstMatchTime): array {
  * Autentica al usuario contra la hoja `participantes`. Devuelve ['participant' => ..., 'phone' => ...]
  * o lanza excepción con código 401 si las credenciales no coinciden.
  *
+ * En dev mode (`$dev === true`) se salta la validación de formato (10/4 dígitos)
+ * pero se hace el lookup real en la hoja `participantes` para que el nombre
+ * del participante quede correctamente escrito en la hoja `apuestas`.
+ *
  * @return array{participant: string, phone: string}
  */
 function authenticate(string $spreadsheetId, string $username, string $password, bool $dev, Sheets $service): array {
-    if ($dev) {
-        return ['participant' => 'Dev User', 'phone' => $username];
+    if (!$dev) {
+        if (!preg_match('/^\d{10}$/', $username)) {
+            throw new Exception('El usuario debe tener exactamente 10 dígitos.');
+        }
+        if (!preg_match('/^\d{4}$/', $password)) {
+            throw new Exception('La contraseña debe tener exactamente 4 dígitos.');
+        }
     }
-    if (!preg_match('/^\d{10}$/', $username)) {
-        throw new Exception('El usuario debe tener exactamente 10 dígitos.');
-    }
-    if (!preg_match('/^\d{4}$/', $password)) {
-        throw new Exception('La contraseña debe tener exactamente 4 dígitos.');
-    }
+
+    // Sanitizar input: quedarse con los últimos 10/4 dígitos (en dev puede venir
+    // con espacios, guiones, prefijos).
+    $usernameClean = preg_replace('/\D+/', '', $username);
+    $usernameLast10 = strlen($usernameClean) >= 10
+        ? substr($usernameClean, -10)
+        : $usernameClean;
+    $passwordClean = preg_replace('/\D+/', '', $password);
+    $passwordLast4 = strlen($passwordClean) >= 4
+        ? substr($passwordClean, -4)
+        : $passwordClean;
 
     $range = PARTICIPANTS_WORKSHEET . '!A2:C1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 
     foreach ($rows as $row) {
-        $rowUsername = trim((string)($row[1] ?? ''));
-        $rowPassword = trim((string)($row[2] ?? ''));
-        if ($rowUsername === $username && $rowPassword === $password) {
+        // Columna B puede traer prefijo país y separadores; limpiamos a
+        // sólo dígitos y comparamos los últimos 10 contra el username.
+        $rowPhoneRaw = trim((string)($row[1] ?? ''));
+        $rowPhoneClean = preg_replace('/\D+/', '', $rowPhoneRaw);
+        $rowPhoneLast10 = strlen($rowPhoneClean) >= 10
+            ? substr($rowPhoneClean, -10)
+            : '';
+
+        // Columna C: limpiamos y comparamos los últimos 4 contra el password.
+        $rowPasswordRaw = trim((string)($row[2] ?? ''));
+        $rowPasswordClean = preg_replace('/\D+/', '', $rowPasswordRaw);
+        $rowPasswordLast4 = strlen($rowPasswordClean) >= 4
+            ? substr($rowPasswordClean, -4)
+            : '';
+
+        if ($rowPhoneLast10 !== '' && $rowPhoneLast10 === $usernameLast10
+            && $rowPasswordLast4 !== '' && $rowPasswordLast4 === $passwordLast4) {
             return [
                 'participant' => trim((string)($row[0] ?? '')),
-                'phone' => $rowUsername
+                'phone' => $rowPhoneLast10
             ];
         }
     }
@@ -186,7 +215,7 @@ try {
 
     // 2. Validar ventana (server-side, hora COT)
     $window = validateWindow($date, $firstMatchTime);
-    if (!$window['ok']) {
+    if (!$dev && !$window['ok']) {
         http_response_code(400);
         echo json_encode([
             'success' => false,
@@ -198,6 +227,9 @@ try {
 
     // 3. Generar ids determinísticos: pwa_<phone>_<date>_<matchId>
     $nowIso = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.v\Z');
+    // Timestamp en formato WhatsApp-like (n/j/y H:i) en COT — coincide con
+    // el formato de la columna B de los bets del seed.
+    $cotTimestamp = (new DateTime('now', tz()))->format('n/j/y H:i');
 
     /** @var array<int, array{id: string, row: array}> */
     $newRows = [];
@@ -217,16 +249,17 @@ try {
         $newRows[] = [
             'id' => $id,
             'row' => [
-                $id,
-                $participant,
-                $phone,
-                $date,
-                (string)$bet['matchId'],
-                (string)$bet['homeTeam'],
-                (string)$bet['awayTeam'],
-                $homeScore,
-                $awayScore,
-                $nowIso
+                $id,                          // A: id
+                $cotTimestamp,                // B: timestamp (COT, formato seed)
+                $participant,                 // C: participant
+                $phone,                       // D: phone
+                $date,                        // E: matchDate
+                '',                           // F: vacía (alineada con seed)
+                (string)$bet['homeTeam'],     // G
+                (string)$bet['awayTeam'],     // H
+                $homeScore,                   // I
+                $awayScore,                   // J
+                $nowIso                       // K: submittedAt (ISO)
             ]
         ];
     }
@@ -239,7 +272,7 @@ try {
     $hasHeaders = false;
 
     try {
-        $range = WORKSHEET . '!A1:J50000';
+        $range = WORKSHEET . '!A1:K50000';
         $response = $service->spreadsheets_values->get($spreadsheetId, $range);
         $existingValues = $response->getValues() ?: [];
         $hasHeaders = count($existingValues) > 0 && strtolower($existingValues[0][0] ?? '') === 'id';
@@ -277,7 +310,7 @@ try {
     $batchOps = [];
     if (!$hasHeaders) {
         $batchOps[] = [
-            'range' => WORKSHEET . '!A1:J1',
+            'range' => WORKSHEET . '!A1:K1',
             'values' => [HEADERS]
         ];
     }
@@ -290,7 +323,7 @@ try {
         }
         if (!$entry) continue;
         $batchOps[] = [
-            'range' => WORKSHEET . '!A' . $ins['rowIndex'] . ':J' . $ins['rowIndex'],
+            'range' => WORKSHEET . '!A' . $ins['rowIndex'] . ':K' . $ins['rowIndex'],
             'values' => [$entry['row']]
         ];
     }

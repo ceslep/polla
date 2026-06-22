@@ -1,5 +1,5 @@
 import { normalizeTeamName } from './parser.js';
-import { saveBetsToSheets } from './api.js';
+import { saveBetsToSheets, loadPrefsFromSheets, saveSeenTourToSheets } from './api.js';
 
 /** @typedef {import('./types.js').Bet} Bet */
 /** @typedef {import('./types.js').Match} Match */
@@ -7,7 +7,7 @@ import { saveBetsToSheets } from './api.js';
 /** Puntuación mínima para aparecer en tablas de ranking y mensajes. */
 export const MIN_POINTS_THRESHOLD = 13;
 
-/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, saving: boolean, sheetsUnavailable: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
+/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, saving: boolean, sheetsUnavailable: boolean, currentUserPhone: string, seenTour: boolean | null, tourCheckDone: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
 export const appState = $state({
     bets: [],
     matches: [],
@@ -15,6 +15,11 @@ export const appState = $state({
     isLoading: false,
     saving: false,
     sheetsUnavailable: false,
+    currentUserPhone: '',
+    /** null = aún no consultado; true/false después de la consulta. */
+    seenTour: null,
+    /** true cuando ya se hizo la consulta a get_prefs.php (evita re-disparar el tour). */
+    tourCheckDone: false,
     filters: {
         participant: '',
         status: '',
@@ -25,6 +30,51 @@ export const appState = $state({
     },
     participantAliases: {}
 });
+
+/**
+ * Carga las prefs del participante actual desde Sheets y actualiza appState.
+ * No-op si todavía no hay phone (ej: usuario no subió nada aún).
+ * @returns {Promise<boolean>} true si seenTour quedó en true
+ */
+export async function refreshTourPref() {
+    const phone = appState.currentUserPhone;
+    if (!phone) return false;
+    try {
+        const result = await loadPrefsFromSheets(phone);
+        const seen = !!(result?.prefs?.seen_tour);
+        appState.seenTour = seen;
+        appState.tourCheckDone = true;
+        return seen;
+    } catch (err) {
+        console.warn('refreshTourPref: no se pudo consultar prefs', err);
+        // Si Sheets falla, no bloqueamos al usuario. Marcamos como ya visto
+        // para no spammear con reintentos.
+        appState.seenTour = true;
+        appState.tourCheckDone = true;
+        return true;
+    }
+}
+
+/**
+ * Marca el tour como visto en Sheets. Idempotente (UPSERT por phone).
+ * @returns {Promise<boolean>} true si se persistió
+ */
+export async function markTourSeen() {
+    const phone = appState.currentUserPhone;
+    if (!phone) return false;
+    try {
+        await saveSeenTourToSheets(phone);
+        appState.seenTour = true;
+        appState.tourCheckDone = true;
+        return true;
+    } catch (err) {
+        console.warn('markTourSeen: no se pudo persistir', err);
+        // Aún así marcamos localmente para no volver a mostrar.
+        appState.seenTour = true;
+        appState.tourCheckDone = true;
+        return false;
+    }
+}
 
 /**
  * Clave canónica de "cruce único" para deduplicar apuestas de un mismo

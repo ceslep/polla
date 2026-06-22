@@ -41,30 +41,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  * Misma función que save_pwa_bet.php. Si la duplicación crece, mover a un
  * helper compartido en src/assets/_lib/.
  *
+ * En dev mode (`$dev === true`) se salta la validación de formato (10/4 dígitos)
+ * pero se hace el lookup real en la hoja `participantes` para que el nombre
+ * del participante sea el real (no "Dev User").
+ *
  * @return array{participant: string, phone: string}
  */
 function authenticate(string $spreadsheetId, string $username, string $password, bool $dev, Sheets $service): array {
-    if ($dev) {
-        return ['participant' => 'Dev User', 'phone' => $username];
+    if (!$dev) {
+        if (!preg_match('/^\d{10}$/', $username)) {
+            throw new Exception('El usuario debe tener exactamente 10 dígitos.');
+        }
+        if (!preg_match('/^\d{4}$/', $password)) {
+            throw new Exception('La contraseña debe tener exactamente 4 dígitos.');
+        }
     }
-    if (!preg_match('/^\d{10}$/', $username)) {
-        throw new Exception('El usuario debe tener exactamente 10 dígitos.');
-    }
-    if (!preg_match('/^\d{4}$/', $password)) {
-        throw new Exception('La contraseña debe tener exactamente 4 dígitos.');
-    }
+
+    // Sanitizar input: quedarse con los últimos 10/4 dígitos.
+    $usernameClean = preg_replace('/\D+/', '', $username);
+    $usernameLast10 = strlen($usernameClean) >= 10
+        ? substr($usernameClean, -10)
+        : $usernameClean;
+    $passwordClean = preg_replace('/\D+/', '', $password);
+    $passwordLast4 = strlen($passwordClean) >= 4
+        ? substr($passwordClean, -4)
+        : $passwordClean;
 
     $range = PARTICIPANTS_WORKSHEET . '!A2:C1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 
     foreach ($rows as $row) {
-        $rowUsername = trim((string)($row[1] ?? ''));
-        $rowPassword = trim((string)($row[2] ?? ''));
-        if ($rowUsername === $username && $rowPassword === $password) {
+        // Columna B puede traer prefijo país y separadores; limpiamos a
+        // sólo dígitos y comparamos los últimos 10 contra el username.
+        $rowPhoneRaw = trim((string)($row[1] ?? ''));
+        $rowPhoneClean = preg_replace('/\D+/', '', $rowPhoneRaw);
+        $rowPhoneLast10 = strlen($rowPhoneClean) >= 10
+            ? substr($rowPhoneClean, -10)
+            : '';
+
+        // Columna C: limpiamos y comparamos los últimos 4 contra el password.
+        $rowPasswordRaw = trim((string)($row[2] ?? ''));
+        $rowPasswordClean = preg_replace('/\D+/', '', $rowPasswordRaw);
+        $rowPasswordLast4 = strlen($rowPasswordClean) >= 4
+            ? substr($rowPasswordClean, -4)
+            : '';
+
+        if ($rowPhoneLast10 !== '' && $rowPhoneLast10 === $usernameLast10
+            && $rowPasswordLast4 !== '' && $rowPasswordLast4 === $passwordLast4) {
             return [
                 'participant' => trim((string)($row[0] ?? '')),
-                'phone' => $rowUsername
+                'phone' => $rowPhoneLast10
             ];
         }
     }
@@ -109,7 +136,7 @@ try {
     $auth = authenticate($spreadsheetId, $username, $password, $dev, $service);
     $authedPhone = $auth['phone'];
 
-    $range = WORKSHEET . '!A1:J50000';
+    $range = WORKSHEET . '!A1:K50000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $allValues = $response->getValues() ?: [];
 
@@ -121,15 +148,45 @@ try {
     $headers = $allValues[0];
     $bets = [];
 
+    // La hoja "apuestas" puede tener dos schemas distintos (PWA:11 cols vs
+    // seed:11 cols con nombres distintos). Normalizamos al PWA schema para
+    // que el frontend siempre lea las mismas claves (matchDate, homeTeam,
+    // participant, submittedAt, etc.).
+    $aliasMap = [
+        'participant' => ['participant', 'participante'],
+        'phone'       => ['phone'],
+        'matchDate'   => ['matchDate', 'date'],
+        'matchId'     => ['matchId'],
+        'homeTeam'    => ['homeTeam', 'team1'],
+        'awayTeam'    => ['awayTeam', 'team2'],
+        'homeScore'   => ['homeScore', 'score1'],
+        'awayScore'   => ['awayScore', 'score2'],
+        'submittedAt' => ['submittedAt', 'timestamp', 'datetime'],
+    ];
+
     for ($i = 1; $i < count($allValues); $i++) {
         $row = $allValues[$i];
-        $obj = [];
+        $raw = [];
         foreach ($headers as $col => $headerName) {
-            $obj[$headerName] = $row[$col] ?? '';
+            $raw[$headerName] = $row[$col] ?? '';
         }
 
-        // Filtro por phone autenticado (no el del payload)
-        if (($obj['phone'] ?? '') !== $authedPhone) continue;
+        // Filtro por phone autenticado (no el del payload). En ambos schemas
+        // la columna se llama "phone".
+        if (($raw['phone'] ?? '') !== $authedPhone) continue;
+
+        // Mapear al PWA schema.
+        $obj = ['id' => $raw['id'] ?? ''];
+        foreach ($aliasMap as $canonical => $aliases) {
+            $value = '';
+            foreach ($aliases as $alias) {
+                if (isset($raw[$alias]) && $raw[$alias] !== '') {
+                    $value = $raw[$alias];
+                    break;
+                }
+            }
+            $obj[$canonical] = $value;
+        }
 
         if ($filterDate !== null) {
             if (($obj['matchDate'] ?? '') !== $filterDate) continue;

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo se calcula el puntaje">
+  <style>
+    .bg { fill: #f8fafc; }
+    .card { fill: white; stroke: #e2e8f0; stroke-width: 1.5; }
+    .header-text { font: 700 18px system-ui, sans-serif; fill: #0f172a; }
+    .col-head { font: 600 11px system-ui, sans-serif; fill: #64748b; }
+    .match { font: 500 12px system-ui, sans-serif; fill: #0f172a; }
+    .score { font: 600 12px ui-monospace, monospace; fill: #0f172a; }
+    .pts { font: 700 14px system-ui, sans-serif; }
+    .pts-exact { fill: #15803d; }
+    .pts-correct { fill: #b45309; }
+    .pts-incorrect { fill: #b91c1c; }
+    .label-exact { font: 600 12px system-ui, sans-serif; fill: #15803d; }
+    .label-correct { font: 600 12px system-ui, sans-serif; fill: #b45309; }
+    .label-incorrect { font: 600 12px system-ui, sans-serif; fill: #b91c1c; }
+    .row-exact { fill: #f0fdf4; }
+    .row-correct { fill: #fffbeb; }
+    .row-incorrect { fill: #fef2f2; }
+    .tip { fill: #fef3c7; stroke: #f59e0b; }
+    .tip-text { font: 500 12px system-ui, sans-serif; fill: #92400e; }
+    .formula { font: 600 13px system-ui, sans-serif; fill: #0f172a; }
+  </style>
+
+  <rect class="bg" width="600" height="400" rx="16"/>
+
+  <text class="header-text" x="300" y="32" text-anchor="middle">¿Cómo se calcula el puntaje?</text>
+
+  <!-- Table -->
+  <g transform="translate(60, 60)">
+    <rect class="card" width="480" height="220" rx="10"/>
+
+    <!-- Header -->
+    <text class="col-head" x="20" y="28">PARTIDO</text>
+    <text class="col-head" x="220" y="28">APUESTA</text>
+    <text class="col-head" x="320" y="28">REAL</text>
+    <text class="col-head" x="400" y="28">PTS</text>
+
+    <line x1="14" y1="38" x2="466" y2="38" stroke="#e2e8f0" stroke-width="1"/>
+
+    <!-- Row 1: EXACT (5 pts) -->
+    <rect class="row-exact" x="6" y="44" width="468" height="40" rx="6"/>
+    <text class="label-exact" x="20" y="69">EXACTO</text>
+    <text class="match" x="20" y="84">México vs Sudáfrica</text>
+    <text class="score" x="220" y="69">2 - 0</text>
+    <text class="score" x="320" y="69">2 - 0</text>
+    <text class="pts pts-exact" x="400" y="78">+5</text>
+
+    <!-- Row 2: CORRECT (3 pts) -->
+    <rect class="row-correct" x="6" y="88" width="468" height="40" rx="6"/>
+    <text class="label-correct" x="20" y="113">ACIERTO</text>
+    <text class="match" x="20" y="128">USA vs Paraguay</text>
+    <text class="score" x="220" y="113">3 - 1</text>
+    <text class="score" x="320" y="113">4 - 1</text>
+    <text class="pts pts-correct" x="400" y="122">+3</text>
+
+    <!-- Row 3: INCORRECT (0 pts) -->
+    <rect class="row-incorrect" x="6" y="132" width="468" height="40" rx="6"/>
+    <text class="label-incorrect" x="20" y="157">FALLO</text>
+    <text class="match" x="20" y="172">Brasil vs Marruecos</text>
+    <text class="score" x="220" y="157">1 - 1</text>
+    <text class="score" x="320" y="157">2 - 1</text>
+    <text class="pts pts-incorrect" x="400" y="166">0</text>
+
+    <line x1="14" y1="180" x2="466" y2="180" stroke="#e2e8f0" stroke-width="1"/>
+
+    <text class="col-head" x="240" y="200" text-anchor="middle">Resultado del ejemplo: <tspan font-weight="700" fill="#1d4ed8">8 puntos</tspan></text>
+  </g>
+
+  <!-- Legend at bottom -->
+  <g transform="translate(40, 300)">
+    <g transform="translate(0, 0)">
+      <rect class="row-exact" x="0" y="0" width="20" height="20" rx="4"/>
+      <text class="formula" x="30" y="15">EXACTO: <tspan class="pts-exact" font-weight="700">5 pts</tspan></text>
+      <text class="col-head" x="30" y="32">marcador y resultado igual</text>
+    </g>
+    <g transform="translate(200, 0)">
+      <rect class="row-correct" x="0" y="0" width="20" height="20" rx="4"/>
+      <text class="formula" x="30" y="15">ACIERTO: <tspan class="pts-correct" font-weight="700">3 pts</tspan></text>
+      <text class="col-head" x="30" y="32">ganó el mismo, pero mal marcador</text>
+    </g>
+    <g transform="translate(400, 0)">
+      <rect class="row-incorrect" x="0" y="0" width="20" height="20" rx="4"/>
+      <text class="formula" x="30" y="15">FALLO: <tspan class="pts-incorrect" font-weight="700">0 pts</tspan></text>
+      <text class="col-head" x="30" y="32">acertaste ganador ni empate</text>
+    </g>
+  </g>
+
+  <g transform="translate(150, 370)">
+    <rect class="tip" width="300" height="22" rx="11"/>
+    <text class="tip-text" x="150" y="15" text-anchor="middle">Tip: una exacta vale más que dos aciertos 🏆</text>
+  </g>
+</svg>

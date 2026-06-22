@@ -90,7 +90,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onclick={onClose} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="bg-gray-900 border border-white/10 rounded-2xl sm:rounded-3xl w-full max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="bg-gray-900 text-white border border-white/10 rounded-2xl sm:rounded-3xl w-full max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
             <h2 class="text-xl font-bold text-cyan-400">Alias de Participantes</h2>
             <button class="text-gray-400 hover:text-white text-2xl" onclick={onClose}>&times;</button>

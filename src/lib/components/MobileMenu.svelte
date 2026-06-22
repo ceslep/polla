@@ -1,5 +1,5 @@
 <script>
-    /** @type {{onResetAll?: () => void, onAnalyze?: () => void, onRefresh?: () => void, onStats?: () => void, onMovement?: () => void, onMalformed?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
+    /** @type {{onResetAll?: () => void, onAnalyze?: () => void, onRefresh?: () => void, onStats?: () => void, onMovement?: () => void, onMalformed?: () => void, onTutorial?: () => void, isOpen?: boolean, isLoading?: boolean, isSavingToSheets?: boolean, hasBets?: boolean}} */
     let {
         isOpen = $bindable(false),
         onResetAll = () => {},
@@ -8,6 +8,7 @@
         onStats = () => {},
         onMovement = () => {},
         onMalformed = () => {},
+        onTutorial = () => {},
         isLoading = false,
         isSavingToSheets = false,
         hasBets = false
@@ -30,6 +31,13 @@
             <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-6"></div>
             <h3 class="text-lg font-bold text-white mb-6 text-center">Menú</h3>
             <div class="space-y-3">
+                <button
+                    class="w-full py-4 px-6 bg-indigo-600/20 hover:bg-indigo-600/30 rounded-2xl text-indigo-300 font-semibold transition-all flex items-center justify-center gap-3 text-lg border border-indigo-500/30"
+                    onclick={() => handleAction(onTutorial)}
+                >
+                    <span class="text-2xl">📖</span>
+                    Tutorial
+                </button>
                 {#if hasBets}
                     <button
                         class="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-3 text-lg"

@@ -325,7 +325,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" role="dialog" tabindex="-1" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
+    <div class="bg-gray-900 text-white border border-white/10 rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col" onclick={(e) => e.stopPropagation()}>
         <div class="p-3 md:p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
             <div class="flex items-center gap-2 md:gap-4">
                 <h2 class="text-lg md:text-xl font-bold text-cyan-400">🌍 Mundial 2026</h2>

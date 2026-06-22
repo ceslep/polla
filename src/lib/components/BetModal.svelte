@@ -174,7 +174,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-        class="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+        class="bg-gray-900 text-white border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
         onclick={(e) => e.stopPropagation()}
     >
         <div class="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">

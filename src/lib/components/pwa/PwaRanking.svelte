@@ -1,61 +1,64 @@
 <script>
-    import { onMount } from 'svelte';
-    import { appState, uniqueBets, participantPoints } from '../../stores.svelte.js';
-    import { loadBetsFromSheets } from '../../api.js';
-    import { applyPhoneNameOverrides, parseManualBets } from '../../parser.js';
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
+    import PwaParticipantDetail from './PwaParticipantDetail.svelte';
 
-    /** @type {{ onBack: () => void }} */
-    let { onBack } = $props();
+    /** @type {{ bets: any[], onBack: () => void }} */
+    let { bets = [], onBack } = $props();
 
-    let loading = $state(true);
+    /** Participante seleccionado para ver detalle (null = ninguno). */
+    let selectedParticipant = $state(/** @type {string | null} */ (null));
 
-    onMount(() => {
-        load();
-    });
-
-    async function load() {
-        loading = true;
-        try {
-            if (appState.bets.length === 0) {
-                const sheetsBets = await loadBetsFromSheets();
-                const manualBets = parseManualBets();
-                if (sheetsBets.length > 0) {
-                    const betsToAnalyze = applyPhoneNameOverrides(sheetsBets.map((bet) => ({
-                        ...bet,
-                        verified: false,
-                        status: /** @type {any} */ ('pending'),
-                        points: Number(bet.points) || 0
-                    })));
-                    appState.bets = [...betsToAnalyze, ...manualBets];
-                } else if (manualBets.length > 0) {
-                    appState.bets = manualBets;
-                }
-            }
-        } catch (e) {
-            console.error('No pude cargar apuestas para el ranking:', e);
-        } finally {
-            loading = false;
-        }
-    }
-
+    /**
+     * Ranking calculado desde los PWA bets (hoja `apuestas`), NO desde
+     * `appState.bets` (que contiene bets de WhatsApp). Esto es lo que el
+     * usuario pidió: "todo lo de pwa debe venir desde la hoja apuestas".
+     *
+     * Incluye TODOS los participantes (incluso con 0 puntos).
+     */
     const ranking = $derived.by(() => {
-        const points = participantPoints();
-        return [...points.entries()]
-            .map(([participant, pts]) => ({
+        /** @type {Map<string, {points: number, resolved: number, betsCount: number}>} */
+        const acc = new Map();
+        for (const bet of bets) {
+            const p = bet.participant;
+            if (!p) continue;
+            const cur = acc.get(p) || { points: 0, resolved: 0, betsCount: 0 };
+            cur.betsCount += 1;
+            if (bet.status !== 'pending') {
+                cur.points += Number(bet.points) || 0;
+                cur.resolved += 1;
+            }
+            acc.set(p, cur);
+        }
+        return [...acc.entries()]
+            .map(([participant, v]) => ({
                 participant,
-                points: pts,
-                resolved: uniqueBets().filter(b => b.participant === participant && b.status !== 'pending').length
+                points: v.points,
+                resolved: v.resolved,
+                betsCount: v.betsCount
             }))
             .sort((a, b) => b.points - a.points);
     });
 
     function back() {
-        if (pwaSession.authUsername) {
+        // Si ya envió apuestas hoy, no permitir volver al form.
+        if (pwaSession.submitted) {
+            setStep('done');
+        } else if (pwaSession.authUsername) {
             // Si está logueado, volver al form
             setStep('form');
         } else {
             setStep('landing');
+        }
+    }
+
+    /**
+     * @param {KeyboardEvent} e
+     * @param {string} participant
+     */
+    function handleCardKeydown(e, participant) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectedParticipant = participant;
         }
     }
 </script>
@@ -75,26 +78,32 @@
             Solo lectura — no requiere iniciar sesión.
         </div>
 
-        {#if loading}
-            <div class="text-center py-8">
-                <div class="text-5xl mb-3 animate-spin">⚙️</div>
-                <p class="text-gray-500">Cargando apuestas…</p>
-            </div>
-        {:else if ranking.length === 0}
+        {#if ranking.length === 0}
             <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
-                <p class="text-gray-400">Aún no hay apuestas calificadas.</p>
+                <p class="text-gray-400">Aún no hay apuestas en la hoja <span class="text-cyan-400 font-mono">apuestas</span>.</p>
             </div>
         {:else}
             <div class="space-y-2">
                 {#each ranking as r, i (r.participant)}
                     {@const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                    <div class="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 {i < 3 ? 'border-cyan-500/40' : ''}">
+                    <div
+                        role="button"
+                        tabindex="0"
+                        onclick={() => selectedParticipant = r.participant}
+                        onkeydown={(e) => handleCardKeydown(e, r.participant)}
+                        class="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg hover:border-cyan-500/30 {i < 3 ? 'border-cyan-500/40' : ''}"
+                    >
                         <div class="w-10 text-center text-lg font-bold {i < 3 ? 'text-cyan-400' : 'text-gray-500'}">
                             {medal}
                         </div>
                         <div class="flex-1">
                             <div class="font-bold text-sm md:text-base">{r.participant}</div>
-                            <div class="text-xs text-gray-500">{r.resolved} apuestas calificadas</div>
+                            <div class="text-xs text-gray-500">
+                                {r.betsCount} apuesta{r.betsCount !== 1 ? 's' : ''}
+                                {#if r.resolved !== r.betsCount}
+                                    · {r.resolved} calificada{r.resolved !== 1 ? 's' : ''}
+                                {/if}
+                            </div>
                         </div>
                         <div class="text-right">
                             <div class="text-2xl font-black text-cyan-400">{r.points}</div>
@@ -106,3 +115,11 @@
         {/if}
     </div>
 </div>
+
+{#if selectedParticipant}
+    <PwaParticipantDetail
+        participant={selectedParticipant}
+        {bets}
+        onClose={() => selectedParticipant = null}
+    />
+{/if}

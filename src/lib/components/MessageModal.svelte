@@ -13,7 +13,7 @@
 
 <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="presentation">
     <div
-        class="bg-gray-900 border rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+        class="bg-gray-900 text-white border rounded-2xl p-6 w-full max-w-sm shadow-2xl"
         class:border-blue-500={type === 'info'}
         class:border-orange-500={type === 'warning'}
         class:border-red-500={type === 'error'}

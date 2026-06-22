@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" fill="none" role="img" aria-label="Cómo se ve el ranking">
+  <style>
+    .bg { fill: #f8fafc; }
+    .card { fill: white; stroke: #e2e8f0; stroke-width: 1.5; }
+    .header-text { font: 700 18px system-ui, sans-serif; fill: #0f172a; }
+    .col-head { font: 600 11px system-ui, sans-serif; fill: #64748b; }
+    .rank-num { font: 700 13px system-ui, sans-serif; fill: #0f172a; }
+    .participant { font: 500 12px system-ui, sans-serif; fill: #0f172a; }
+    .points { font: 700 13px system-ui, sans-serif; fill: #1d4ed8; }
+    .exact { fill: #dcfce7; stroke: #16a34a; }
+    .exact-text { font: 600 10px system-ui, sans-serif; fill: #15803d; }
+    .correct { fill: #fef3c7; stroke: #d97706; }
+    .correct-text { font: 600 10px system-ui, sans-serif; fill: #b45309; }
+    .incorrect { fill: #fee2e2; stroke: #dc2626; }
+    .incorrect-text { font: 600 10px system-ui, sans-serif; fill: #b91c1c; }
+    .gold { fill: #fbbf24; }
+    .silver { fill: #cbd5e1; }
+    .bronze { fill: #f59e0b; }
+    .tip { fill: #dbeafe; }
+    .tip-text { font: 500 12px system-ui, sans-serif; fill: #1e40af; }
+    .arrow { stroke: #dc2626; stroke-width: 1.5; fill: none; }
+  </style>
+
+  <rect class="bg" width="600" height="400" rx="16"/>
+
+  <text class="header-text" x="300" y="32" text-anchor="middle">Acá está el ranking 🏆</text>
+
+  <!-- Ranking table -->
+  <g transform="translate(60, 60)">
+    <rect class="card" width="480" height="270" rx="10"/>
+
+    <!-- Header row -->
+    <text class="col-head" x="20" y="28">#</text>
+    <text class="col-head" x="60" y="28">PARTICIPANTE</text>
+    <text class="col-head" x="270" y="28" text-anchor="end">PTS</text>
+    <text class="col-head" x="350" y="28" text-anchor="middle">EX</text>
+    <text class="col-head" x="405" y="28" text-anchor="middle">OK</text>
+    <text class="col-head" x="460" y="28" text-anchor="middle">NO</text>
+
+    <line x1="14" y1="38" x2="466" y2="38" stroke="#e2e8f0" stroke-width="1"/>
+
+    <!-- Row 1 (gold) -->
+    <g transform="translate(0, 50)">
+      <rect class="gold" x="6" y="2" width="20" height="20" rx="10"/>
+      <text class="rank-num" x="16" y="17" text-anchor="middle" fill="white">1</text>
+      <text class="participant" x="40" y="17">🥇 Ricardo A. Bueno</text>
+      <text class="points" x="285" y="17" text-anchor="end">83</text>
+      <rect class="exact" x="335" y="4" width="22" height="18" rx="4"/>
+      <text class="exact-text" x="346" y="17" text-anchor="middle">4</text>
+      <rect class="correct" x="390" y="4" width="22" height="18" rx="4"/>
+      <text class="correct-text" x="401" y="17" text-anchor="middle">21</text>
+      <rect class="incorrect" x="445" y="4" width="22" height="18" rx="4"/>
+      <text class="incorrect-text" x="456" y="17" text-anchor="middle">18</text>
+    </g>
+
+    <!-- Row 2 (silver) -->
+    <g transform="translate(0, 80)">
+      <rect class="silver" x="6" y="2" width="20" height="20" rx="10"/>
+      <text class="rank-num" x="16" y="17" text-anchor="middle" fill="white">2</text>
+      <text class="participant" x="40" y="17">🥈 Albert Gomez</text>
+      <text class="points" x="285" y="17" text-anchor="end">79</text>
+      <rect class="exact" x="335" y="4" width="22" height="18" rx="4"/>
+      <text class="exact-text" x="346" y="17" text-anchor="middle">5</text>
+      <rect class="correct" x="390" y="4" width="22" height="18" rx="4"/>
+      <text class="correct-text" x="401" y="17" text-anchor="middle">18</text>
+      <rect class="incorrect" x="445" y="4" width="22" height="18" rx="4"/>
+      <text class="incorrect-text" x="456" y="17" text-anchor="middle">20</text>
+    </g>
+
+    <!-- Row 3 (bronze) -->
+    <g transform="translate(0, 110)">
+      <rect class="bronze" x="6" y="2" width="20" height="20" rx="10"/>
+      <text class="rank-num" x="16" y="17" text-anchor="middle" fill="white">3</text>
+      <text class="participant" x="40" y="17">🥉 Maricela Loaiza</text>
+      <text class="points" x="285" y="17" text-anchor="end">79</text>
+      <rect class="exact" x="335" y="4" width="22" height="18" rx="4"/>
+      <text class="exact-text" x="346" y="17" text-anchor="middle">5</text>
+      <rect class="correct" x="390" y="4" width="22" height="18" rx="4"/>
+      <text class="correct-text" x="401" y="17" text-anchor="middle">18</text>
+      <rect class="incorrect" x="445" y="4" width="22" height="18" rx="4"/>
+      <text class="incorrect-text" x="456" y="17" text-anchor="middle">20</text>
+    </g>
+
+    <!-- Row 4 (no medal) -->
+    <g transform="translate(0, 140)">
+      <text class="rank-num" x="16" y="17" text-anchor="middle">4</text>
+      <text class="participant" x="40" y="17">⚽ Ivan Camilo</text>
+      <text class="points" x="285" y="17" text-anchor="end">78</text>
+      <rect class="exact" x="335" y="4" width="22" height="18" rx="4"/>
+      <text class="exact-text" x="346" y="17" text-anchor="middle">3</text>
+      <rect class="correct" x="390" y="4" width="22" height="18" rx="4"/>
+      <text class="correct-text" x="401" y="17" text-anchor="middle">21</text>
+      <rect class="incorrect" x="445" y="4" width="22" height="18" rx="4"/>
+      <text class="incorrect-text" x="456" y="17" text-anchor="middle">19</text>
+    </g>
+
+    <!-- Row 5 (no medal) -->
+    <g transform="translate(0, 170)">
+      <text class="rank-num" x="16" y="17" text-anchor="middle">5</text>
+      <text class="participant" x="40" y="17">Jhon Edison</text>
+      <text class="points" x="285" y="17" text-anchor="end">78</text>
+      <rect class="exact" x="335" y="4" width="22" height="18" rx="4"/>
+      <text class="exact-text" x="346" y="17" text-anchor="middle">3</text>
+      <rect class="correct" x="390" y="4" width="22" height="18" rx="4"/>
+      <text class="correct-text" x="401" y="17" text-anchor="middle">21</text>
+      <rect class="incorrect" x="445" y="4" width="22" height="18" rx="4"/>
+      <text class="incorrect-text" x="456" y="17" text-anchor="middle">19</text>
+    </g>
+
+    <line x1="14" y1="200" x2="466" y2="200" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 2"/>
+    <text class="col-head" x="240" y="220" text-anchor="middle">... 50 participantes en total</text>
+
+    <text class="col-head" x="240" y="245" text-anchor="middle" font-size="10">↑ Click en una fila para ver el detalle</text>
+  </g>
+
+  <!-- Bottom tip -->
+  <g transform="translate(150, 350)">
+    <rect class="tip" width="300" height="36" rx="18"/>
+    <text class="tip-text" x="150" y="22" text-anchor="middle">El ranking se actualiza con cada partido</text>
+  </g>
+</svg>

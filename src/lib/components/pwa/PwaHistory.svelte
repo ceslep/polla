@@ -9,6 +9,11 @@
     /** @type {Map<string, Array<any>>} */
     let byDate = $state(new Map());
 
+    function back() {
+        // Si ya envió apuestas hoy, no permitir volver al form.
+        setStep(pwaSession.submitted ? 'done' : 'form');
+    }
+
     $effect(() => {
         if (isDev) {
             // Dev mode: nada persistido, historial vacío.
@@ -47,7 +52,7 @@
         <div class="mb-6 flex items-center gap-3">
             <button
                 class="w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
-                onclick={() => setStep('form')}
+                onclick={back}
                 aria-label="Volver"
             >←</button>
             <h2 class="text-2xl font-bold text-cyan-400">Mis apuestas</h2>
