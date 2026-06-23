@@ -25,6 +25,9 @@
  *     "username": "3117250869",                // last 10 digits del phone (col B)
  *     "password": "0869",                      // last 4 digits (col C)
  *     "dev": false,
+ *     "rootMode": false,                       // (opcional) true = el authed user es root
+ *     "targetPhone": "...",                    // (requerido si rootMode=true) phone del participante
+ *                                             //   al que se le guardan las apuestas
  *     "bets": [
  *       { "matchId": 42, "homeTeam": "Spain", "awayTeam": "Saudi Arabia",
  *         "homeScore": 3, "awayScore": 1 },
@@ -32,10 +35,21 @@
  *     ]
  *   }
  *
+ * Modo root (rootMode: true):
+ *   - El authed user debe tener isRoot=TRUE en `participantes` col F.
+ *   - targetPhone debe existir en `participantes` (10 dígitos).
+ *   - Los bets se insertan con participant/phone DEL TARGET (no del root).
+ *   - El email de confirmación se envía a MAIL_GMAIL_USER (root), NO al
+ *     target, con subject prefijado "[ROOT → {targetName}]".
+ *   - Los gates de passwordChanged/email NO se aplican al target (el root
+ *     tiene autoridad para apostar por cualquier participante registrado,
+ *     incluso gente sin onboarding completo).
+ *
  * Respuestas:
  *   200 { success: true, saved: N, alreadyExists: M }
  *   200 { success: true, saved: 0, alreadyExists: N } (idempotente)
  *   400 { success: false, error: "..." } (credenciales inválidas, ventana cerrada, JSON inválido)
+ *   403 { success: false, error: "..." } (rootMode sin permisos, target no existe)
  *   500 { success: false, error: "..." } (error de Sheets)
  */
 
@@ -74,10 +88,6 @@ const HEADERS = [
 // carga vía vendor/autoload.php (línea 42), igual que en el cron.
 const MAIL_GMAIL_USER = 'ingeleandro@gmail.com';
 const MAIL_GMAIL_PASS = 'zqqqtaoakbavgkou';
-// CC opcional como respaldo/monitoreo. Distinto del ROOT_EMAIL del cron
-// (admin@iedeoccidente.com) a propósito: el cron es admin-only, la
-// confirmación de apuesta la recibe el dueño del repo.
-const MAIL_ADMIN_CC   = 'ceslep@gmail.com';
 const PWA_PUBLIC_URL  = 'https://app.iedeoccidente.com/polla/#/apostar';
 
 header('Content-Type: application/json');
@@ -130,7 +140,7 @@ function validateWindow(string $date, string $firstMatchTime): array {
  * pero se hace el lookup real en la hoja `participantes` para que el nombre
  * del participante quede correctamente escrito en la hoja `apuestas`.
  *
- * @return array{participant: string, phone: string}
+ * @return array{participant: string, phone: string, passwordChanged: bool, email: string, isRoot: bool}
  */
 function authenticate(string $spreadsheetId, string $username, string $password, bool $dev, Sheets $service): array {
     if (!$dev) {
@@ -153,7 +163,7 @@ function authenticate(string $spreadsheetId, string $username, string $password,
         ? substr($passwordClean, -4)
         : $passwordClean;
 
-    $range = PARTICIPANTS_WORKSHEET . '!A2:E1000';
+    $range = PARTICIPANTS_WORKSHEET . '!A2:F1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 
@@ -182,11 +192,16 @@ function authenticate(string $spreadsheetId, string $username, string $password,
             // Columna E: email (puede estar vacía si el usuario nunca lo registró).
             $email = trim((string)($row[4] ?? ''));
 
+            // Columna F: isRoot. TRUE = el usuario puede apostar a nombre de otros.
+            $rowIsRootRaw = strtolower(trim((string)($row[5] ?? '')));
+            $isRoot = in_array($rowIsRootRaw, ['true', '1', 'yes', 'si'], true);
+
             return [
                 'participant' => trim((string)($row[0] ?? '')),
                 'phone' => $rowPhoneLast10,
                 'passwordChanged' => $passwordChanged,
-                'email' => $email
+                'email' => $email,
+                'isRoot' => $isRoot
             ];
         }
     }
@@ -196,16 +211,51 @@ function authenticate(string $spreadsheetId, string $username, string $password,
 }
 
 /**
+ * Lookup de un participante por phone (10 dígitos). Usado en root mode
+ * para validar que el target existe y obtener su nombre para la fila de
+ * apuestas. Devuelve null si no se encuentra.
+ *
+ * Solo lee las primeras 5 columnas (no necesitamos isRoot del target).
+ *
+ * @return array{participant: string, phone: string}|null
+ */
+function lookupParticipantByPhone(string $spreadsheetId, string $phone10, Sheets $service): ?array {
+    $range = PARTICIPANTS_WORKSHEET . '!A2:E1000';
+    $response = $service->spreadsheets_values->get($spreadsheetId, $range);
+    $rows = $response->getValues() ?: [];
+
+    foreach ($rows as $row) {
+        $rowPhoneRaw = trim((string)($row[1] ?? ''));
+        $rowPhoneClean = preg_replace('/\D+/', '', $rowPhoneRaw);
+        $rowPhoneLast10 = strlen($rowPhoneClean) >= 10
+            ? substr($rowPhoneClean, -10)
+            : '';
+        if ($rowPhoneLast10 !== '' && $rowPhoneLast10 === $phone10) {
+            return [
+                'participant' => trim((string)($row[0] ?? '')),
+                'phone' => $rowPhoneLast10
+            ];
+        }
+    }
+    return null;
+}
+
+/**
  * Envía un correo de confirmación al participante después de un
  * save_pwa_bet exitoso. Fire-and-confirm: un fallo SMTP NO rompe la
  * respuesta del endpoint (la apuesta ya está en Sheets). El caller
  * loguea $result['error'] si !success. Nunca lanza excepciones.
  *
- * @param string $toEmail        columna E de la hoja `participantes`
+ * Patrón basado en solicitarCodigo2.php (que funciona): self-CC (FROM
+ * a sí mismo), HTML con <style> en <head>, subject plano sin emoji.
+ * El self-CC evita que Gmail filtre el email por cross-account delivery.
+ *
+ * @param string $toEmail        columna E de la hoja `participantes` (o MAIL_GMAIL_USER en root mode)
  * @param string $toName         columna A (display name)
  * @param string $matchDate      'YYYY-MM-DD' (fecha COT de los partidos)
  * @param array<int,array{id:string,row:array}> $newRows  filas ya validadas
  * @param string $firstMatchTime 'HH:MM' hora COT de cierre de ventana
+ * @param bool $rootMode         si true, prefijia el subject con "[ROOT] {name}"
  * @return array{success:bool, error:?string}
  */
 function sendBetConfirmationEmail(
@@ -213,7 +263,8 @@ function sendBetConfirmationEmail(
     string $toName,
     string $matchDate,
     array $newRows,
-    string $firstMatchTime
+    string $firstMatchTime,
+    bool $rootMode = false
 ): array {
     try {
         $mail = new PHPMailer(true);
@@ -229,13 +280,16 @@ function sendBetConfirmationEmail(
         $mail->ConnectTimeout = 30;
         $mail->Username       = MAIL_GMAIL_USER;
         $mail->Password       = MAIL_GMAIL_PASS;
-        $mail->setFrom(MAIL_GMAIL_USER, 'Polla Mundialista 2026');
+        $mail->setFrom(MAIL_GMAIL_USER, 'Polla Mundialista 2026 - IED Occidente');
         $mail->addReplyTo(MAIL_GMAIL_USER, 'Polla Mundialista 2026');
         $mail->addAddress($toEmail, $toName);
-        $mail->addCC(MAIL_ADMIN_CC); // respaldo/monitoreo
+        $mail->addCC(MAIL_GMAIL_USER); // self-CC (FROM a sí mismo) como en solicitarCodigo2.php
         $mail->isHTML(true);
         $mail->CharSet = 'UTF-8';
-        $mail->Subject = "✅ Apuestas del {$matchDate} guardadas — Polla 2026";
+
+        $mail->Subject = $rootMode
+            ? "[ROOT] Apuestas del {$matchDate} guardadas - Polla 2026 ({$toName})"
+            : "Apuestas del {$matchDate} guardadas - Polla 2026";
 
         // Orden estable por equipo local para que la tabla no salte
         // entre envíos. Mapeo: row[6] = team1, row[7] = team2,
@@ -254,15 +308,15 @@ function sendBetConfirmationEmail(
             $hs   = (int)$row[8];
             $as   = (int)$row[9];
             $rowsHtml .= "<tr>"
-                . "<td style='padding:10px 14px;color:#fff;font-weight:600;border-bottom:1px solid rgba(255,255,255,.06);'>{$home}</td>"
-                . "<td style='padding:10px 6px;color:#9ca3af;text-align:center;border-bottom:1px solid rgba(255,255,255,.06);'>vs</td>"
-                . "<td style='padding:10px 14px;color:#fff;font-weight:600;border-bottom:1px solid rgba(255,255,255,.06);'>{$away}</td>"
-                . "<td style='padding:10px 14px;text-align:center;font-family:\"Courier New\",monospace;font-size:18px;font-weight:700;color:#10b981;border-bottom:1px solid rgba(255,255,255,.06);'>{$hs} - {$as}</td>"
+                . "<td>{$home}</td>"
+                . "<td class='vs'>vs</td>"
+                . "<td>{$away}</td>"
+                . "<td class='score'>{$hs} - {$as}</td>"
                 . "</tr>";
             $altLines[] = "{$row[6]} vs {$row[7]}: {$hs} - {$as}";
         }
         $altBody = "Apuestas del {$matchDate} guardadas en la Polla Mundialista 2026.\n\n"
-            . "Pron\u00f3sticos:\n  - " . implode("\n  - ", $altLines) . "\n\n"
+            . "Pronosticos:\n  - " . implode("\n  - ", $altLines) . "\n\n"
             . "Cierre de la ventana: {$firstMatchTime} (hora Colombia).\n"
             . "Ver detalles: " . PWA_PUBLIC_URL . "\n";
 
@@ -271,48 +325,71 @@ function sendBetConfirmationEmail(
         $timeEsc = htmlspecialchars($firstMatchTime, ENT_QUOTES, 'UTF-8');
         $urlEsc  = htmlspecialchars(PWA_PUBLIC_URL, ENT_QUOTES, 'UTF-8');
 
+        // Layout email-safe inspirado en solicitarCodigo2.php:
+        // <style> en <head>, sin inline styles, fondo claro, tabla
+        // con <thead>/<tbody>, jerarquía clara. Los gradientes oscuros
+        // y los inline styles del HTML original hacían que Gmail lo
+        // marque como "promocional" y filtre el cross-account CC.
         $html = <<<HTML
 <!DOCTYPE html>
 <html lang='es'>
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width,initial-scale=1.0'>
+    <style>
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;background:#f5f5f5;margin:0;padding:0}
+        .container{max-width:600px;margin:20px auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);overflow:hidden}
+        .header{background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;padding:30px;text-align:center}
+        .logo{font-size:28px;font-weight:800;margin-bottom:8px;letter-spacing:.5px}
+        .subtitle{margin:0;font-size:14px;opacity:.9}
+        .content{padding:30px}
+        .greeting{font-size:18px;margin-bottom:16px;color:#10b981;font-weight:600}
+        .info-box{background:#e3f2fd;border-left:4px solid #2196f3;padding:14px 18px;margin:20px 0;border-radius:5px;color:#1565c0;font-size:14px}
+        .info-box strong{color:#0d47a1}
+        table{width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:5px;overflow:hidden}
+        thead{background:#eceff1}
+        th{padding:12px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc}
+        td{padding:12px 14px;border-bottom:1px solid #eceff1;color:#333}
+        td.score{text-align:center;font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#10b981}
+        td.vs{text-align:center;color:#999;font-weight:600}
+        .cta-wrap{text-align:center;margin:24px 0 8px}
+        .cta{display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;text-decoration:none;border-radius:9999px;font-weight:700;font-size:15px;box-shadow:0 2px 8px rgba(16,185,129,.3)}
+        .footer{background:#f5f5f5;padding:20px 30px;font-size:12px;color:#666;text-align:center;border-top:1px solid #ddd}
+        .footer p{margin:5px 0}
+    </style>
 </head>
-<body style='margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#e5e7eb;'>
-    <div style='max-width:600px;margin:0 auto;background:#111;border-radius:12px;overflow:hidden;'>
-        <div style='background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);padding:32px 28px;text-align:center;'>
-            <div style='font-size:28px;font-weight:800;color:#fff;letter-spacing:.5px;'>\u26bd\ufe0f POLLA 2026</div>
-            <div style='margin-top:6px;font-size:14px;color:rgba(255,255,255,.85);'>Apuestas guardadas</div>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <div class='logo'>&#x26bd;&#xFE0F; POLLA 2026</div>
+            <p class='subtitle'>Apuestas guardadas</p>
         </div>
-        <div style='padding:28px 24px;'>
-            <p style='margin:0 0 6px;font-size:14px;color:#9ca3af;'>Hola,</p>
-            <p style='margin:0 0 18px;font-size:18px;font-weight:700;color:#fff;'>{$nameEsc}</p>
-            <p style='margin:0 0 18px;font-size:15px;line-height:1.55;color:#d1d5db;'>
-                Tus apuestas del <strong style='color:#10b981;'>{$dateEsc}</strong> se guardaron correctamente. La ventana cierra a las <strong style='color:#06b6d4;'>{$timeEsc}</strong> (hora Colombia).
-            </p>
-            <table cellpadding='0' cellspacing='0' style='width:100%;border-collapse:collapse;background:rgba(255,255,255,.03);border-radius:8px;overflow:hidden;'>
+        <div class='content'>
+            <p class='greeting'>Hola, {$nameEsc}!</p>
+            <div class='info-box'>
+                Tus apuestas del <strong>{$dateEsc}</strong> se guardaron correctamente.
+                La ventana cierra a las <strong>{$timeEsc}</strong> (hora Colombia).
+            </div>
+            <table>
                 <thead>
-                    <tr style='background:rgba(255,255,255,.04);'>
-                        <th style='padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;font-weight:600;'>Local</th>
-                        <th style='padding:10px 6px;font-size:11px;color:#9ca3af;'></th>
-                        <th style='padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;font-weight:600;'>Visitante</th>
-                        <th style='padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;font-weight:600;'>Tu apuesta</th>
+                    <tr>
+                        <th>Local</th>
+                        <th></th>
+                        <th>Visitante</th>
+                        <th>Tu apuesta</th>
                     </tr>
                 </thead>
                 <tbody>
                     {$rowsHtml}
                 </tbody>
             </table>
-            <div style='text-align:center;margin:28px 0 8px;'>
-                <a href='{$urlEsc}' style='display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;text-decoration:none;border-radius:9999px;font-weight:700;font-size:15px;box-shadow:0 4px 14px rgba(16,185,129,.4);'>Ver en la PWA \u2192</a>
+            <div class='cta-wrap'>
+                <a href='{$urlEsc}' class='cta'>Ver en la PWA</a>
             </div>
-            <p style='margin:18px 0 0;font-size:12px;color:#6b7280;line-height:1.5;'>
-                Esta ventana de apuestas se cierra a las {$timeEsc} (hora Colombia). Si necesit\u00e1s cambiar alg\u00fan pron\u00f3stico antes del cierre, vuelve a abrir la PWA.
-            </p>
         </div>
-        <div style='background:#0a0a0a;padding:18px 24px;font-size:11px;color:#6b7280;text-align:center;border-top:1px solid rgba(255,255,255,.05);'>
-            <div>Polla Mundialista 2026 \u2014 Notificaci\u00f3n autom\u00e1tica</div>
-            <div style='margin-top:4px;'>Por favor no respondas a este correo.</div>
+        <div class='footer'>
+            <p>Polla Mundialista 2026 &middot; IED Occidente</p>
+            <p>Este correo fue enviado de forma automatica. Por favor no respondas.</p>
         </div>
     </div>
 </body>
@@ -356,6 +433,8 @@ try {
     $username = trim($data['username']);
     $password = trim($data['password']);
     $dev = ($data['dev'] ?? false) === true;
+    $rootMode = ($data['rootMode'] ?? false) === true;
+    $targetPhoneRaw = isset($data['targetPhone']) ? trim((string)$data['targetPhone']) : '';
 
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         throw new Exception('date debe tener formato YYYY-MM-DD.');
@@ -377,11 +456,50 @@ try {
     $auth = authenticate($spreadsheetId, $username, $password, $dev, $service);
     $participant = $auth['participant'];
     $phone = $auth['phone'];
+    /** @var array{participant:string, phone:string, passwordChanged:bool, email:string, isRoot:bool} $auth */
+
+    // 1a. Modo root: el authed user debe tener isRoot=TRUE y el payload debe
+    // traer un targetPhone válido (10 dígitos). En modo root, los bets se
+    // insertan como el TARGET y el email va al root (no al target). Los
+    // gates de passwordChanged/email se aplican AL ROOT (no al target —
+    // el root tiene autoridad para apostar por cualquier participante
+    // registrado, incluso gente sin onboarding completo).
+    $targetAuth = null;
+    if ($rootMode) {
+        if (!$auth['isRoot']) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'No tienes permisos de root para apostar a nombre de otros.'
+            ]);
+            exit;
+        }
+        if ($targetPhoneRaw === '') {
+            throw new Exception('rootMode=true requiere targetPhone.');
+        }
+        $targetPhoneClean = preg_replace('/\D+/', '', $targetPhoneRaw);
+        $targetPhoneLast10 = strlen($targetPhoneClean) >= 10
+            ? substr($targetPhoneClean, -10)
+            : $targetPhoneClean;
+        if (!preg_match('/^\d{10}$/', $targetPhoneLast10)) {
+            throw new Exception('targetPhone debe tener exactamente 10 dígitos.');
+        }
+        $targetAuth = lookupParticipantByPhone($spreadsheetId, $targetPhoneLast10, $service);
+        if ($targetAuth === null) {
+            http_response_code(404);
+            echo json_encode([
+                'success' => false,
+                'error' => 'El participante destino (targetPhone) no existe en la hoja.'
+            ]);
+            exit;
+        }
+    }
 
     // 1b. Gates de cumplimiento: D = passwordChanged, E = email.
     // Defense-in-depth — el frontend ya enruta, pero un POST directo a este
     // endpoint NO debe poder apostar sin haber pasado por el flujo de
-    // change-password y email-prompt.
+    // change-password y email-prompt. En root mode se aplican al ROOT, no
+    // al target (el root ya completó su propio onboarding).
     if (empty($auth['passwordChanged'])) {
         http_response_code(403);
         echo json_encode([
@@ -397,6 +515,14 @@ try {
             'error' => 'Debes registrar un correo electrónico antes de apostar.'
         ]);
         exit;
+    }
+
+    // 1c. En root mode, sobreescribimos participant/phone con los del TARGET
+    // (y guardamos el targetAuth para usarlos al construir las filas y al
+    // enviar el email). El email NO va al target — va al MAIL_GMAIL_USER.
+    if ($rootMode) {
+        $participant = $targetAuth['participant'];
+        $phone = $targetAuth['phone'];
     }
 
     // 2. Validar ventana (server-side, hora COT)
@@ -523,24 +649,30 @@ try {
         $service->spreadsheets_values->batchUpdate($spreadsheetId, $body);
     }
 
-    // 9. Email de confirmación al participante (CC al admin). Fire-and-confirm:
-    //    un fallo SMTP NO rompe la respuesta del endpoint (la apuesta ya
-    //    está en Sheets). Se loguea a error_log para diagnóstico.
+    // 9. Email de confirmación. Fire-and-confirm: un fallo SMTP NO rompe
+    //    la respuesta del endpoint (la apuesta ya está en Sheets). Se
+    //    loguea a error_log para diagnóstico.
+    //    - Caso normal: email al PARTICIPANTE (auth['email']).
+    //    - Root mode: email al ROOT (MAIL_GMAIL_USER), con subject prefijado
+    //      "[ROOT → {targetName}]" para que quede claro en la auditoría.
     //    - No envía en dev (incluso si el caller pasó $dev=true).
-    //    - No envía si la columna E está vacía (defensa redundante — el gate
-    //      anterior a este punto ya impide llegar aquí sin email registrado).
     //    - Envía tanto en inserts nuevos como en all-duplicate submits.
-    if (!$dev && !empty($auth['email']) && !empty($newRows)) {
-        $mailResult = sendBetConfirmationEmail(
-            $auth['email'],
-            $participant,
-            $date,
-            $newRows,
-            $firstMatchTime
-        );
-        if (!$mailResult['success']) {
-            error_log('save_pwa_bet: confirmation email failed for '
-                . $auth['email'] . ': ' . $mailResult['error']);
+    if (!$dev && !empty($newRows)) {
+        $mailTo = $rootMode ? MAIL_GMAIL_USER : $auth['email'];
+        $mailToName = $rootMode ? ('Root → ' . $participant) : $participant;
+        if (!empty($mailTo)) {
+            $mailResult = sendBetConfirmationEmail(
+                $mailTo,
+                $mailToName,
+                $date,
+                $newRows,
+                $firstMatchTime,
+                $rootMode
+            );
+            if (!$mailResult['success']) {
+                error_log('save_pwa_bet: confirmation email failed for '
+                    . $mailTo . ': ' . $mailResult['error']);
+            }
         }
     }
 

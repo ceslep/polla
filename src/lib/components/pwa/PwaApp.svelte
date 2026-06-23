@@ -5,7 +5,7 @@
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
     import { getFirstMatchUtcMs, isPreMatch } from '../../pwa/prematchGuard.js';
-    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
+    import { pwaSession, setStep, logout, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
@@ -16,6 +16,7 @@
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
     import PwaTodayBets from './PwaTodayBets.svelte';
+    import PwaRootPanel from './PwaRootPanel.svelte';
     import ReloadPrompt from './ReloadPrompt.svelte';
     import CacheClearButton from './CacheClearButton.svelte';
     import PwaMissingBetsButton from './PwaMissingBetsButton.svelte';
@@ -193,6 +194,12 @@
      *  no vacío, PwaForm se renderiza en read-only con los marcadores
      *  prellenados (en lugar de redirigir a PwaDone mode='already-submitted'). */
     let existingBets = $state(/** @type {any[]} */ ([]));
+    /** Target seleccionado en el panel root. Cuando está set, PwaForm se
+     *  renderiza en mode='root' y los bets se guardan a nombre del target.
+     *  Limpiado en handleRootComplete (logout) y handleRootCancel (volver
+     *  al panel). */
+    /** @type {{name: string, phone: string} | null} */
+    let rootTarget = $state(/** @type {any} */ (null));
 
     /**
      * En dev mode, override de fecha: la PWA simula "hoy" (en COT) para
@@ -288,6 +295,13 @@
         if (step !== 'form') return;
         if (!pwaSession.authUsername || !pwaSession.authPassword) return;
         if (!pwaSession.date) return;
+        // En root mode el chequeo de "ya envió" se hace contra el TARGET
+        // (en PwaRootPanel via getPwaBetsByPhoneRoot). Si lo corriéramos
+        // acá contra el root, no encontraría nada (el root rara vez apuesta
+        // por sí mismo) y pasaríamos al form en modo writable — lo cual
+        // está bien, pero el check contra el target ya bloqueó en el panel.
+        // Lo skipeamos para evitar trabajo redundante y ruido en la consola.
+        if (pwaSession.isRoot) return;
 
         const myToken = ++alreadyBetCheckToken;
         const date = pwaSession.date;
@@ -518,7 +532,7 @@
                     await loadAndScorePwaBets();
                     let s = computeWindowState(withIds, nowOverride || undefined);
                     s = buildDevState(withIds, s, nowOverride || undefined);
-                    if (!isDev && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
+                    if (!isDev && !pwaSession.isRoot && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
                         const existing = await getPwaBets({
                             username: pwaSession.authUsername,
                             password: pwaSession.authPassword,
@@ -567,6 +581,38 @@
 
     function onTodayBetsBack() {
         setStep('landing');
+    }
+
+    function onRootPanelBack() {
+        // El root llegó al panel desde el login. "Volver" lo manda al landing
+        // (con sesión aún activa). Si quiere salir, usa "Cerrar sesión".
+        setStep('landing');
+    }
+
+    /**
+     * Llamado por PwaRootPanel cuando el root selecciona un participante
+     * que NO tiene bets hoy (el panel ya hizo el check via
+     * getPwaBetsByPhoneRoot). Avanza al form en root mode.
+     * @param {{name: string, phone: string}} target
+     */
+    function onRootSelect(target) {
+        rootTarget = target;
+        setStep('form');
+    }
+
+    /** Cancelar desde PwaForm en root mode: vuelve al panel root con la
+     *  selección limpia. El root sigue logueado (no logout). */
+    function onRootCancel() {
+        rootTarget = null;
+        setStep('root-panel');
+    }
+
+    /** Submit exitoso desde PwaForm en root mode: cierra la sesión del
+     *  root y vuelve al landing. Decisión de UX: el root ayuda a una
+     *  persona por sesión. */
+    function onRootComplete() {
+        rootTarget = null;
+        logout();
     }
 
     /**
@@ -636,7 +682,7 @@
         </button>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
@@ -649,6 +695,14 @@
     />
 {:else if pwaSession.step === 'today-bets'}
     <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />
+{:else if pwaSession.step === 'root-panel'}
+    <PwaRootPanel
+        bets={pwaScoredBets}
+        {todayDate}
+        {isDev}
+        onBack={onRootPanelBack}
+        onSelect={onRootSelect}
+    />
 {:else if pwaSession.step === 'tutorial'}
     <TutorialPage onClose={closeTutorial} />
 {:else if pwaSession.step === 'change-password'}
@@ -661,7 +715,16 @@
          se renderiza en read-only. -->
     <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} mode={doneMode} />
 {:else if pwaSession.step === 'form'}
-    <PwaForm windowState={windowState} onDone={onDone} {isDev} existingBets={existingBets} />
+    <PwaForm
+        windowState={windowState}
+        onDone={onDone}
+        {isDev}
+        existingBets={existingBets}
+        mode={rootTarget ? 'root' : 'normal'}
+        targetParticipant={rootTarget}
+        onRootComplete={onRootComplete}
+        onRootCancel={onRootCancel}
+    />
 {:else if pwaSession.step === 'history'}
     <PwaHistory {isDev} />
 {:else if pwaSession.step === 'results'}
@@ -678,7 +741,7 @@
         />
     </div>
 {:else}
-    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} />
+    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} />
 {/if}
 
 <!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->

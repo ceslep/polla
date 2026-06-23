@@ -27,6 +27,8 @@ const GET_ALL_PWA_BETS_URL = 'https://app.iedeoccidente.com/gs/get_all_pwa_bets.
 const LOGIN_PWA_URL = 'https://app.iedeoccidente.com/gs/login_pwa.php';
 const CHANGE_PWA_PASSWORD_URL = 'https://app.iedeoccidente.com/gs/change_pwa_password.php';
 const SAVE_PWA_EMAIL_URL = 'https://app.iedeoccidente.com/gs/save_pwa_email.php';
+const LIST_PARTICIPANTS_URL = 'https://app.iedeoccidente.com/gs/list_participants.php';
+const GET_PWA_BETS_BY_PHONE_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets_by_phone.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -264,11 +266,6 @@ export async function saveAliasesToSheets(aliases) {
 }
 
 /**
- * Guarda las apuestas en Google Sheets (hoja "datos").
- * @param {any[]} bets - Arreglo de apuestas del frontend
- * @returns {Promise<{ success: boolean, saved: number, rows: number }>}
- */
-/**
  * @param {import('./types.js').Bet[]} bets
  * @returns {Promise<{ success: boolean, saved: number, rows: number, updated?: number, inserted?: number, error?: string }>}
  */
@@ -411,9 +408,10 @@ export async function loadBetsFromSheets() {
  */
 
 /**
- * Autentica al participante contra la hoja `participantes`.
+ * Autentica al participante contra la hoja `participantes`. Devuelve
+ * `isRoot: true` si la fila tiene isRoot=TRUE en columna F.
  * @param {{ username: string, password: string, dev?: boolean }} payload
- * @returns {Promise<{success: boolean, participant?: string, phone?: string, username?: string, mustChangePassword?: boolean, mustProvideEmail?: boolean, dev?: boolean, error?: string}>}
+ * @returns {Promise<{success: boolean, participant?: string, phone?: string, username?: string, mustChangePassword?: boolean, mustProvideEmail?: boolean, isRoot?: boolean, error?: string}>}
  */
 export async function loginPwa(payload) {
     const response = await fetch(LOGIN_PWA_URL, {
@@ -502,12 +500,19 @@ export async function savePwaEmail(payload) {
  * Envía las apuestas PWA. Auth via {username, password}. El backend hace
  * INSERT-only (inmutable) y devuelve 200 con saved=N + alreadyExists=M
  * si algún id ya estaba.
+ *
+ * En root mode: agregar `rootMode: true` + `targetPhone: '...'` al payload.
+ * El backend validará que el authed user sea root, escribirá los bets como
+ * el target y enviará el email de confirmación al root (no al target).
+ *
  * @param {{
  *   date: string,
  *   firstMatchTime: string,
  *   username: string,
  *   password: string,
  *   dev?: boolean,
+ *   rootMode?: boolean,
+ *   targetPhone?: string,
  *   bets: PwaBet[]
  * }} payload
  * @returns {Promise<{success: boolean, saved: number, alreadyExists: number, message: string, window?: any, error?: string}>}
@@ -580,6 +585,67 @@ export async function loadAllPwaBets(payload) {
         body: JSON.stringify({
             spreadsheetId: SHEETS_SPREADSHEET_ID,
             ...(payload || {})
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Lista los participantes de la hoja `participantes` (root auth required).
+ * El caller debe estar logueado como root (isRoot=TRUE). Devuelve la lista
+ * completa con name, phone, passwordChanged, email, isRoot (sin contraseña).
+ * Pensado para alimentar el panel root (PwaRootPanel).
+ * @param {{ username: string, password: string, dev?: boolean }} payload
+ * @returns {Promise<{success: boolean, participants: Array<{name: string, phone: string, passwordChanged: boolean, email: string, isRoot: boolean}>, total: number, error?: string}>}
+ */
+export async function listParticipantsRoot(payload) {
+    const response = await fetch(LIST_PARTICIPANTS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Lee las apuestas de un participante arbitrario (root auth required).
+ * Pensado para que el panel root verifique si un target ya envió apuestas
+ * para una fecha, sin pedirle la contraseña al root.
+ * @param {{ username: string, password: string, targetPhone: string, matchDate?: string, dev?: boolean }} payload
+ * @returns {Promise<{success: boolean, bets: Array<any>, total: number, target: {name: string, phone: string}, error?: string}>}
+ */
+export async function getPwaBetsByPhoneRoot(payload) {
+    const response = await fetch(GET_PWA_BETS_BY_PHONE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
         })
     });
 

@@ -2,15 +2,28 @@ import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+// Versión de la app inyectada en build time. La leemos de package.json
+// para que el bundle final muestre siempre el valor real (no un literal
+// "__APP_VERSION__"). Se usa en `ReloadPrompt.svelte` y en el footer
+// de `PwaLanding.svelte` para que el usuario vea qué versión corre.
+//
+// Vite reemplaza ocurrencias de la cadena "__APP_VERSION__" en el código
+// fuente, así que en JS/Svelte hay que usarla como IDENTIFIER suelto
+// (no como propiedad de objeto: `obj.__APP_VERSION__` NO funciona).
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8'))
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/polla/',
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version)
+  },
   plugins: [
     svelte(),
     tailwindcss(),

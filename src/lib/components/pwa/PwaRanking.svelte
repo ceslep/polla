@@ -105,15 +105,17 @@
 
 <div class="min-h-screen bg-[#111] text-white p-4 md:p-8 flex flex-col items-center">
     <div class="w-full max-w-2xl w-full">
-        <div class="mb-6 flex items-center gap-3">
+        <div class="mb-6 flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+                <button
+                    class="w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
+                    onclick={back}
+                    aria-label="Volver"
+                >←</button>
+                <h2 class="text-2xl font-bold text-cyan-400 flex-1">🏆 Ranking</h2>
+            </div>
             <button
-                class="w-11 h-11 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl text-xl transition-all border border-white/10"
-                onclick={back}
-                aria-label="Volver"
-            >←</button>
-            <h2 class="text-2xl font-bold text-cyan-400 flex-1">🏆 Ranking</h2>
-            <button
-                class="px-3 h-11 flex items-center gap-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-sm font-semibold transition-all"
+                class="w-full px-3 py-3 flex items-center justify-center gap-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-sm font-semibold transition-all"
                 onclick={openMyBets}
                 aria-label="Ver mis apuestas de hoy"
             >📋 Mis apuestas</button>

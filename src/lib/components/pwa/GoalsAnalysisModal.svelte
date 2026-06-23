@@ -301,6 +301,11 @@
         <!-- Header -->
         <div class="p-3 md:p-5 border-b border-white/10 flex justify-between items-center flex-shrink-0 gap-2">
             <div class="flex items-center gap-2 md:gap-3 min-w-0">
+                <button
+                    class="w-9 h-9 md:w-10 md:h-10 shrink-0 flex items-center justify-center text-white text-xl md:text-2xl rounded-xl hover:bg-white/10 transition-colors"
+                    onclick={onClose}
+                    aria-label="Volver"
+                >←</button>
                 <span class="text-2xl md:text-3xl shrink-0">⚽</span>
                 <div class="min-w-0">
                     <h2 id="goals-title" class="text-base md:text-xl font-bold text-cyan-400 truncate">Análisis de goles</h2>

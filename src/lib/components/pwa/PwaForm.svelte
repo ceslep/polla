@@ -10,10 +10,23 @@
      *   windowState: any,
      *   onDone: (savedCount: number, infoMessage?: string) => void,
      *   isDev?: boolean,
-     *   existingBets?: any[]
+     *   existingBets?: any[],
+     *   mode?: 'normal' | 'root',
+     *   targetParticipant?: { name: string, phone: string } | null,
+     *   onRootComplete?: () => void,
+     *   onRootCancel?: () => void
      * }}
      */
-    let { windowState, onDone, isDev = false, existingBets = [] } = $props();
+    let {
+        windowState,
+        onDone,
+        isDev = false,
+        existingBets = [],
+        mode = 'normal',
+        targetParticipant = null,
+        onRootComplete = () => {},
+        onRootCancel = () => {}
+    } = $props();
 
     /** Partido seleccionado para ver detalle (null = ninguno). */
     let selectedMatch = $state(/** @type {any} */ (null));
@@ -26,7 +39,15 @@
     let showConfirmModal = $state(false);
 
     const matches = $derived(windowState.matches || []);
-    const participant = $derived(pwaSession.authParticipant || '');
+    const isRootMode = $derived(mode === 'root' && targetParticipant !== null);
+    /** En root mode el header dice "Apostando como X"; en modo normal,
+     *  "Hola, X" (donde X es el participante autenticado). */
+    const headerName = $derived(
+        isRootMode && targetParticipant
+            ? targetParticipant.name
+            : (pwaSession.authParticipant || '')
+    );
+    const headerLabel = $derived(isRootMode ? 'Apostando como' : 'Hola,');
     const windowStillOpen = $derived(windowState?.status === 'open');
 
     /** True cuando el participante ya tiene bets guardados hoy: el form se
@@ -129,6 +150,9 @@
                 username: pwaSession.authUsername || '',
                 password: pwaSession.authPassword || '',
                 dev: isDev,
+                ...(isRootMode && targetParticipant
+                    ? { rootMode: true, targetPhone: targetParticipant.phone }
+                    : {}),
                 bets
             });
             showConfirmModal = false;
@@ -139,6 +163,14 @@
             const alreadyExists = result.alreadyExists ?? 0;
             const allDuplicates = saved === 0 && alreadyExists > 0;
             const someDuplicates = saved > 0 && alreadyExists > 0;
+
+            if (isRootMode) {
+                // En root mode no marcamos submitted del participante (el root
+                // está apostando por otro, no por sí mismo). Simplemente
+                // delegamos al padre (logout + volver al landing).
+                onRootComplete();
+                return;
+            }
 
             if (allDuplicates) {
                 // Defensa extra: el form no debería verse después de submit,
@@ -177,7 +209,7 @@
         <div class="max-w-2xl mx-auto px-4 py-3">
             <div class="flex items-center justify-between gap-3 mb-2">
                 <div class="flex-1 min-w-0">
-                    <div class="text-xs text-gray-400">Hola, <span class="text-white font-semibold">{participant}</span></div>
+                    <div class="text-xs text-gray-400">{headerLabel} <span class="text-white font-semibold">{headerName}</span></div>
                     <div class="text-xs text-gray-500">{windowState.date} · {matches.length} partido{matches.length !== 1 ? 's' : ''}</div>
                 </div>
                 <div class="text-right">
@@ -201,6 +233,16 @@
     </div>
 
     <div class="max-w-2xl mx-auto px-4 py-6 pb-32 animate-fade-in">
+        {#if isRootMode}
+            <div class="mb-4 glass border-amber-500/40 ring-1 ring-amber-500/20 rounded-2xl p-4 text-center animate-slide-down">
+                <div class="text-3xl mb-1">🔧</div>
+                <div class="text-amber-200 text-sm font-bold mb-1">Modo root — apostando a nombre de {targetParticipant?.name || '?'}</div>
+                <div class="text-amber-300/70 text-xs">
+                    Los marcadores se guardarán como <strong class="text-amber-200">{targetParticipant?.name || '?'}</strong> y la confirmación llegará al admin.
+                </div>
+            </div>
+        {/if}
+
         {#if readOnly}
             <div class="mb-4 glass border-emerald-500/40 ring-1 ring-emerald-500/20 rounded-2xl p-4 text-center animate-slide-down">
                 <div class="text-3xl mb-1">🔒</div>
@@ -314,7 +356,7 @@
                 <div class="flex gap-2">
                     <button
                         class="flex-1 py-4 glass hover:bg-white/10 rounded-2xl text-white font-bold transition-all min-h-12"
-                        onclick={() => setStep('landing')}
+                        onclick={() => isRootMode ? onRootCancel() : setStep('landing')}
                     >
                         ← Volver
                     </button>
@@ -323,6 +365,29 @@
                         onclick={logout}
                     >
                         Cerrar sesión
+                    </button>
+                </div>
+            {:else if isRootMode}
+                <div class="flex gap-2">
+                    <button
+                        class="flex-1 py-4 glass hover:bg-white/10 rounded-2xl text-white font-bold transition-all min-h-12"
+                        onclick={onRootCancel}
+                    >
+                        ← Volver al panel
+                    </button>
+                    <button
+                        class="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white text-lg font-black shadow-xl shadow-emerald-500/30 transition-all min-h-14 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+                        onclick={openConfirm}
+                        disabled={!allFilled || submitting || (!windowStillOpen && !isDev)}
+                    >
+                        {#if submitting}
+                            <span class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Enviando…
+                        {:else if allFilled}
+                            ✓ Apostar por {targetParticipant?.name || '?'}
+                        {:else}
+                            {filledCount} de {matches.length} marcadores listos
+                        {/if}
                     </button>
                 </div>
             {:else}

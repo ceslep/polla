@@ -1,4 +1,6 @@
 <script>
+    import { loadAllPwaBets } from '../../api.js';
+
     /**
      * PwaMissingBetsButton.svelte
      *
@@ -6,6 +8,12 @@
      * han enviado apuesta de tipo `score` con `matchDate === todayDate`.
      * Desde el modal se puede copiar un texto pre-armado al portapapeles
      * para notificar al grupo de WhatsApp.
+     *
+     * Al abrir el modal (o al pulsar "Refrescar" dentro) se llama a
+     * `loadAllPwaBets()` para traer la lista actualizada de Sheets. Si
+     * la petición falla, se sigue mostrando el prop `bets` (que es
+     * `pwaScoredBets` cargado al montar PwaApp) y se muestra un aviso
+     * rojo discreto.
      *
      * Limitación: la lista de "todos los participantes" se deriva de los
      * nombres únicos en `bets` (que viene de `pwaScoredBets` →
@@ -33,11 +41,24 @@
     } = $props();
 
     let showModal = $state(false);
+    /** Bets traídos al abrir/refrescar el modal. Vacío hasta el primer fetch. */
+    let freshBets = $state(/** @type {any[]} */ ([]));
+    let loading = $state(false);
+    /** @type {string | null} */
+    let fetchError = $state(null);
     /** Texto editable del textarea. Se sincroniza con `baseMessage` cuando
      *  cambia el conjunto de faltantes, pero NO en cada keystroke del
      *  ticker (así no pisamos lo que el admin está escribiendo). */
     let textareaValue = $state('');
     let copyState = $state(/** @type {'idle' | 'copied' | 'error'} */('idle'));
+
+    /**
+     * Bets a mostrar: prioriza los frescos (traídos al abrir/refrescar el
+     * modal). Si todavía no hay frescos, usa el prop. Si el fetch falló,
+     * `freshBets` queda en su valor anterior (o vacío) y se usa el prop
+     * como fallback implícito.
+     */
+    const displayBets = $derived(freshBets.length > 0 ? freshBets : bets);
 
     /**
      * Set de todos los participantes que han apostado al menos una vez
@@ -47,25 +68,29 @@
      */
     const allParticipants = $derived.by(() => {
         const set = new Set();
-        for (const b of bets) {
+        for (const b of displayBets) {
             if (b.participant) set.add(b.participant);
         }
         return set;
     });
 
     /**
-     * Set de participantes que YA apostaron HOY (apuesta de tipo score
-     * con matchDate === todayDate).
+     * Set de participantes que YA apostaron HOY.
+     *
+     * La hoja `apuestas` solo guarda predicciones de score (no hay
+     * champion/runnerup/topscorer), así que no filtramos por `b.type`:
+     * el campo no existe en la respuesta de `get_all_pwa_bets.php`
+     * y siempre sería `undefined` en los datos frescos. Filtrar por
+     * `b.type === 'score'` en `freshBets` hacía que `todayBettors`
+     * quedara SIEMPRE vacío → `missing` = todos los participantes
+     * históricos (bug que daba "51 Pendientes" cuando la realidad
+     * eran menos).
      * @type {Set<string>}
      */
     const todayBettors = $derived.by(() => {
         const set = new Set();
-        for (const b of bets) {
-            if (
-                b.type === 'score'
-                && b.participant
-                && b.matchDate === todayDate
-            ) {
+        for (const b of displayBets) {
+            if (b.participant && b.matchDate === todayDate) {
                 set.add(b.participant);
             }
         }
@@ -122,6 +147,46 @@
         }
     });
 
+    /**
+     * Trae la lista actualizada de bets desde Sheets. Guarda el resultado
+     * en `freshBets`. No hace nada si ya hay un fetch en curso (anti-
+     * spam al abrir/cerrar el modal rápido). Si falla, deja `freshBets`
+     * intacto y guarda el error en `fetchError` para mostrarlo en el modal.
+     *
+     * Inyecta `type: 'score'` defensivamente: la hoja `apuestas` solo
+     * guarda predicciones de score, pero el endpoint `get_all_pwa_bets`
+     * NO devuelve el campo `type` (no existe en la hoja). Hacerlo acá
+     * permite que cualquier derivación que filtre por `b.type === 'score'`
+     * siga funcionando si alguien la agrega en el futuro, sin tener que
+     * recordar el gotcha de la respuesta cruda del backend.
+     */
+    async function refresh() {
+        if (loading) return;
+        loading = true;
+        fetchError = null;
+        try {
+            const result = await loadAllPwaBets();
+            freshBets = (result.bets || []).map((b) => ({ ...b, type: 'score' }));
+            console.log('[PwaMissingBets] refreshed:', freshBets.length, 'bets');
+        } catch (e) {
+            console.warn('[PwaMissingBets] refresh failed:', e);
+            fetchError = e instanceof Error ? e.message : String(e);
+        } finally {
+            loading = false;
+        }
+    }
+
+    /**
+     * Abre el modal y dispara un fetch en background. El modal abre
+     * inmediato con los datos del prop; cuando el fetch termina, la lista
+     * se actualiza sola. Si el fetch falla, el prop sirve de fallback y
+     * se muestra un aviso.
+     */
+    function openModal() {
+        showModal = true;
+        refresh();
+    }
+
     async function handleCopy() {
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -168,14 +233,18 @@
 <!-- Botón flotante (vive dentro del wrapper flex del PwaApp). -->
 <button
     type="button"
-    onclick={() => showModal = true}
+    onclick={openModal}
     class="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/20 rounded-full text-gray-300 hover:text-white text-xs font-medium transition-all backdrop-blur-md shadow-lg shadow-black/20 min-h-9"
     aria-label="Ver apuestas pendientes de hoy"
     title="Participantes que aún no han enviado sus apuestas de hoy"
 >
     <span class="text-sm">📋</span>
     <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold border {badgeClass}">
-        {missing.length}
+        {#if loading}
+            <span class="inline-block w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+        {:else}
+            {missing.length}
+        {/if}
     </span>
     <span class="hidden sm:inline">Pendientes</span>
 </button>
@@ -191,16 +260,30 @@
         tabindex="-1"
     >
         <div class="w-full md:max-w-2xl max-h-[92vh] flex flex-col bg-gray-900 text-white border border-white/10 rounded-t-3xl md:rounded-3xl shadow-2xl shadow-black/60 overflow-hidden animate-slide-up">
-            <div class="p-5 md:p-6 border-b border-white/10 flex items-center justify-between flex-shrink-0">
-                <div class="flex items-center gap-3 min-w-0">
+            <div class="p-5 md:p-6 border-b border-white/10 flex items-center justify-between gap-2 flex-shrink-0">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div class="w-10 h-10 rounded-full bg-amber-500/20 ring-1 ring-amber-500/40 flex items-center justify-center text-amber-300 text-xl shrink-0">📋</div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <h2 class="text-lg md:text-xl font-black text-amber-300 truncate">Apuestas pendientes</h2>
-                        <p class="text-xs text-gray-400">
+                        <p class="text-xs text-gray-400 truncate">
                             {todayDate} · {missing.length} de {allParticipants.size} participante{allParticipants.size !== 1 ? 's' : ''} no han enviado
                         </p>
                     </div>
                 </div>
+                <button
+                    type="button"
+                    onclick={refresh}
+                    disabled={loading}
+                    class="w-9 h-9 flex items-center justify-center glass hover:bg-white/10 disabled:opacity-50 disabled:cursor-wait rounded-xl text-white text-base transition-all shrink-0"
+                    aria-label="Refrescar desde Sheets"
+                    title="Volver a consultar la hoja apuestas"
+                >
+                    {#if loading}
+                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    {:else}
+                        🔄
+                    {/if}
+                </button>
                 <button
                     type="button"
                     class="w-9 h-9 flex items-center justify-center glass hover:bg-white/10 rounded-xl text-white text-xl transition-all shrink-0"
@@ -209,8 +292,15 @@
                 >×</button>
             </div>
 
+            {#if fetchError}
+                <div class="mx-4 md:mx-6 mt-3 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2 text-xs text-red-300 flex items-start gap-2">
+                    <span aria-hidden="true">⚠️</span>
+                    <span>No pude actualizar desde Sheets (mostrando datos cacheados): {fetchError}</span>
+                </div>
+            {/if}
+
             <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-                {#if bets.length === 0}
+                {#if displayBets.length === 0}
                     <div class="text-center py-12 text-gray-400">
                         <div class="text-5xl mb-3">⏳</div>
                         <p class="text-sm">Cargando datos de apuestas desde la hoja <code class="text-cyan-400 font-mono">apuestas</code>…</p>

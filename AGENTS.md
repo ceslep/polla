@@ -98,15 +98,39 @@ modules outside the Svelte runtime.
 7. **Re-entry guard ("ya enviaste hoy")** — `PwaApp.svelte` corre un
    `$effect` post-autenticación que se dispara cuando `step === 'form'`
    con `authUsername + authPassword + pwaSession.date` listos. Llama
-   `getPwaBets({ matchDate: pwaSession.date })` y, si hay bets, redirige
-   a `PwaDone` con `mode='already-submitted'` (sin confeti, tono info
-   tipo "Ya enviaste tus apuestas / son inmutables"). El check también
-   se aplica en `PwaApp.load()` (step='form' incluido en la lista de
-   steps que redirigen) y en el `PwaForm.svelte:27-31` (defensa en
-   profundidad: si `submitted=true`, va a `done`). El `save_pwa_bet.php`
-   sigue siendo idempotente como red de seguridad. **Dev mode salta el
-   check** (queremos iterar marcadores libremente). Cubierto por
-   `test_pwa_already_bet.mjs`.
+   `getPwaBets({ matchDate: pwaSession.date })` y, si hay bets, los
+   guarda en `existingBets` y deja que `PwaForm` se renderice en
+   read-only (banner "Ya enviaste" arriba, scores prellenados como
+   display estático, sin botón "Enviar"; abajo quedan "← Volver" y
+   "Cerrar sesión"). El check también corre en `PwaApp.load()` para
+   cubrir el mount inicial. **Dev mode salta el check** (queremos
+   iterar marcadores libremente). El `save_pwa_bet.php` sigue siendo
+   idempotente como red de seguridad. Cubierto por
+    `test_pwa_already_bet.mjs`.
+7. **Root mode** — un participante con `isRoot=TRUE` en `participantes`
+   col F puede apostar a nombre de OTROS participantes. Flujo:
+   - Login normal: `loginPwa` devuelve `isRoot: true` → `loginAs` setea
+     step=`'root-panel'` (saltando change-password/email-prompt/form).
+   - `PwaRootPanel` carga `listParticipantsRoot()` (root auth required) y
+     muestra la lista de todos los participantes con badge "✓ Ya envió"
+     para los que ya apostaron hoy. Click en uno sin bets → fresh check
+     `getPwaBetsByPhoneRoot(targetPhone, todayDate)` → si vacío, abre
+     `PwaForm` con `mode='root' + targetParticipant`.
+   - `PwaForm` en root mode: header "Apostando como X", submit envía
+     `rootMode: true + targetPhone` al backend (las credenciales en el
+     payload son del ROOT). Backend auth como root, lookup del target en
+     `participantes`, escribe bets con participant/phone DEL TARGET
+     (mismo id determinístico `pwa_<targetPhone>_<date>_<matchId>`), y
+     envía el email de confirmación al FROM (root) con subject
+     `[ROOT → {targetName}]`. Los gates de passwordChanged/email se
+     aplican al ROOT, no al target.
+   - Submit exitoso: `onRootComplete()` → logout + landing (decisión:
+     el root ayuda a una persona por sesión).
+   - Cancel desde el form: `onRootCancel()` → vuelve al panel root.
+   - El check post-auth de "ya enviaste" se skipea para root (el chequeo
+     se hace contra el target en el panel, no contra el root).
+   - Setup manual: agregar columna F `isRoot` a `participantes`, escribir
+     `TRUE` en la fila del admin.
 
 ## Persistence
 
@@ -116,10 +140,12 @@ modules outside the Svelte runtime.
     - `apuestas` (PWA bets, immutable) — written by `save_pwa_bet.php`,
       read by `get_pwa_bets.php` (auth) and `get_all_pwa_bets.php`
       (public, used for ranking/movement).
-    - `participantes` (columns A:E — name, phone, password last-4,
-      `mustChangePassword` flag, optional `email`) — read by `login_pwa.php`,
-      `change_pwa_password.php`, `save_pwa_email.php`. All use range
-      `A2:E1000`.
+    - `participantes` (columns A:F — name, phone, password last-4,
+      `mustChangePassword` flag, optional `email`, `isRoot` flag) — read
+      by `login_pwa.php`, `change_pwa_password.php`, `save_pwa_email.php`,
+      `list_participants.php`, `get_pwa_bets_by_phone.php`. Login uses
+      `A2:F1000` (col F para isRoot); the other endpoints use `A2:E1000`
+      since they don't need isRoot.
     - `mail_log` — written by `cron_ranking_report.php` to keep the
       ranking-report email idempotent (one email per participant per
       matchday; dedup by `body_hash` md5).
@@ -144,6 +170,18 @@ modules outside the Svelte runtime.
       rankings + config).
   The user-facing `CacheClearButton.svelte` (top-right in the PWA)
   forces a full SW + Cache API reset for stale-state recovery.
+- **Update prompt** — la versión actual se inyecta en el bundle vía
+  `define: { __APP_VERSION__: ... }` en `vite.config.ts` (lee de
+  `package.json` en build time). El SW usa `registerType: 'autoUpdate'`
+  de Workbox. `App.svelte:21-36` configura `useRegisterSW` con
+  chequeos cada 60 min + en `visibilitychange`. Cuando hay una versión
+  nueva, `ReloadPrompt.svelte` (modal fullscreen, no banner) muestra
+  "Estás en v1.3.0. Hay una versión más reciente". Botones: "Actualizar"
+  (recarga con el nuevo SW) / "Después" (cierra, pero el modal
+  reaparece en la próxima visita). El footer de `PwaLanding.svelte`
+  tiene un botón "🔄 Buscar actualizaciones" que llama manualmente
+  a `registration.update()` y muestra el resultado en un toast
+  (`UpdateToast.svelte`).
 
 ## Scoring reference
 
@@ -191,13 +229,17 @@ add one. Archived component — only relevant as historical reference.
   izquierda del de "Borrar cache" (ambos viven en un wrapper flex
   `fixed top-3 right-3 z-50` en `PwaApp.svelte`). Muestra los
   participantes que NO tienen apuesta de tipo `score` con
-  `matchDate === todayDate`. La lista de "todos los participantes" se
-  deriva de los nombres únicos en `pwaScoredBets` — **NO incluye** a
-  quien se registró en la hoja `participantes` y nunca apostó. El
-  modal trae un `<textarea>` editable con el texto pre-armado para
-  notificar por WhatsApp + botón copiar (mismo patrón que
-  `PwaShareBets`). El botón muestra un badge con el conteo: amber
-  para "faltan N", verde para "todos al día".
+  `matchDate === todayDate`. Al **abrir el modal** (o al pulsar
+  "🔄 Refrescar" en su header) llama a `loadAllPwaBets()` para traer
+  la lista actualizada de Sheets; el badge del botón se actualiza solo
+  cuando llega la respuesta. Si el fetch falla, se sigue mostrando el
+  prop `pwaScoredBets` y aparece un aviso rojo discreto. La lista de
+  "todos los participantes" se deriva de los nombres únicos en
+  `pwaScoredBets` — **NO incluye** a quien se registró en la hoja
+  `participantes` y nunca apostó. El modal trae un `<textarea>`
+  editable con el texto pre-armado para notificar por WhatsApp + botón
+  copiar (mismo patrón que `PwaShareBets`). El botón muestra un badge
+  con el conteo: amber para "faltan N", verde para "todos al día".
 - The `parser.js` champion/runner-up flag regex (lines 413, 441) only
   lists the original 28 flags. Adding a new country requires updating
   `FLAG_MAP` (parser.js), `TEAM_ALIASES`, the regex, `TEAM_TO_ISO` in

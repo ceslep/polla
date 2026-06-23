@@ -8,14 +8,15 @@
      * y desaparece. Celebra la entrada del usuario a las pantallas públicas
      * `ranking` y `today-bets`.
      *
-     * Timeline (~1.0s de animación + 0.3s de fade):
-     *   t=0.00s  canvas fade-in
-     *   t=0.00s  pelota arranca abajo-izquierda (BALL_START)
-     *   t=0.00–0.6s  pelota recorre arco parabólico hacia arriba-derecha
-     *                con spin sobre su eje Y
-     *   t=0.6s   pelota llega a BALL_END y se queda quieta (frente visible)
-     *   t=1.0s   animación lógica lista → onClose()
-     *   t=1.0–1.3s  fade-out del canvas
+     * Timeline (~0.55s de animación + 0.25s de fade):
+     *   t=0.00s   canvas fade-in
+     *   t=0.00s   pelota arranca FUERA de pantalla (abajo-izquierda, x=-6.5)
+     *   t=0.00–0.55s  pelota recorre arco parabólico hacia arriba-derecha
+     *                  con spin sobre su eje Y. Como sale de pantalla por
+     *                  la derecha (x=+6.5), nunca "se queda" en el cuadro.
+     *   t=0.55s   la pelota ya está fuera del frame; fin de la animación
+     *   t=0.55–0.80s  fade-out del canvas (transparente) sobre el contenido
+     *   t=0.80s  onClose()
      *
      * Robustez (mismo patrón que PwaIntro.svelte):
      *   - WebGL no disponible → log + onClose() inmediato, sin canvas
@@ -68,15 +69,18 @@
     let startedAt = 0;
 
     // ---- Constantes de animación (todas tunables arriba del archivo) ---
-    const ARC_DURATION = 0.6;     // s, duración del vuelo de la pelota
-    const FADE_OUT_DURATION = 0.3;// s, fade-out final del canvas
-    const TOTAL_DURATION = 1.0;   // s, fin de la animación lógica (acortado: ya no hay red/confetti)
-    const POST_TOTAL_FADE = 0.3;  // s, fade-out extra después de TOTAL_DURATION
+    const ARC_DURATION = 0.55;    // s, duración del vuelo de la pelota
+    const TOTAL_DURATION = 0.55;  // s, fin de la animación lógica
+                                  // (igual a ARC_DURATION: la pelota sale
+                                  // de pantalla y no hay más render)
+    const POST_TOTAL_FADE = 0.25; // s, fade-out del canvas después de la pelota
     // Posiciones en world-space. Cámara mira a (0,0,0) desde (0,0,8) con fov 50.
-    // Con fov 50, el viewport "visible" a z=0 es ±~3.7 unidades vertical.
-    const BALL_START = new THREE.Vector3(-3.2, -1.8, 0);
-    const BALL_END = new THREE.Vector3( 2.7,  1.9, 0);
-    const BALL_CTRL = new THREE.Vector3(-0.2,  2.8, 0); // control point (arriba)
+    // Con fov 50, el viewport "visible" a z=0 es ±~3.7 unidades vertical y
+    // ±~6.6 horizontal en 16:9. BALL_END está MÁS ALLÁ del borde derecho
+    // para que la pelota salga de pantalla y desaparezca por el borde.
+    const BALL_START = new THREE.Vector3(-6.5, -2.6, 0);
+    const BALL_END   = new THREE.Vector3( 6.5,  2.6, 0);
+    const BALL_CTRL  = new THREE.Vector3(-0.2,  3.2, 0); // control point (arriba)
 
     function dispose() {
         if (disposed) return;
@@ -258,29 +262,20 @@
             const t = (now - startMs) / 1000; // segundos desde el inicio
 
             // ---- Posición de la pelota ----------------------------------
-            // El balón recorre un arco cuadrático de Bézier de BALL_START a
-            // BALL_END, gira sobre su eje Y durante el vuelo, y al llegar
-            // se queda quieto mostrando el frente. No hay rebote: el
-            // usuario quiere que el balón simplemente "pase y desaparezca".
-            if (ballGroup) {
-                if (t < ARC_DURATION) {
-                    const u = t / ARC_DURATION; // 0..1 a lo largo del arco
-                    const x = (1 - u) * (1 - u) * BALL_START.x + 2 * (1 - u) * u * BALL_CTRL.x + u * u * BALL_END.x;
-                    const y = (1 - u) * (1 - u) * BALL_START.y + 2 * (1 - u) * u * BALL_CTRL.y + u * u * BALL_END.y;
-                    const z = (1 - u) * (1 - u) * BALL_START.z + 2 * (1 - u) * u * BALL_CTRL.z + u * u * BALL_END.z;
-                    ballGroup.position.set(x, y, z);
-                    if (ball) {
-                        ball.rotation.y -= 0.32;
-                        ball.rotation.x += 0.08;
-                    }
-                } else {
-                    // Tras el arco: el balón se queda en BALL_END, rotación
-                    // fija en 0 (siempre se ve el frente de la textura).
-                    ballGroup.position.copy(BALL_END);
-                    if (ball) {
-                        ball.rotation.y = 0;
-                        ball.rotation.x = 0;
-                    }
+            // El balón recorre un arco cuadrático de Bézier de BALL_START
+            // (fuera de pantalla, abajo-izquierda) a BALL_END (fuera de
+            // pantalla, arriba-derecha). Como ambos extremos están más
+            // allá de los bordes, la pelota "pasa derecho" y desaparece
+            // por la derecha sin que la veamos quedarse.
+            if (ballGroup && t < ARC_DURATION) {
+                const u = t / ARC_DURATION; // 0..1 a lo largo del arco
+                const x = (1 - u) * (1 - u) * BALL_START.x + 2 * (1 - u) * u * BALL_CTRL.x + u * u * BALL_END.x;
+                const y = (1 - u) * (1 - u) * BALL_START.y + 2 * (1 - u) * u * BALL_CTRL.y + u * u * BALL_END.y;
+                const z = (1 - u) * (1 - u) * BALL_START.z + 2 * (1 - u) * u * BALL_CTRL.z + u * u * BALL_END.z;
+                ballGroup.position.set(x, y, z);
+                if (ball) {
+                    ball.rotation.y -= 0.32;
+                    ball.rotation.x += 0.08;
                 }
             }
 
@@ -359,6 +354,15 @@
     aria-hidden="true"
 ></canvas>
 
+{#if visible}
+    <button
+        type="button"
+        class="goal-close"
+        onclick={() => onClose?.()}
+        aria-label="Cerrar animación"
+    >×</button>
+{/if}
+
 <style>
     .goal-canvas {
         position: fixed;
@@ -376,6 +380,35 @@
     }
     @media (prefers-reduced-motion: reduce) {
         .goal-canvas {
+            display: none !important;
+        }
+    }
+    .goal-close {
+        position: fixed;
+        top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+        right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+        z-index: 60;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        color: white;
+        font-size: 1.5rem;
+        line-height: 1;
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        cursor: pointer;
+        transition: background 0.15s ease-out;
+    }
+    .goal-close:hover {
+        background: rgba(0, 0, 0, 0.7);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .goal-close {
             display: none !important;
         }
     }

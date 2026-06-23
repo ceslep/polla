@@ -6,7 +6,7 @@
  * sessionStorage para sobrevivir a recargas accidentales pero NO a cierre
  * de pestaña (es por sesión).
  *
- * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets'
+ * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets' | 'root-panel'
  */
 
 const SESSION_KEY = 'pwaSession';
@@ -26,7 +26,7 @@ function todayCot() {
 
 /**
  * @typedef {Object} PwaSession
- * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'form'|'done'|'history'|'results'|'movement'|'today-bets'} step
+ * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'form'|'done'|'history'|'results'|'movement'|'today-bets'|'root-panel'} step
  * @property {string|null} authParticipant - nombre del participante (columna A de la hoja `participantes`)
  * @property {string|null} authPhone - phone (columna B de la hoja, last 10 digits)
  * @property {string|null} authUsername - last 10 digits (== authPhone)
@@ -35,6 +35,7 @@ function todayCot() {
  * @property {boolean} submitted - true si ya envió apuestas para esta fecha
  * @property {boolean} mustChangePassword - true si el backend indica que hay que cambiar la pass antes de apostar
  * @property {boolean} mustProvideEmail - true si el backend indica que la columna E (email) está vacía
+ * @property {boolean} isRoot - true si la fila del participante tiene isRoot=TRUE en `participantes` col F. Habilita el panel root (paso 'root-panel') y permite apostar a nombre de otros.
  */
 
 /** @type {PwaSession} */
@@ -47,7 +48,8 @@ const initial = loadFromStorage() || {
     date: todayCot(),
     submitted: false,
     mustChangePassword: false,
-    mustProvideEmail: false
+    mustProvideEmail: false,
+    isRoot: false
 };
 
 export const pwaSession = $state(initial);
@@ -197,6 +199,7 @@ export function resetPwaSession(overrides) {
     pwaSession.submitted = overrides?.submitted || false;
     pwaSession.mustChangePassword = overrides?.mustChangePassword ?? false;
     pwaSession.mustProvideEmail = overrides?.mustProvideEmail ?? false;
+    pwaSession.isRoot = overrides?.isRoot ?? false;
     persist();
 }
 
@@ -224,15 +227,22 @@ export function setStep(/** @type {PwaSession['step']} */ step) {
  * @param {string} password - last 4 digits (columna C)
  * @param {boolean} [mustChangePassword=false] - si true, step inicial es 'change-password'
  * @param {boolean} [mustProvideEmail=false] - si true y mustChangePassword=false, step inicial es 'email-prompt'
+ * @param {boolean} [isRoot=false] - si true, step inicial es 'root-panel' (panel de administración)
  */
-export function loginAs(/** @type {string} */ participant, /** @type {string} */ phone, /** @type {string} */ username, /** @type {string} */ password, /** @type {boolean} */ mustChangePassword = false, /** @type {boolean} */ mustProvideEmail = false) {
+export function loginAs(/** @type {string} */ participant, /** @type {string} */ phone, /** @type {string} */ username, /** @type {string} */ password, /** @type {boolean} */ mustChangePassword = false, /** @type {boolean} */ mustProvideEmail = false, /** @type {boolean} */ isRoot = false) {
     pwaSession.authParticipant = participant;
     pwaSession.authPhone = phone;
     pwaSession.authUsername = username;
     pwaSession.authPassword = password;
     pwaSession.mustChangePassword = mustChangePassword;
     pwaSession.mustProvideEmail = mustProvideEmail;
-    if (mustChangePassword) {
+    pwaSession.isRoot = isRoot;
+    if (isRoot) {
+        // El root ya tiene onboarding completo (es admin) y va directo al
+        // panel root. Ignoramos los flags de cambio de pass / email: el root
+        // apostó por sí mismo mucho antes de que esto existiera.
+        pwaSession.step = 'root-panel';
+    } else if (mustChangePassword) {
         pwaSession.step = 'change-password';
     } else if (mustProvideEmail) {
         pwaSession.step = 'email-prompt';
@@ -292,7 +302,8 @@ function persist() {
             date: pwaSession.date,
             submitted: pwaSession.submitted,
             mustChangePassword: pwaSession.mustChangePassword,
-            mustProvideEmail: pwaSession.mustProvideEmail
+            mustProvideEmail: pwaSession.mustProvideEmail,
+            isRoot: pwaSession.isRoot
         }));
     } catch (e) {
         // sessionStorage puede fallar en modo privado de Safari; ignorar
@@ -312,6 +323,9 @@ function loadFromStorage() {
         }
         if (typeof data.mustProvideEmail !== 'boolean') {
             data.mustProvideEmail = false;
+        }
+        if (typeof data.isRoot !== 'boolean') {
+            data.isRoot = false;
         }
         return data;
     } catch {

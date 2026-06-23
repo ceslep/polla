@@ -9,7 +9,7 @@
  * 10 dígitos del username enviado, y cuya columna C (password) — también
  * limpiada — termine en los mismos 4 dígitos de la contraseña enviada.
  *
- * Esquema de la hoja "participantes" (5 columnas A:E):
+ * Esquema de la hoja "participantes" (6 columnas A:F):
  *   A: participant (nombre a mostrar)
  *   B: phone (celular completo, puede incluir prefijo país y separadores:
  *      "+57 321 8552353", "0057 1 321 855 2353", "3218552353", etc.)
@@ -19,6 +19,9 @@
  *      y el frontend debe obligarlo a hacerlo antes de poder apostar.
  *   E: email (opcional, para notificaciones; lo escribe save_pwa_email.php).
  *      Si está vacío, el frontend debe forzar al usuario a registrar uno.
+ *   F: isRoot ("TRUE"/"FALSE"/vacío): TRUE = la fila es un usuario root
+ *      con permiso de apostar a nombre de otros participantes. Habilita
+ *      el panel root (PwaRootPanel) en el frontend. Default: FALSE.
  *
  * El username que el usuario digita en la PWA son los últimos 10 dígitos
  * del celular (sin prefijo país). La contraseña son los últimos 4 dígitos
@@ -35,7 +38,7 @@
  * hostname es localhost.
  *
  * Respuestas:
- *   200 { success: true, participant, phone, username, mustChangePassword, mustProvideEmail }
+ *   200 { success: true, participant, phone, username, mustChangePassword, mustProvideEmail, isRoot }
  *   401 { success: false, error: "Credenciales inválidas" }
  *   400 { success: false, error: "Faltan campos" }
  */
@@ -110,7 +113,7 @@ try {
     $client->setAuthConfig(SERVICE_ACCOUNT_KEY_FILE);
     $service = new Sheets($client);
 
-    $range = WORKSHEET . '!A2:E1000';
+    $range = WORKSHEET . '!A2:F1000';
     $response = $service->spreadsheets_values->get($spreadsheetId, $range);
     $rows = $response->getValues() ?: [];
 
@@ -147,13 +150,19 @@ try {
             $rowEmail = trim((string)($row[4] ?? ''));
             $mustProvideEmail = $rowEmail === '';
 
+            // Columna F: isRoot. TRUE = la fila es un usuario root con permiso
+            // de apostar a nombre de otros. Default FALSE.
+            $rowIsRootRaw = strtolower(trim((string)($row[5] ?? '')));
+            $isRoot = in_array($rowIsRootRaw, ['true', '1', 'yes', 'si'], true);
+
             echo json_encode([
                 'success' => true,
                 'participant' => trim((string)($row[0] ?? '')),
                 'phone' => $rowPhoneLast10,
                 'username' => $rowPhoneLast10,
                 'mustChangePassword' => $mustChangePassword,
-                'mustProvideEmail' => $mustProvideEmail
+                'mustProvideEmail' => $mustProvideEmail,
+                'isRoot' => $isRoot
             ]);
             exit;
         }

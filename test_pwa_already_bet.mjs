@@ -64,12 +64,12 @@ check(
     /pwaSession\.submitted\s*=\s*true/.test(effectBlock)
 );
 check(
-    'effect post-auth cambia el step a "done"',
-    /setStep\(\s*['"]done['"]\s*\)/.test(effectBlock)
+    'effect post-auth guarda los bets previos en existingBets (en lugar de redirigir a done)',
+    /existingBets\s*=\s*result\.bets/.test(effectBlock)
 );
 check(
-    'effect post-auth setea doneMode = "already-submitted"',
-    /doneMode\s*=\s*['"]already-submitted['"]/.test(effectBlock)
+    'effect post-auth NO redirige a "done" (el form se muestra read-only)',
+    !/setStep\(\s*['"]done['"]\s*\)/.test(effectBlock)
 );
 check(
     'effect post-auth cancela triggerOnboardingTour',
@@ -81,25 +81,66 @@ check(
 );
 
 // ============================================================================
-// 2. PwaApp.svelte: el check en load() se reforzó
+// 2. PwaApp.svelte: el check en load() guarda bets en existingBets
 // ============================================================================
 
-// El if dentro de load() debe incluir 'form' en la lista de steps que redirigen.
-const loadBlockMatch = pwaApp.match(/if\s*\(\s*!isDev\s*&&\s*s\.status\s*===\s*['"]open['"][\s\S]{0,1500}?\}\s*\}/);
+// El if dentro de load() debe setear existingBets (no redirigir a done).
+// Regex flexible: match cualquier `if (algo) { ... getPwaBets ... existingBets = ... }`
+// en el cuerpo de load(). No atamos a la condición exacta porque puede incluir
+// guards extra (ej. `!pwaSession.isRoot` para root mode).
+const loadBlockMatch = pwaApp.match(/if\s*\([^)]*s\.status\s*===\s*['"]open['"][\s\S]{0,2000}?\}\s*\}/);
 const loadBlock = loadBlockMatch ? loadBlockMatch[0] : '';
 check('PwaApp.svelte: bloque de load() con el check de bets previas', loadBlock.length > 0);
 check(
-    'load() redirige desde step "form" si hay bets previas',
-    /\[?['"]landing['"],\s*['"]login['"],\s*['"]ranking['"],\s*['"]form['"]\]?/.test(loadBlock)
+    'load() guarda existingBets cuando encuentra bets previas',
+    /existingBets\s*=\s*existing\.bets/.test(loadBlock)
+);
+check(
+    'load() NO redirige a "done" (queda en form para read-only)',
+    !/setStep\(\s*['"]done['"]\s*\)/.test(loadBlock)
 );
 
 // ============================================================================
-// 3. PwaApp.svelte: pasa `mode` a PwaDone
+// 3. PwaApp.svelte: pasa `existingBets` a PwaForm + pasa `mode` a PwaDone
 // ============================================================================
 
 check(
-    'PwaApp.svelte pasa mode={doneMode} a PwaDone',
+    'PwaApp.svelte pasa existingBets={existingBets} a PwaForm',
+    /<PwaForm[^>]*existingBets=\{existingBets\}/.test(pwaApp)
+);
+check(
+    'PwaApp.svelte pasa mode={doneMode} a PwaDone (sigue vivo para el modo success post-submit)',
     /<PwaDone[^>]*mode=\{doneMode\}/.test(pwaApp)
+);
+
+// ============================================================================
+// 3b. PwaForm.svelte: modo read-only cuando hay existingBets
+// ============================================================================
+
+const pwaForm = readFileSync('./src/lib/components/pwa/PwaForm.svelte', 'utf8');
+check(
+    'PwaForm.svelte declara prop existingBets',
+    /existingBets\s*=\s*\[\]/.test(pwaForm) || /existingBets[?\s]*:\s*any\[\]/.test(pwaForm)
+);
+check(
+    'PwaForm.svelte tiene readOnly derivado de existingBets.length > 0',
+    /readOnly\s*=\s*\$derived\([^)]*existingBets/.test(pwaForm)
+);
+check(
+    'PwaForm.svelte muestra el banner "Ya enviaste" en read-only',
+    /\{#if\s+readOnly\}[\s\S]{0,500}?Ya enviaste tus apuestas/.test(pwaForm)
+);
+check(
+    'PwaForm.svelte renderiza los scores como display estático en read-only',
+    /\{#if\s+readOnly\}[\s\S]{0,2000}?s\.home/.test(pwaForm)
+);
+check(
+    'PwaForm.svelte reemplaza el botón Enviar por Volver/Cerrar sesión en read-only',
+    /\{#if\s+readOnly\}[\s\S]{0,2000}?Cerrar sesión/.test(pwaForm)
+);
+check(
+    'PwaForm.svelte ya no redirige a "done" cuando pwaSession.submitted (defense in depth eliminado)',
+    !/if\s*\(\s*pwaSession\.submitted\s*\)\s*\{[\s\S]{0,200}?setStep\(\s*['"]done['"]\s*\)/.test(pwaForm)
 );
 
 // ============================================================================
@@ -151,8 +192,7 @@ function simulateEffect({ step, isDev, authUsername, authPassword, date, getPwaB
     const state = {
         setStepCalled: null,
         submitted: false,
-        doneMode: 'success',
-        infoMessage: '',
+        existingBets: [],
         tourCancelled: false
     };
     if (isDev) return Promise.resolve(state);
@@ -167,9 +207,7 @@ function simulateEffect({ step, isDev, authUsername, authPassword, date, getPwaB
         if (myToken !== counterAtStart.value) return state;
         if (result.bets && result.bets.length > 0) {
             state.submitted = true;
-            state.doneMode = 'already-submitted';
-            state.infoMessage = 'Ya enviaste tus apuestas hoy. Son inmutables — no se pueden modificar.';
-            state.setStepCalled = 'done';
+            state.existingBets = result.bets;
             state.tourCancelled = true;
         }
         return state;
@@ -213,7 +251,8 @@ const d = await simulateEffect({
 check('bets=[]: submitted NO se setea', d.submitted === false);
 check('bets=[]: step NO cambia', d.setStepCalled === null);
 
-// Caso E: bets con elementos → check redirige a done
+// Caso E: bets con elementos → check guarda existingBets y cancela tour
+// (sin redirigir: el form se renderiza en read-only).
 const e = await simulateEffect({
     step: 'form', isDev: false, authUsername: '3117250869', authPassword: '0869',
     date: '2026-06-22', getPwaBetsResult: { bets: [
@@ -223,13 +262,9 @@ const e = await simulateEffect({
     tokenCounter: sharedToken
 });
 check('bets con 2 elementos: submitted=true', e.submitted === true);
-check('bets con 2 elementos: step="done"', e.setStepCalled === 'done');
-check('bets con 2 elementos: doneMode="already-submitted"', e.doneMode === 'already-submitted');
+check('bets con 2 elementos: existingBets tiene 2 elementos', e.existingBets.length === 2);
+check('bets con 2 elementos: step NO cambia (queda en form para read-only)', e.setStepCalled === null);
 check('bets con 2 elementos: tour cancelado', e.tourCancelled === true);
-check(
-    'infoMessage menciona "inmutables"',
-    /inmutables/i.test(e.infoMessage)
-);
 
 // Caso F: race condition — la primera llamada se queda "stale" cuando un
 // segundo effect dispara y bumpea el token. La respuesta tardía se ignora.

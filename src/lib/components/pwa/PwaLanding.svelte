@@ -3,24 +3,30 @@
     import { promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
     import PwaShareBets from './PwaShareBets.svelte';
     import GoalsAnalysisModal from './GoalsAnalysisModal.svelte';
+    import UpdateToast from './UpdateToast.svelte';
 
     /**
-     * @type {{
-     *   state: any,
-     *   isDev?: boolean,
-     *   devTestDate?: string,
-     *   bets?: any[],
-     *   preMatchInfo?: { required: boolean, firstMatchHHMM: string | null },
-     *   todayDate?: string
-     * }}
+     * @typedef {import('svelte/store').Writable<boolean>} BoolStore
+     * @typedef {Object} Props
+     * @property {any} state
+     * @property {boolean} [isDev]
+     * @property {string} [devTestDate]
+     * @property {any[]} [bets]
+     * @property {{ required: boolean, firstMatchHHMM: string | null }} [preMatchInfo]
+     * @property {string} [todayDate]
+     * @property {BoolStore} [needRefresh]   - store de useRegisterSW (App.svelte)
+     * @property {BoolStore} [offlineReady] - store de useRegisterSW (App.svelte)
      */
+    /** @type {Props} */
     let {
         state: windowState,
         isDev = false,
         devTestDate = '',
         bets = [],
         preMatchInfo = { required: false, firstMatchHHMM: null },
-        todayDate = ''
+        todayDate = '',
+        needRefresh,
+        offlineReady
     } = $props();
 
     const installState = getInstallState();
@@ -76,6 +82,49 @@
     let showShareModal = $state(false);
     /** Abre/cierra el modal de análisis de goles. */
     let showGoalsModal = $state(false);
+
+    // ---- Búsqueda manual de actualizaciones --------------------------
+
+    let checkingUpdate = $state(false);
+    /** @type {string} */
+    let toastMessage = $state('');
+    /** @type {'info' | 'success' | 'error'} */
+    let toastVariant = $state('info');
+
+    /**
+     * Fuerza la verificación de updates contra el servidor. Útil cuando
+     * el usuario sospecha que hay una nueva versión pero el chequeo
+     * automático (60min + visibilitychange) no la detectó aún.
+     */
+    async function checkForUpdates() {
+        if (checkingUpdate) return;
+        checkingUpdate = true;
+        toastMessage = '';
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            await reg?.update();
+            // El SW puede tardar 1-2s en procesar la respuesta y actualizar
+            // el store `needRefresh`. Esperamos un momento antes de chequear.
+            await new Promise((r) => setTimeout(r, 1500));
+            if (needRefresh && $needRefresh) {
+                toastMessage = 'Nueva versión encontrada. Actualizá desde el banner.';
+                toastVariant = 'info';
+            } else {
+                toastMessage = `Estás al día (v${__APP_VERSION__}).`;
+                toastVariant = 'success';
+            }
+        } catch (e) {
+            console.warn('[PwaLanding] checkForUpdates error:', e);
+            toastMessage = 'No se pudo verificar. Revisá tu conexión y reintentá.';
+            toastVariant = 'error';
+        } finally {
+            checkingUpdate = false;
+        }
+    }
+
+    function closeToast() {
+        toastMessage = '';
+    }
 </script>
 
 <div class="min-h-screen relative overflow-hidden flex flex-col items-center text-white p-4 md:p-8">
@@ -300,8 +349,20 @@
                     📲 ¿Cómo instalar la app?
                 </button>
             {/if}
+            <button
+                type="button"
+                onclick={checkForUpdates}
+                disabled={checkingUpdate}
+                class="text-gray-500 hover:text-gray-300 text-sm underline disabled:opacity-50 disabled:cursor-wait"
+            >
+                {checkingUpdate ? '⏳ Buscando…' : '🔄 Buscar actualizaciones'}
+            </button>
+            <p class="text-gray-700 text-[10px] font-mono pt-1">Polla 2026 · v{__APP_VERSION__}</p>
         </div>
     </div>
+
+    <!-- Toast de feedback de la verificación manual -->
+    <UpdateToast message={toastMessage} variant={toastVariant} onClose={closeToast} />
 
     <!-- Botón flotante: instalar PWA (Chrome/Edge/Desktop) -->
     {#if installState.canShowNative && !installState.installed}
