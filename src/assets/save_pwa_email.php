@@ -83,7 +83,7 @@ try {
     $username = trim($data['username']);
     $currentPassword = trim($data['currentPassword']);
     $email = trim((string)$data['email']);
-    $dev = $data['dev'] === true;
+    $dev = ($data['dev'] ?? false) === true;
 
     if (!preg_match('/^\d{10}$/', $username)) {
         throw new Exception('El usuario debe tener exactamente 10 dígitos.');

@@ -5,8 +5,15 @@
     import { getFlagData } from '../../flags.js';
     import PwaMatchDetail from './PwaMatchDetail.svelte';
 
-    /** @type {{ windowState: any, onDone: (savedCount: number, infoMessage?: string) => void, isDev?: boolean }} */
-    let { windowState, onDone, isDev = false } = $props();
+    /**
+     * @type {{
+     *   windowState: any,
+     *   onDone: (savedCount: number, infoMessage?: string) => void,
+     *   isDev?: boolean,
+     *   existingBets?: any[]
+     * }}
+     */
+    let { windowState, onDone, isDev = false, existingBets = [] } = $props();
 
     /** Partido seleccionado para ver detalle (null = ninguno). */
     let selectedMatch = $state(/** @type {any} */ (null));
@@ -22,12 +29,22 @@
     const participant = $derived(pwaSession.authParticipant || '');
     const windowStillOpen = $derived(windowState?.status === 'open');
 
-    // Defense in depth: si por algún motivo llegamos al form con submitted=true,
-    // saltar inmediatamente a 'done'. El guard principal está en PwaApp.svelte.
+    /** True cuando el participante ya tiene bets guardados hoy: el form se
+     *  renderiza en read-only con los marcadores prellenados y sin botón
+     *  Enviar. PwaApp.svelte setea `existingBets` tras el check post-auth. */
+    const readOnly = $derived(Array.isArray(existingBets) && existingBets.length > 0);
+
+    // Popular `scores` con los marcadores de los bets existentes al entrar
+    // en read-only. Se hace en un $effect (no en derivación) porque mutar
+    // un $state desde una derivación es inválido en Svelte 5.
     $effect(() => {
-        if (pwaSession.submitted) {
-            setStep('done');
+        if (!readOnly) return;
+        /** @type {Record<number, {home: number|null, away: number|null}>} */
+        const next = {};
+        for (const b of existingBets) {
+            next[b.matchId] = { home: b.homeScore, away: b.awayScore };
         }
+        scores = next;
     });
 
     /**
@@ -184,6 +201,16 @@
     </div>
 
     <div class="max-w-2xl mx-auto px-4 py-6 pb-32 animate-fade-in">
+        {#if readOnly}
+            <div class="mb-4 glass border-emerald-500/40 ring-1 ring-emerald-500/20 rounded-2xl p-4 text-center animate-slide-down">
+                <div class="text-3xl mb-1">🔒</div>
+                <div class="text-emerald-200 text-sm font-bold mb-1">Ya enviaste tus apuestas</div>
+                <div class="text-emerald-300/70 text-xs">
+                    Tus marcadores de {windowState.date} son <strong class="text-emerald-200">inmutables</strong> — no se pueden modificar.
+                </div>
+            </div>
+        {/if}
+
         {#if !windowStillOpen && !isDev}
             <div class="mb-4 glass border-amber-500/40 rounded-2xl p-3 text-amber-200 text-sm text-center animate-slide-down">
                 ⚠️ La ventana de apuestas no está abierta. No podrás enviar.
@@ -215,27 +242,33 @@
                             {/if}
                         </div>
 
-                        <!-- Score inputs -->
+                        <!-- Score inputs / read-only display -->
                         <div class="flex items-center gap-1.5 shrink-0" data-pwa-tutorial="inputs">
-                            <input
-                                type="number"
-                                inputmode="numeric"
-                                min="0"
-                                max="9"
-                                value={s.home ?? ''}
-                                oninput={(e) => handleScoreInput(m.id, 'home', e)}
-                                class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"
-                            />
-                            <span class="text-gray-600 text-xl font-light px-0.5">—</span>
-                            <input
-                                type="number"
-                                inputmode="numeric"
-                                min="0"
-                                max="9"
-                                value={s.away ?? ''}
-                                oninput={(e) => handleScoreInput(m.id, 'away', e)}
-                                class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"
-                            />
+                            {#if readOnly}
+                                <div class="w-28 h-16 flex items-center justify-center text-3xl font-black tabular-nums text-emerald-300 bg-emerald-500/10 ring-1 ring-emerald-500/30 rounded-2xl">
+                                    {s.home ?? '–'} <span class="text-gray-500 px-1">—</span> {s.away ?? '–'}
+                                </div>
+                            {:else}
+                                <input
+                                    type="number"
+                                    inputmode="numeric"
+                                    min="0"
+                                    max="9"
+                                    value={s.home ?? ''}
+                                    oninput={(e) => handleScoreInput(m.id, 'home', e)}
+                                    class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"
+                                />
+                                <span class="text-gray-600 text-xl font-light px-0.5">—</span>
+                                <input
+                                    type="number"
+                                    inputmode="numeric"
+                                    min="0"
+                                    max="9"
+                                    value={s.away ?? ''}
+                                    oninput={(e) => handleScoreInput(m.id, 'away', e)}
+                                    class="w-14 h-16 text-center text-3xl font-black bg-white/5 border-2 {complete ? 'border-emerald-500/50 text-emerald-300' : 'border-white/10 text-white'} rounded-2xl outline-none focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all"
+                                />
+                            {/if}
                         </div>
 
                         <!-- Away team -->
@@ -277,21 +310,38 @@
     <!-- Sticky bottom CTA -->
     <div class="fixed bottom-0 left-0 right-0 z-30 glass-strong border-t border-white/10">
         <div class="max-w-2xl mx-auto px-4 py-3">
-            <button
-                class="w-full py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white text-lg font-black shadow-xl shadow-emerald-500/30 transition-all min-h-14 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
-                onclick={openConfirm}
-                disabled={!allFilled || submitting || (!windowStillOpen && !isDev)}
-                data-pwa-tutorial="submit"
-            >
-                {#if submitting}
-                    <span class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    Enviando…
-                {:else if allFilled}
-                    ✓ Enviar {matches.length} apuesta{matches.length !== 1 ? 's' : ''}
-                {:else}
-                    {filledCount} de {matches.length} marcadores listos
-                {/if}
-            </button>
+            {#if readOnly}
+                <div class="flex gap-2">
+                    <button
+                        class="flex-1 py-4 glass hover:bg-white/10 rounded-2xl text-white font-bold transition-all min-h-12"
+                        onclick={() => setStep('landing')}
+                    >
+                        ← Volver
+                    </button>
+                    <button
+                        class="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold shadow-xl shadow-emerald-500/30 transition-all min-h-12"
+                        onclick={logout}
+                    >
+                        Cerrar sesión
+                    </button>
+                </div>
+            {:else}
+                <button
+                    class="w-full py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white text-lg font-black shadow-xl shadow-emerald-500/30 transition-all min-h-14 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+                    onclick={openConfirm}
+                    disabled={!allFilled || submitting || (!windowStillOpen && !isDev)}
+                    data-pwa-tutorial="submit"
+                >
+                    {#if submitting}
+                        <span class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Enviando…
+                    {:else if allFilled}
+                        ✓ Enviar {matches.length} apuesta{matches.length !== 1 ? 's' : ''}
+                    {:else}
+                        {filledCount} de {matches.length} marcadores listos
+                    {/if}
+                </button>
+            {/if}
         </div>
     </div>
 

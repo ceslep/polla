@@ -79,7 +79,7 @@ try {
     $spreadsheetId = $data['spreadsheetId'];
     $username = trim($data['username']);
     $password = trim($data['password']);
-    $dev = $data['dev'] === true;
+    $dev = ($data['dev'] ?? false) === true;
 
     if (!$dev) {
         if (!preg_match('/^\d{10}$/', $username)) {

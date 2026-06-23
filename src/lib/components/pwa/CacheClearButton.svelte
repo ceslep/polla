@@ -74,7 +74,7 @@
     type="button"
     onclick={clearCaches}
     disabled={busy}
-    class="fixed top-3 right-3 z-50 flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/20 rounded-full text-gray-300 hover:text-white text-xs font-medium transition-all backdrop-blur-md shadow-lg shadow-black/20 disabled:opacity-50 disabled:cursor-wait min-h-9 max-w-[calc(100vw-1.5rem)]"
+    class="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/20 rounded-full text-gray-300 hover:text-white text-xs font-medium transition-all backdrop-blur-md shadow-lg shadow-black/20 disabled:opacity-50 disabled:cursor-wait min-h-9 max-w-[calc(100vw-1.5rem)]"
     aria-label="Borrar cache y recargar"
     title="Borrar cache del Service Worker, localStorage y recargar la app"
 >

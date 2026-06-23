@@ -142,7 +142,7 @@
                         id="username"
                         type="text"
                         inputmode="numeric"
-                        autocomplete="username"
+                        autocomplete="off"
                         value={username}
                         oninput={handleUsernameInput}
                         onkeydown={handleKeydown}
@@ -166,7 +166,7 @@
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         inputmode="numeric"
-                        autocomplete="current-password"
+                        autocomplete="new-password"
                         value={password}
                         oninput={handlePasswordInput}
                         onkeydown={handleKeydown}

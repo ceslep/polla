@@ -4,7 +4,8 @@
     import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
-    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen } from '../../pwa/session.svelte.js';
+    import { getFirstMatchUtcMs, isPreMatch } from '../../pwa/prematchGuard.js';
+    import { pwaSession, setStep, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
@@ -17,9 +18,11 @@
     import PwaTodayBets from './PwaTodayBets.svelte';
     import ReloadPrompt from './ReloadPrompt.svelte';
     import CacheClearButton from './CacheClearButton.svelte';
+    import PwaMissingBetsButton from './PwaMissingBetsButton.svelte';
     import PwaWorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
     import PwaMovementModal from './PwaMovementModal.svelte';
     import PwaIntro from './PwaIntro.svelte';
+    import PwaGoalOverlay from './PwaGoalOverlay.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
     import TutorialPage from '../TutorialPage.svelte';
     import { tourSteps } from '../tutorialSteps.js';
@@ -170,12 +173,26 @@
     let loading = $state(true);
     let doneSavedCount = $state(0);
     let doneInfoMessage = $state('');
+    /**
+     * Modo de PwaDone. Solo se usa 'success' (recién envió, con confeti).
+     * 'already-submitted' ya no se asigna: cuando hay bets previos, PwaForm
+     * se renderiza en read-only en lugar de redirigir a PwaDone.
+     * @type {'success' | 'already-submitted'}
+     */
+    let doneMode = $state('success');
+    /** Token de concurrencia para el effect "ya apostó" — evita race conditions
+     *  si el step cambia entre el disparo del check y la respuesta. */
+    let alreadyBetCheckToken = 0;
     /** @type {any[]} */
     let rawMatches = $state([]);
     /** @type {any[]} */
     let pwaScoredBets = $state([]);
     /** @type {any[]} */
     let pwaNormalizedMatches = $state([]);
+    /** Bets del día ya guardados por el participante autenticado. Si está
+     *  no vacío, PwaForm se renderiza en read-only con los marcadores
+     *  prellenados (en lugar de redirigir a PwaDone mode='already-submitted'). */
+    let existingBets = $state(/** @type {any[]} */ ([]));
 
     /**
      * En dev mode, override de fecha: la PWA simula "hoy" (en COT) para
@@ -188,6 +205,42 @@
     const devTestDate = $derived(nowOverride ? nowCotParts(nowOverride).date : '');
     /** Fecha COT que la PWA está mostrando como "hoy" (en dev = devTestDate, en prod = hoy real). */
     const todayDate = $derived(devTestDate || nowCotParts(new Date()).date);
+
+    // ---- Pre-match password gate (consumido por PwaLanding/PwaShareBets
+    //      y PwaTodayBets vía `preMatchInfo`). Se calcula acá una sola vez
+    //      porque PwaApp es el único que tiene acceso a `rawMatches` (la
+    //      lista completa de openfootball). `pwaNormalizedMatches` SOLO
+    //      contiene partidos finalizados, así que NO sirve para detectar
+    //      el primer partido de un día futuro.
+
+    /** @type {number} ms epoch en UTC. Refresca cada 30s para que el
+     *  gate se desactive solo cuando llega el cutoff. */
+    let nowUtcMs = $state(Date.now());
+    $effect(() => {
+        const id = setInterval(() => { nowUtcMs = Date.now(); }, 30000);
+        return () => clearInterval(id);
+    });
+
+    /**
+     * @typedef {Object} PreMatchInfo
+     * @property {boolean} required  - true si la puerta debe estar visible
+     * @property {string | null} firstMatchHHMM - 'HH:MM' en COT del primer partido del día, o null
+     */
+
+    /** @type {PreMatchInfo} */
+    const preMatchInfo = $derived.by(() => {
+        const utc = getFirstMatchUtcMs(rawMatches, todayDate);
+        if (utc == null) return { required: false, firstMatchHHMM: null };
+        return {
+            required: isPreMatch(utc, nowUtcMs),
+            firstMatchHHMM: (() => {
+                const fmt = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false
+                });
+                return fmt.format(new Date(utc));
+            })()
+        };
+    });
 
     onMount(() => {
         // En dev: setear pwaSession.date a la fecha simulada (hoy en COT)
@@ -213,6 +266,93 @@
             }
         }
     });
+
+    /**
+     * Detección post-autenticación de "ya apostó hoy". Se dispara cada vez
+     * que el step pasa a 'form' con credenciales y fecha listas. El backend
+     * es idempotente (save_pwa_bet.php retorna saved=0 + alreadyExists=N si
+     * los ids ya están) pero la UX es fea: el usuario llena marcadores y
+     * recién al enviar se entera de que ya había apostado. Con este check
+     * dejamos PwaForm listo para renderizarse en read-only con los bets
+     * prellenados (banner "Ya enviaste", sin botón Enviar).
+     *
+     * En dev mode el check se salta: PwaApp.buildDevState() siempre abre
+     * la ventana y queremos poder iterar marcadores libremente.
+     *
+     * Race condition: si el usuario hace logout justo después del disparo,
+     * la respuesta tardía se descarta comparando `alreadyBetCheckToken`.
+     */
+    $effect(() => {
+        const step = pwaSession.step;
+        if (isDev) return;
+        if (step !== 'form') return;
+        if (!pwaSession.authUsername || !pwaSession.authPassword) return;
+        if (!pwaSession.date) return;
+
+        const myToken = ++alreadyBetCheckToken;
+        const date = pwaSession.date;
+        const username = pwaSession.authUsername;
+        const password = pwaSession.authPassword;
+
+        (async () => {
+            try {
+                const result = await getPwaBets({
+                    username,
+                    password,
+                    matchDate: date
+                });
+                if (myToken !== alreadyBetCheckToken) return;
+                if (result.bets && result.bets.length > 0) {
+                    pwaSession.submitted = true;
+                    existingBets = result.bets;
+                    // El form se va a renderizar en read-only con estos bets.
+                    // Cancelar el tour que PwaLogin agendó: no tiene sentido
+                    // para un usuario que ya envió.
+                    triggerOnboardingTour = false;
+                }
+            } catch (e) {
+                // Si falla el check (Sheets caído, timeout), dejamos que el
+                // form se muestre: el backend sigue siendo idempotente.
+                console.warn('No pude verificar apuestas previas:', e);
+            }
+        })();
+    });
+
+    // ---- Goal animation overlay -----------------------------------------
+    // Cuando el usuario entra a 'ranking' o 'today-bets' (vistas públicas
+    // de resultados), disparamos la animación Three.js de gol. Se reproduce
+    // UNA vez por step por sesión (mismo patrón que el intro y el tour);
+    // back-and-forth está protegido por un throttle mínimo de 1.5s.
+    let showGoalOverlay = $state(false);
+    let lastGoalStep = $state(/** @type {string | null} */ (null));
+    let lastGoalAt = 0;
+    const GOAL_THROTTLE_MS = 1500;
+
+    $effect(() => {
+        const step = pwaSession.step;
+        if (step !== 'ranking' && step !== 'today-bets') return;
+        if (lastGoalStep === step) return; // ya disparado en este step
+        if (hasSeenGoal(step)) {
+            // Ya se mostró en esta sesión: solo registramos el último step
+            // para que un eventual reset (consola) pueda re-dispararlo.
+            lastGoalStep = step;
+            return;
+        }
+        const now = performance.now();
+        if (now - lastGoalAt < GOAL_THROTTLE_MS) {
+            // Re-entry demasiado rápido; ignorar.
+            lastGoalStep = step;
+            return;
+        }
+        lastGoalStep = step;
+        lastGoalAt = now;
+        console.log(`[PwaApp] Disparando animación de gol para step=${step}`);
+        showGoalOverlay = true;
+    });
+
+    function handleGoalClose() {
+        showGoalOverlay = false;
+    }
 
     /**
      * Carga todos los PWA bets (público, sin auth), los transforma al formato
@@ -386,9 +526,12 @@
                         });
                         if (existing.bets && existing.bets.length > 0) {
                             pwaSession.submitted = true;
-                            if (pwaSession.step === 'landing' || pwaSession.step === 'login' || pwaSession.step === 'ranking') {
-                                setStep('done');
-                            }
+                            existingBets = existing.bets;
+                            // Si el usuario re-ingresó (step='form'/'landing'/
+                            // 'login'/'ranking'), dejamos que PwaForm se
+                            // renderice en read-only con estos bets. El effect
+                            // post-auth cubre el caso de login fresco; este
+                            // cubre el mount inicial.
                         }
                     }
                     windowState = s;
@@ -493,24 +636,32 @@
         </button>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {todayDate} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
-    <PwaRanking bets={pwaScoredBets} onBack={onRankingBack} />
+    <PwaRanking
+        bets={pwaScoredBets}
+        onBack={onRankingBack}
+        canGoBet={!pwaSession.submitted && windowState?.status === 'open'}
+        onGoBet={() => setStep('form')}
+        onRefresh={loadAndScorePwaBets}
+    />
 {:else if pwaSession.step === 'today-bets'}
-    <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} onBack={onTodayBetsBack} />
+    <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />
 {:else if pwaSession.step === 'tutorial'}
     <TutorialPage onClose={closeTutorial} />
 {:else if pwaSession.step === 'change-password'}
     <PwaChangePassword {isDev} onPasswordChanged={handlePasswordChanged} />
 {:else if pwaSession.step === 'email-prompt'}
     <PwaEmailPromptModal onClose={handleEmailPromptClose} />
-{:else if pwaSession.submitted || pwaSession.step === 'done'}
-    <!-- Guard: si ya envió apuestas hoy, forzar 'done' sin importar el step -->
-    <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} />
+{:else if pwaSession.step === 'done'}
+    <!-- PwaDone post-submit fresco (mode='success' con confeti). El modo
+         'already-submitted' ya no se usa: cuando hay bets previos, PwaForm
+         se renderiza en read-only. -->
+    <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} mode={doneMode} />
 {:else if pwaSession.step === 'form'}
-    <PwaForm windowState={windowState} onDone={onDone} {isDev} />
+    <PwaForm windowState={windowState} onDone={onDone} {isDev} existingBets={existingBets} />
 {:else if pwaSession.step === 'history'}
     <PwaHistory {isDev} />
 {:else if pwaSession.step === 'results'}
@@ -533,9 +684,17 @@
 <!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->
 <ReloadPrompt {needRefresh} {offlineReady} {updateServiceWorker} />
 
-<!-- Botón flotante "Borrar cache" (top-right). Para que usuarios con SW viejo
-     o cache stale puedan forzar un reset completo sin esperar 24h. -->
-<CacheClearButton />
+<!-- Botones flotantes del header (top-right). El wrapper flex mantiene
+     el orden visual: primero "Pendientes" (a la izquierda), después
+     "Borrar cache" (a la derecha, igual que antes). -->
+<div class="fixed top-3 right-3 z-50 flex items-center gap-2">
+    <PwaMissingBetsButton
+        bets={pwaScoredBets}
+        {todayDate}
+        firstMatchHHMM={preMatchInfo.firstMatchHHMM}
+    />
+    <CacheClearButton />
+</div>
 
 <!-- Tour in-app (Driver.js) — siempre montado; arranca con trigger=true -->
 <OnboardingTour
@@ -552,3 +711,12 @@
 {#if showIntro}
     <PwaIntro onClose={handleIntroClose} />
 {/if}
+
+<!-- Goal Three.js overlay. Se dispara en transiciones a 'ranking' y
+     'today-bets'. El componente se autocontrola (arma y desarma su
+     escena interna); el orquestador sólo le pasa open y el step. -->
+<PwaGoalOverlay
+    open={showGoalOverlay}
+    triggerKey={pwaSession.step}
+    onClose={handleGoalClose}
+/>

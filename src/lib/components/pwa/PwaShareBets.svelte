@@ -1,14 +1,50 @@
 <script>
     import { getFlagData } from '../../flags.js';
+    import { PREMATCH_PASSWORD } from '../../pwa/prematchGuard.js';
 
     /**
      * @type {{
      *   bets?: any[],
      *   todayDate?: string,
+     *   preMatchInfo?: { required: boolean, firstMatchHHMM: string | null },
      *   onClose: () => void
      * }}
      */
-    let { bets = [], todayDate = '', onClose } = $props();
+    let {
+        bets = [],
+        todayDate = '',
+        preMatchInfo = { required: false, firstMatchHHMM: null },
+        onClose
+    } = $props();
+
+    // ---- Pre-match password gate ----------------------------------------
+    // El flag `preMatchInfo.required` se calcula en PwaApp. Acá solo
+    // guardamos el estado de UI (input, error, desbloqueo).
+
+    /** @type {string} */
+    let passwordInput = $state('');
+    /** @type {string} */
+    let passwordError = $state('');
+    /** Sin persistencia: al desmontar el modal se olvida. */
+    let isUnlocked = $state(false);
+
+    const requiresPassword = $derived(preMatchInfo.required && !isUnlocked);
+
+    function checkPassword() {
+        if (passwordInput === PREMATCH_PASSWORD) {
+            isUnlocked = true;
+            passwordError = '';
+            passwordInput = '';
+        } else {
+            passwordError = 'Clave incorrecta';
+        }
+    }
+
+    /** @param {SubmitEvent} e */
+    function handlePasswordSubmit(e) {
+        e.preventDefault();
+        checkPassword();
+    }
 
     /** @type {'idle' | 'copied' | 'error'} */
     let copyState = $state('idle');
@@ -151,7 +187,39 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
-            {#if message.trim().length === 0}
+            {#if requiresPassword}
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-8">
+                    <div class="text-5xl mb-3 text-center">🔒</div>
+                    <h3 class="text-lg font-bold text-white mb-2 text-center">Mensaje bloqueado</h3>
+                    {#if preMatchInfo.firstMatchHHMM}
+                        <p class="text-sm text-gray-400 mb-4 sm:mb-6 text-center">
+                            Los partidos de hoy ({todayDate}) inician a las
+                            <span class="text-cyan-300 font-mono">{preMatchInfo.firstMatchHHMM}</span>
+                            (hora Colombia). La clave se desactiva 1 minuto antes.
+                        </p>
+                    {:else}
+                        <p class="text-sm text-gray-400 mb-4 sm:mb-6 text-center">
+                            Ingresa la clave para generar el mensaje de apuestas del día ({todayDate}) antes de que empiecen los partidos.
+                        </p>
+                    {/if}
+                    <form onsubmit={handlePasswordSubmit} class="space-y-3 sm:space-y-4">
+                        <input
+                            type="password"
+                            bind:value={passwordInput}
+                            placeholder="Clave"
+                            autocomplete="off"
+                            class="w-full bg-white/5 border-2 border-white/10 focus:border-cyan-500/60 focus:bg-white/[0.07] rounded-2xl px-4 py-3 text-base text-white placeholder-gray-500 outline-none transition-all text-center tracking-widest"
+                        />
+                        {#if passwordError}
+                            <p class="text-red-400 text-sm text-center">{passwordError}</p>
+                        {/if}
+                        <button
+                            type="submit"
+                            class="w-full py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold transition-all min-h-12 shadow-lg shadow-emerald-500/30"
+                        >Entrar →</button>
+                    </form>
+                </div>
+            {:else if message.trim().length === 0}
                 <div class="text-center py-12 text-gray-400">
                     <div class="text-5xl mb-3">📭</div>
                     <p class="text-sm">No hay apuestas para hoy ({todayDate}) en la hoja <code class="text-cyan-400 font-mono">apuestas</code>.</p>
@@ -169,7 +237,7 @@
                 class="flex-1 py-3 glass hover:bg-white/10 rounded-2xl text-white font-bold transition-all min-h-12"
                 onclick={onClose}
             >Cerrar</button>
-            {#if message.trim().length > 0}
+            {#if !requiresPassword && message.trim().length > 0}
                 <button
                     class="flex-1 py-3 rounded-2xl text-white font-bold transition-all min-h-12
                         {copyState === 'copied'

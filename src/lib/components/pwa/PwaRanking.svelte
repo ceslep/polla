@@ -1,12 +1,38 @@
 <script>
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
     import PwaParticipantDetail from './PwaParticipantDetail.svelte';
+    import PwaMyBetsModal from './PwaMyBetsModal.svelte';
 
-    /** @type {{ bets: any[], onBack: () => void }} */
-    let { bets = [], onBack } = $props();
+    /** @type {{
+     *   bets: any[],
+     *   onBack: () => void,
+     *   canGoBet?: boolean,
+     *   onGoBet?: () => void,
+     *   onRefresh?: () => Promise<void>
+     * }} */
+    let {
+        bets = [],
+        onBack,
+        canGoBet = false,
+        onGoBet = () => {},
+        onRefresh = async () => {}
+    } = $props();
 
     /** Participante seleccionado para ver detalle (null = ninguno). */
     let selectedParticipant = $state(/** @type {string | null} */ (null));
+
+    /** Abre el modal "Mis apuestas de hoy". Si no hay sesión activa, manda
+     *  al usuario a login en vez de abrir el modal (caso anónimo en
+     *  ranking público). */
+    let showMyBets = $state(false);
+
+    function openMyBets() {
+        if (!pwaSession.authPhone) {
+            setStep('login');
+        } else {
+            showMyBets = true;
+        }
+    }
 
     /** Filtro de búsqueda por nombre (case-insensitive, substring match). */
     let search = $state('');
@@ -85,7 +111,12 @@
                 onclick={back}
                 aria-label="Volver"
             >←</button>
-            <h2 class="text-2xl font-bold text-cyan-400">🏆 Ranking</h2>
+            <h2 class="text-2xl font-bold text-cyan-400 flex-1">🏆 Ranking</h2>
+            <button
+                class="px-3 h-11 flex items-center gap-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-sm font-semibold transition-all"
+                onclick={openMyBets}
+                aria-label="Ver mis apuestas de hoy"
+            >📋 Mis apuestas</button>
         </div>
 
         <div class="text-sm text-gray-400 mb-4 text-center">
@@ -161,5 +192,18 @@
         participant={selectedParticipant}
         {bets}
         onClose={() => selectedParticipant = null}
+    />
+{/if}
+
+{#if showMyBets && pwaSession.authPhone}
+    <PwaMyBetsModal
+        {bets}
+        phone={pwaSession.authPhone}
+        todayDate={pwaSession.date ?? ''}
+        participantName={pwaSession.authParticipant ?? ''}
+        {canGoBet}
+        onGoBet={onGoBet}
+        onRefresh={onRefresh}
+        onClose={() => showMyBets = false}
     />
 {/if}

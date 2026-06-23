@@ -1,222 +1,257 @@
 # pollaweb — Copa del Mundo 2026 betting pool
 
-Single-page Svelte 5 app. Users upload a WhatsApp chat export (JSON); the app
-parses free-text Spanish bets into structured predictions, fetches real match
-results, scores each bet, and ranks participants. UI strings are Spanish.
+Svelte 5 SPA: users log in (PWA), pick daily score bets for World Cup 2026
+matches, and the app scores them against `openfootball/worldcup.json` and
+ranks participants. Backend is PHP on `https://app.iedeoccidente.com/gs/`
+that reads/writes Google Sheets. UI strings are Spanish.
+
+> The PWA is the **only** active product. The original WhatsApp-upload flow
+> is preserved as `_archived_*` files in `src/lib/components/` and is **not
+> built, not deployed, and not developed**. See "What's active vs archived"
+> below before touching code.
 
 ## Stack
 
-- **Svelte 5 + Vite + Tailwind 4** (frontend-only SPA)
-- **PHP** backend in `src/assets/` (Google Sheets read/write; deployed by
-  hand to `https://app.iedeoccidente.com/gs/`)
-- **JSDoc** for typing — there are no `.ts` source files in `src/`;
-  `tsconfig.app.json` sets `allowJs: true, checkJs: true` so `npm run check`
-  validates JSDoc types against `src/`.
+- **Svelte 5 (runes) + Vite + Tailwind 4** — `src/`
+- **PHP backend** in `src/assets/` — deployed by hand to
+  `https://app.iedeoccidente.com/gs/`. Not part of the Vite build. Needs
+  `vendor/` (Google API PHP client) and `assets/serviceaccount.json`
+  (service account key, **not** in repo) on the server.
+- **JSDoc types** — no `.ts` source files. `tsconfig.app.json` sets
+  `allowJs: true, checkJs: true` so `npm run check` validates JSDoc.
+- **PWA** via `vite-plugin-pwa` (`src/main.js`, configured in
+  `vite.config.ts`). Auto-update on `visibilitychange` + every 60 min.
 
 ## Commands
 
 ```bash
-npm run dev       # Vite dev server (default http://localhost:5173)
-npm run build     # production build → dist/
-npm run preview   # serve dist/
-npm run check     # svelte-check + tsc (validates JSDoc types) — run before commit
-npm run deploy    # build + publish to gh-pages
+npm run dev        # Vite dev (default :5173). PWA SW enabled in dev.
+npm run build      # production build → dist/
+npm run preview    # serve dist/
+npm run check      # svelte-check + tsc (validates JSDoc) — run before commit
+npm run deploy     # build + publish to gh-pages
 
-node test_parse.js        # smoke test for src/lib/parser.js
-node test_match.js        # smoke test for match loading + findMatchForBet
-node test_sort.mjs        # smoke test for sortByTimestampDesc in stores.svelte.js
-node test_unique_bets.mjs # smoke test for uniqueBets dedup logic
-node test_fuzzy.mjs       # smoke test for findMatchSuggestion (Levenshtein fallback)
-node test_accuracy.mjs    # smoke test for globalAccuracy/participantAccuracy in accuracy.js
-node test_team_stats.mjs  # smoke test for teamStandingsFromTeams in teamStats.js
-node test_compare_bet.mjs # smoke test for compareBetWithMatch (home/away inversion)
-node test_manual_bets.mjs # smoke test for parseManualBets (MANUAL_BETS injection)
-node test_save_email.mjs  # smoke test for savePwaEmail + email regex + 'email-prompt' step wiring
+node test_*.{js,mjs}   # 20 smoke tests; sample fixture: polla.json
 ```
 
-Run from the repo root. `polla.json` is the sample WhatsApp export
-used by most of them.
+There is no automated test suite — `node test_*` are sanity checks. The
+`.mjs` ones that import `stores.svelte.js` or `session.svelte.js` shim
+`globalThis.$state = (o) => o` because they need to import Svelte 5 runes
+modules outside the Svelte runtime.
 
-Refrescar ranking FIFA (mensual): abrir en navegador
-`https://app.iedeoccidente.com/gs/fetch_fifa_rankings.php`, pegar la tabla
-de `https://www.fifa.com/es/world-rankings` y guardar. El JSON se cachea en
-el host (`gs/fifa_cache.json`) y `loadFifaRankings()` en `src/lib/fifa.js`
-lo consume en runtime. `public/fifa_rankings.json` queda como fallback
-offline. El PHP vive en `src/assets/fetch_fifa_rankings.php`.
+## What's active vs archived
 
-No automated test suite — `node test_*` are manual sanity checks. The
-`test_*.mjs` ones shim `globalThis.$state = (o) => o` because they import
-`stores.svelte.js`, which uses Svelte 5 runes unavailable outside the
-Svelte runtime.
+- **Active (PWA)** — `src/lib/components/pwa/`, `src/lib/pwa/`,
+  `src/lib/api.js` PWA functions (`loginPwa`, `savePwaBet`, `getPwaBets`,
+  `loadAllPwaBets`, `changePwaPassword`, `savePwaEmail`), the matching
+  PHP endpoints (`*_pwa*.php`, `seed_apuestas_from_json.php`).
+  `src/App.svelte` is a **pure redirector**: registers the SW and forces
+  every hash to `/#/apostar`. `PwaApp.svelte` is the real orchestrator
+  (router, data loading, scoring).
+- **Archived (legacy WhatsApp flow)** — `src/lib/components/_archived_*`,
+  the rest of `src/lib/api.js` (`loadBetsFromSheets`, `saveBetsToSheets`,
+  `clearBetsFromSheets`, `getAliasesFromSheets`, `saveAliasesToSheets`),
+  and the `datos` sheet on Sheets. The `_archived_*` files are excluded
+  from `tsconfig.app.json` (`exclude: ["src/**/_archived_*"]`) and nothing
+  imports them in the active code path.
+  `appState.bets` (in `src/lib/stores.svelte.js`) is **only mutated by
+  archived components** — the PWA does not load it.
 
-## Scoring (src/lib/api.js `compareBetWithMatch`, lines 123/130/133)
+## PWA data flow (active)
 
-| Status     | Points |
-|------------|--------|
-| `exact`    | 5      |
-| `correct`  | 3      |
-| `incorrect`| 0      |
+1. **Routing** — hash-based. `App.svelte` redirects any non-`apostar` hash
+   to `/#/apostar`. Real routing is `pwaSession.step` (Svelte 5 runes
+   `$state` in `src/lib/pwa/session.svelte.js`, persisted in
+   `sessionStorage` under `pwaSession`).
+2. **Steps** —
+   `'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt'
+    | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets'
+    | 'tutorial'`.
+   The chain `login → change-password → email-prompt → form` is forced
+   on first login if `loginPwa` returns `mustChangePassword: true` or
+   `mustProvideEmail: true`. Email prompt (`PwaEmailPromptModal`) is
+   skipped on `Omitir` / X / Escape and writes an empty column E.
+3. **Load** — `PwaApp.svelte load()` calls
+   `loadWorldCupMatches()` (openfootball, `NetworkOnly` in the SW +
+   `cache: 'no-store'` in the fetch) and `loadAllPwaBets()` (public,
+   reads `apuestas` sheet for the ranking/movement). Match lookup uses
+   `findMatchForBet` (exact teams + same date) and `compareBetWithMatch`
+   for scoring. Bet IDs in `apuestas` are deterministic:
+   `pwa_<phone>_<date>_<matchId>` (see `save_pwa_bet.php:258`).
+4. **Submit** — `savePwaBet(payload)` from `PwaForm.svelte`. The PHP is
+   **INSERT-only / immutable**: it refuses if `mustChangePassword` or
+   `mustProvideEmail` is still true, and returns `saved: N, alreadyExists: M`
+   when a duplicate id is sent.
+5. **Confirmation email** — `save_pwa_bet.php → sendBetConfirmationEmail()`
+   fires on every successful save (inserts and all-duplicate submits
+   alike). Recipient is the email in `participantes` column E
+   (already read by `authenticate()`); CC to `ceslep@gmail.com` for
+   monitoring. Uses PHPMailer via el mismo `vendor/autoload.php` as the
+   cron. SMTP failure is fire-and-confirm: the bet stays in Sheets,
+   the error is logged, the JSON response is still 200. Skipped when
+   `dev: true` or when column E is empty.
+6. **Scoring** — `src/lib/api.js → compareBetWithMatch()` (lines 141–175).
+   Only `status: 'pending' | 'exact' | 'correct' | 'incorrect'` is valid
+   (`src/lib/types.js:23`). 5/3/0 points. The function inverts
+   home/away if `findMatchForBet` matched with the bet's teams swapped
+   (case: "Morocco 3 Scotland 1" matched against a Scotland-home game).
+7. **Re-entry guard ("ya enviaste hoy")** — `PwaApp.svelte` corre un
+   `$effect` post-autenticación que se dispara cuando `step === 'form'`
+   con `authUsername + authPassword + pwaSession.date` listos. Llama
+   `getPwaBets({ matchDate: pwaSession.date })` y, si hay bets, redirige
+   a `PwaDone` con `mode='already-submitted'` (sin confeti, tono info
+   tipo "Ya enviaste tus apuestas / son inmutables"). El check también
+   se aplica en `PwaApp.load()` (step='form' incluido en la lista de
+   steps que redirigen) y en el `PwaForm.svelte:27-31` (defensa en
+   profundidad: si `submitted=true`, va a `done`). El `save_pwa_bet.php`
+   sigue siendo idempotente como red de seguridad. **Dev mode salta el
+   check** (queremos iterar marcadores libremente). Cubierto por
+   `test_pwa_already_bet.mjs`.
 
-The only valid `status` values are `'pending' | 'exact' | 'correct' | 'incorrect'`
-(`src/lib/types.js:23`). `ResultsModal.svelte` has an "Empates (2pt)" section
-filtered on `b.points === 2`, but the scorer never assigns 2 — that branch
-is dead UI, do not add a 2-pt tier.
+## Persistence
 
-## Architecture / data flow
+- **Active source of truth** — Google Sheets spreadsheet
+  `1PIo_oV…` (hardcoded `SHEETS_SPREADSHEET_ID` in `src/lib/api.js:30`),
+  worksheets:
+    - `apuestas` (PWA bets, immutable) — written by `save_pwa_bet.php`,
+      read by `get_pwa_bets.php` (auth) and `get_all_pwa_bets.php`
+      (public, used for ranking/movement).
+    - `participantes` (columns A:E — name, phone, password last-4,
+      `mustChangePassword` flag, optional `email`) — read by `login_pwa.php`,
+      `change_pwa_password.php`, `save_pwa_email.php`. All use range
+      `A2:E1000`.
+    - `mail_log` — written by `cron_ranking_report.php` to keep the
+      ranking-report email idempotent (one email per participant per
+      matchday; dedup by `body_hash` md5).
+  - `datos` (legacy WhatsApp bets) — kept on the sheet for history. Not
+    written by active code.
+  - `alias` (legacy real name → display alias) — kept for history.
+- **No `localStorage` for state** — only `sessionStorage` keys:
+  `pwaSession` (the auth + step), `pwaSeenTour` (Driver.js tour,
+  per-device), `pwaSeenIntro` (Three.js intro, per-tab).
+- **Refresh is manual** — `PwaApp.svelte load()` runs once on mount.
+  Re-fetches are: the header 🔄 button, the mobile-menu "Recargar desde
+  Sheets", or the `🔄 Reintentar` button on the no-matches error screen.
+  There is no auto-reload on `focus` / `visibilitychange` (closing modals
+  used to fire focus and re-fetch Sheets unintentionally).
+- **Service-worker cache policy** (`vite.config.ts` workbox rules):
+    - `app.iedeoccidente.com/gs/*` → `NetworkOnly` (no cache; bets and
+      results must come fresh).
+    - `raw.githubusercontent.com/openfootball/*` → `NetworkOnly`. Was
+      `StaleWhileRevalidate` originally, but a 24h-stale openfootball
+      cache made users see "Pendiente" after matches finished.
+    - `app.iedeoccidente.com/pollaweb/*` → `StaleWhileRevalidate` (FIFA
+      rankings + config).
+  The user-facing `CacheClearButton.svelte` (top-right in the PWA)
+  forces a full SW + Cache API reset for stale-state recovery.
 
-1. **Parse** — `src/lib/parser.js`. `parseWhatsAppExport(json)` →
-   `parseMessage(msg)` extracts up to four bet types per WhatsApp message:
-   `champion`, `runnerup`, `topscorer`, `score`. Score parsing
-   (`parseAllScoreBets`) is heuristic: flag emoji → country (`FLAG_MAP`),
-   then team-name normalization via `TEAM_ALIASES`, then pairs teams with
-   adjacent numbers across one or two lines.
-2. **State** — `src/lib/stores.svelte.js`. Svelte 5 runes; `appState` is
-   one `$state` object. Derived data are plain exported **functions**
-   (`stats()`, `filteredBets()`, `participants()`, `uniqueDates()`), not
-   `$derived` — call them in markup. `uniqueBets()` runs `betKey` +
-   `shouldReplace` to dedup overlapping score bets per (participant, match)
-   key, preferring `manuallyEdited` > higher `points` > newer. Also
-   `participantAliases` (real name → display alias) lives on `appState`
-   and is editable via `AliasModal`.
-3. **Fetch + score** — `src/lib/api.js`. Match sources: `loadMatchesFromGitHub()`
-   (openfootball `worldcup.json`, default) and `loadMatches()`
-   (football-data.org; api key fetched at runtime from
-   `https://app.iedeoccidente.com/pollaweb/config.php`, never in source).
-   Match lookup is `findMatchForBet` in `stores.svelte.js` (exact teams
-   + same date). When that returns null, `findMatchSuggestion` does a
-   Levenshtein ≤ 2 fallback (e.g. `austria`→`australia`); the suggestion
-   is attached to the bet as `suggestedMatch` and surfaced in the UI
-   with "Aplicar / Descartar" buttons. `applyMatchSuggestion` /
-   `dismissMatchSuggestion` in `stores.svelte.js` mutate the bet.
-4. **Derived stats** — `src/lib/accuracy.js` (`globalAccuracy`, `participantAccuracy`, `specialBetTallies`) and `src/lib/teamStats.js` (`teamStandingsFromMatches`) compute stats consumed by UI modals. `src/lib/fifa.js` loads FIFA rankings from a PHP endpoint with a `public/fifa_rankings.json` offline fallback.
-5. **Persistence** — Google Sheets es la única fuente de verdad. El
-   frontend **no usa `localStorage`**: cada mutación (`applyMatchSuggestion`,
-   `dismissMatchSuggestion`, `BetModal.saveChanges`, `DropZone`,
-   `AdminUploadModal`, fin de `analyzeBets`) llama a
-   `saveBetsToSheets(appState.bets)` (`src/lib/api.js`). El `php` en
-   `src/assets/save_bets.php` hace UPSERT de las 20 columnas A:T para
-   que las columnas calculadas (`status`, `points`, `real_result`,
-   `verified`, `manuallyEdited`) se persistan junto con los datos crudos.
-   Endpoints: `https://app.iedeoccidente.com/gs/{save,get,clear}_bets.php`
-   (`SHEETS_SPREADSHEET_ID` hardcoded en `api.js:9`). Aliases usan los
-   mismos endpoints con `worksheetTitle: 'alias'`.
-6. **Orchestration** — `src/App.svelte analyzeBets(useGitHub = false)`
-   (line 118). Loads matches, maps each bet through `findMatchForBet` +
-   `compareBetWithMatch`, persists via `saveBetsToSheets`, and computes
-   the winner ranking. Note: the parameter defaults to `false` but every
-   call site in `App.svelte` passes `true` — do not "fix" that to
-    `useGitHub = true` without auditing callers.
- 7. **Refresh** — `App.svelte` lee desde Sheets **una sola vez** al montar
-    vía `refreshFromSheets()`. Recargas adicionales son siempre manuales:
-    botón 🔄 en el header, opción "Recargar desde Sheets" en el menú
-    móvil, o "Reintentar" del banner rojo de solo-lectura. **No** se
-    recarga en `focus`/`visibilitychange` (cerrar modales disparaba
-    `focus` y provocaba cargas extra no deseadas). Si Sheets falla al
-    montar, se setea `appState.sheetsUnavailable` y aparece el banner
-    rojo de solo-lectura.
- 8. **Manual bets** — `src/lib/manualBets.js` exporta `MANUAL_BETS`, una
-    lista de mensajes sintéticos con la misma forma que produce un export
-    real de WhatsApp (más `synthetic: true` y `source: <nota>` para
-    trazabilidad). Cubre el caso en que el export omitió un mensaje que
-    el participante sí envió (bug conocido de WhatsApp: mensajes no
-    sincronizados al momento de exportar no salen en el JSON, pero sí
-    son visibles en la app). `parser.js → parseManualBets()` los
-    convierte en `Bet[]` con la misma pipeline que el resto. Se
-    inyectan en `App.svelte refreshFromSheets` y en
-    `DropZone.svelte handleFile` antes de asignar a `appState.bets` y
-    antes de `saveBetsToSheets`, para que siempre viajen en el payload
-    y sobrevivan re-uploads. Convención de `Message Id`:
-    `manual_<participant-snake>_<YYYY-MM-DD>_<NNN>`. Una vez persistidas
-    en Sheets (UPSERT por `id`), las apuestas manuales sobreviven aunque
-    se borre la entrada del array — el array funciona como backfill si
-    Sheets se reinicia.
- 9. **PWA email prompt** — `src/lib/components/pwa/PwaEmailPromptModal.svelte`
-    se muestra tras un cambio de contraseña exitoso (sólo aparece en el
-    primer login, cuando `mustChangePassword === true`). El step
-    `email-prompt` (en `src/lib/pwa/session.svelte.js`) se inserta
-    entre `change-password` y `form`: `completePasswordChange()` ahora
-    salta a `email-prompt` en vez de `form`; sólo cuando el modal se
-    cierra (`completeEmailPrompt()`) se avanza a `form`. El modal
-    ofrece dos botones iniciales: **"Sí, quiero notificaciones"** y
-    **"No, gracias"**. Si elige sí, aparece un input con validación en
-    vivo (`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`) y se llama a
-    `savePwaEmail()` (`src/lib/api.js`) que hace POST a
-    `https://app.iedeoccidente.com/gs/save_pwa_email.php`. El email se
-    guarda en la **columna E** de la hoja `participantes` (mismo
-    spreadsheet, header `email`); un string vacío lo borra. La columna
-    E es opcional — el resto de los endpoints que leen la hoja
-    (`login_pwa.php`, `change_pwa_password.php`, `save_pwa_bet.php`,
-    `get_pwa_bets.php`) ya usan el rango `A2:E1000` de forma
-    retrocompatible. El modal se descarta con la X, con Escape o con
-    "Omitir" — el email queda simplemente en blanco.
+## Scoring reference
+
+| Status     | Points | Notes                            |
+|------------|--------|----------------------------------|
+| `exact`    | 5      | same score                       |
+| `correct`  | 3      | winner correct (sign of diff)    |
+| `incorrect`| 0      |                                  |
+| `pending`  | 0      | match not finished / not found   |
+
+There is **no 2-point tier**. The `ResultsModal.svelte` has a dead
+"Empates (2pt)" filter (`b.points === 2`) that never matches; do not
+add one. Archived component — only relevant as historical reference.
 
 ## Conventions
 
-- Svelte 5 runes throughout: `$state`, `$derived`, callback props
-  (`onClose`, `onSelectBet`) instead of `createEventDispatcher`,
-  `onclick={...}` attributes.
+- Svelte 5 runes throughout: `$state`, `$derived`, `$derived.by`,
+  callback props (`onClose`, `onSelectBet`) instead of
+  `createEventDispatcher`, `onclick={...}` attributes.
 - Types via JSDoc `@typedef` in `src/lib/types.js`; reference as
-  `/** @type {import('./types.js').Bet} */`.
-- Router: `svelte-spa-router` (hash-based). Actualmente el router está
-  en `src/App.svelte` pero es trivial (un `if/else` que redirige a la
-  PWA). La lógica real vive en `pwaSession.step` (Svelte 5 runes) y
-  `PwaApp.svelte`.
-- Heavy `console.log` debug output is left in `parser.js`, `api.js`, and
-  `PwaApp.svelte` for match-debugging — do not strip without a reason.
+  `/** @type {import('./types.js').Bet} */`. `parser2.js` is a
+  `// @ts-nocheck` dead-code draft — never edit it for behavior changes.
+- Heavy `console.log` is intentionally left in `parser.js`, `api.js`,
+  and `PwaApp.svelte` for live match debugging. Don't strip without
+  a reason.
+- `polla.json` is the sample WhatsApp export used by ~all smoke tests.
+- **Pre-match password gate** in `PwaTodayBets` and `PwaShareBets`:
+  from 00:00 COT of a day with matches until **1 minute before the
+  first COT match of the day**, both views ask for the hardcoded
+  password `PREMATCH_PASSWORD` in `src/lib/pwa/prematchGuard.js`
+  (currently `"polla2026"`). The cutoff (`PREMATCH_BUFFER_MS = 60_000`)
+  coincides with `computeWindowState`'s `closeAt` in `window.js:127` —
+  the betting window and the password gate close at the same instant.
+  The flag is **computed centrally in `PwaApp.svelte`** (which holds
+  the only reference to `rawMatches` — the full openfootball list) and
+  passed down as `preMatchInfo = { required, firstMatchHHMM }`. Do
+  **not** recompute it in the components and do **not** pass
+  `pwaNormalizedMatches` for this purpose — that array is filtered to
+  only finished matches, so on a day with no completed games yet it
+  has zero entries for `today` and the gate would never activate.
+  The unlock is **not persisted** — every mount of the page / modal
+  starts locked. The gate is UX-only (avoid leaking bets before
+  kickoff); anyone with the URL can read Sheets directly.
+- **Botón "Pendientes"** (`PwaMissingBetsButton.svelte`): flotante a la
+  izquierda del de "Borrar cache" (ambos viven en un wrapper flex
+  `fixed top-3 right-3 z-50` en `PwaApp.svelte`). Muestra los
+  participantes que NO tienen apuesta de tipo `score` con
+  `matchDate === todayDate`. La lista de "todos los participantes" se
+  deriva de los nombres únicos en `pwaScoredBets` — **NO incluye** a
+  quien se registró en la hoja `participantes` y nunca apostó. El
+  modal trae un `<textarea>` editable con el texto pre-armado para
+  notificar por WhatsApp + botón copiar (mismo patrón que
+  `PwaShareBets`). El botón muestra un badge con el conteo: amber
+  para "faltan N", verde para "todos al día".
+- The `parser.js` champion/runner-up flag regex (lines 413, 441) only
+  lists the original 28 flags. Adding a new country requires updating
+  `FLAG_MAP` (parser.js), `TEAM_ALIASES`, the regex, `TEAM_TO_ISO` in
+  `src/lib/flags.js`, and `public/countries.json` (URL, emoji, Spanish
+  name). `parser2.js` also has its own `FLAG_MAP` — keep it in sync
+  (or just delete it) if you touch flags.
+- `dev-dist/`, `dist/`, `consola.log`, `dev-stdout.log`, `dev-stderr.log`
+  are debug outputs (the `dev-*` come from `vite dev`); `node_modules/`
+  is in `.gitignore` (standard Vite template). The root also has
+  committed dev artifacts: `aexpt.json`, `apolla.json`, `at.json`,
+  `nuevot.json`, `polla.json`, `pollat.json`, `polla_clean.json`,
+  `yohn_alcaraz.json`, `apuestas_seed.csv`, `apuestas_pending.csv`,
+  `ew.txt`, `cruces-no-calificables.md`, plus the build/merge scripts
+  `build_apuestas_csv.mjs`, `build_nuevot.mjs`, `export_clean_*.mjs`.
+  Treat them as project data; don't `git rm` without asking.
 
-## Estado de mantenimiento (jun-2026)
+## Setup
 
-- **PWA (`src/lib/components/pwa/`, `src/lib/pwa/`, endpoints PWA en
-  `src/lib/api.js`):** ÚNICA app activa. Todo desarrollo nuevo va acá.
-- **App principal (`src/App.svelte` + archivos renombrados a
-  `src/lib/components/_archived_*.svelte`):** APAGADA. No se desarrolla,
-  no se fixea, no se deploya por cambios acá. `src/App.svelte` es ahora
-  un redirector puro a `/#/apostar` (mantiene solo el service worker
-  para que `ReloadPrompt` siga funcionando). Los archivos `_*_archived_*`
-  quedan en repo por histórico; no están en el bundle (excluidos del
-  tsconfig) y nada los importa.
-- **Hojas de Sheets:** `datos` (legacy, no se escribe más) y `apuestas`
-  (PWA, fuente de verdad única). NO eliminar `datos` — queda como
-  histórico.
-- **Entry point único:** `https://<host>/#/apostar`. Cualquier otro hash
-  (`/`, `#/ranking`, `#/participant/<nombre>`, etc.) redirige ahí vía
-  `redirectToPwa()` en `src/App.svelte`.
-- **Cálculos:** 100% desde openfootball (`worldcup.json`) en
-  `PwaApp.svelte load()`. `appState.bets` (WhatsApp legacy) ya no se
-  carga en ningún lado del código activo.
-- **Deploys:** `npm run deploy` se justifica sólo por cambios en PWA,
-  endpoints PWA en `api.js`, o `src/App.svelte` (redirector).
+- Node 20+. `npm install` is enough to get a working dev environment.
+- Dev: `npm run dev` → `http://localhost:5173`. The PWA detects
+  `localhost` / `127.0.0.1` via `isDev` in `PwaApp.svelte` and runs
+  `buildDevState()`: it **fabricates an "open" window using the closest
+  COT day with matches** (past or future) and sets `pwaSession.date` to
+  that day, ignoring the real clock. This means you can develop against
+  any matchday in `worldcup.json` without waiting for it. `getPwaBets` /
+  `savePwaBet` skip auth in dev via the `dev: true` flag in the payload.
+- `football-data.org` key is fetched at runtime from
+  `https://app.iedeoccidente.com/pollaweb/config.php` and cached in
+  memory (`getConfig()` in `api.js`). Only `loadMatches()` uses it, and
+  the PWA uses `loadWorldCupMatches` from openfootball instead — this
+  key is only relevant for the archived path.
+- Refrescar ranking FIFA (mensual): abrir
+  `https://app.iedeoccidente.com/gs/fetch_fifa_rankings.php`, pegar la
+  tabla de `https://www.fifa.com/es/world-rankings` y guardar. Cacheado
+  en el host (`gs/fifa_cache.json`); `loadFifaRankings()` en
+  `src/lib/fifa.js` lo consume. `public/fifa_rankings.json` queda como
+  fallback offline.
 
-## Gotchas
+## Gotchas (PWA-active ones)
 
-- **Single canonical team-alias map** lives in `parser.js`
-  (`TEAM_ALIASES`, `normalizeTeamName`). `api.js`, `flags.js`, and
-  `stores.svelte.js` all import `normalizeTeamName` from there. Add new
-  teams there only, and keep it idempotent:
-  `normalizeTeamName(canonical) === canonical` for every openfootball name
-  (`Czech Republic`, `USA`, `Bosnia & Herzegovina`, `Curaçao`, …).
-- **`src/lib/parser2.js` is dead code** (`// @ts-nocheck`, not imported
-  anywhere in `src/`). It is an alternate parser draft — edit `parser.js`
-  for real changes.
-- **CLAUDE.md and GEMINI.md are stale** (they were copied from an older
-  state and still claim the Vite base is `/polla2026/`; it is actually
-  `/polla/`). Prefer this file.
-- **Three flag/alias maps diverge** and must be kept in sync when adding
-  a country: `parser.js` `FLAG_MAP` (parser-time emoji lookup),
-  `parser2.js` `FLAG_MAP` (dead, but has the `🇨🇱 = Chile` fix), and
-  `flags.js` `TEAM_TO_ISO` (display). Display data (URL, emoji, Spanish
-  name) comes from `public/countries.json`.
-- **Vite base path is `'/polla/'`** (`vite.config.ts:7`). It was
+- **Vite base path is `'/polla/'`** (`vite.config.ts:13`). It was
   `/pollawebsv/` until commit `ac11324`; `npm run deploy` publishes to
   the gh-pages branch of the current repo, so the base must match the
-  GitHub Pages URL (`<user>.github.io/<repo>/`). The `.claude/settings.local.json`
-  history references `pollawebsv` — confirm the deploy target before
-  publishing.
-- **PHP files in `src/assets/`** are not part of the Vite build. They are
-  deployed manually and need `vendor/` (Google Sheets PHP SDK) plus
-  `assets/serviceaccount.json` (service-account key, not in repo) on the
-  server. The `*_horas_extras.php` files belong to an unrelated app
-  sharing the same host — leave them alone.
+  GitHub Pages URL (`<user>.github.io/<repo>/`). `CLAUDE.md` and
+  `GEMINI.md` are stale (still claim the old base) — trust this file.
+- **Single canonical team-alias map** lives in `parser.js`
+  (`TEAM_ALIASES`, `normalizeTeamName`). `api.js`, `flags.js`, and
+  `stores.svelte.js` import `normalizeTeamName` from there. Add new
+  teams there only. `normalizeTeamName(canonical) === canonical` for
+  every openfootball name (`Czech Republic`, `USA`, `Bosnia &
+  Herzegovina`, `Curaçao`, …) — verify after editing.
+- **Three flag/alias maps diverge**: `parser.js` `FLAG_MAP` (parser-time
+  emoji lookup), `parser2.js` `FLAG_MAP` (dead but has the 🇨🇱 = Chile
+  fix), and `flags.js` `TEAM_TO_ISO` (display). Keep in sync.
 - **`computeWindowState` siempre toma el partido MÁS TEMPRANO en COT de
   cada día**, no el primero del array de openfootball. El JSON viene
   ordenado por estadio/grupo, NO por hora COT — el 2026-06-22 listaba
@@ -224,6 +259,18 @@ is dead UI, do not add a 2-pt tier.
   12:00 COT). El entry del Map en `src/lib/pwa/window.js` incluye
   `firstMatchUtcMs` para comparar al iterar. Cubierto por
   `test_window.mjs` caso 6 (regresión).
-- **`cruces-no-calificables.md`** in the repo root is a one-off parser
-  smoke-test report (manually checked on `polla.json`); not part of the
-  app. **`consola.log`** is untracked debug stdout; do not commit.
+- **PHP files in `src/assets/`** are not part of the Vite build. They
+  are deployed manually. The `*_horas_extras.php` files in
+  `src/assets/` belong to an unrelated app sharing the same host — leave
+  them alone.
+- **`useRegisterSW` is registered at `App.svelte`, not `PwaApp.svelte`**
+  — that's intentional. `PwaApp.svelte` consumes the store via props
+  (`needRefresh`, `offlineReady`, `updateServiceWorker`) so `ReloadPrompt`
+  sees them without re-registering. Don't move the registration.
+
+## Other instruction files (deprioritize)
+
+- `CLAUDE.md` and `GEMINI.md` are stale copies from a prior state; the
+  Vite base path in them is wrong. Prefer this file.
+- `cruces-no-calificables.md` is a one-off parser smoke-test report
+  (manually checked on `polla.json`); not part of the app.

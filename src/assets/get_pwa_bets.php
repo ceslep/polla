@@ -131,7 +131,7 @@ try {
     $spreadsheetId = $data['spreadsheetId'];
     $username = trim($data['username']);
     $password = trim($data['password']);
-    $dev = $data['dev'] === true;
+    $dev = ($data['dev'] ?? false) === true;
     $filterDate = isset($data['matchDate']) ? trim($data['matchDate']) : null;
 
     $client = new Client();

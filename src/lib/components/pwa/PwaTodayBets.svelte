@@ -1,15 +1,53 @@
 <script>
     import { getFlagData } from '../../flags.js';
+    import { PREMATCH_PASSWORD } from '../../pwa/prematchGuard.js';
 
     /**
      * @type {{
      *   bets?: any[],
      *   matches?: any[],
      *   todayDate?: string,
+     *   preMatchInfo?: { required: boolean, firstMatchHHMM: string | null },
      *   onBack: () => void
      * }}
      */
-    let { bets = [], matches = [], todayDate = '', onBack } = $props();
+    let {
+        bets = [],
+        matches = [],
+        todayDate = '',
+        preMatchInfo = { required: false, firstMatchHHMM: null },
+        onBack
+    } = $props();
+
+    // ---- Pre-match password gate ----------------------------------------
+    // El flag `preMatchInfo.required` se calcula en PwaApp (única fuente
+    // de verdad de `rawMatches` + reloj). Acá solo guardamos el estado
+    // de UI (input, error, desbloqueo).
+
+    /** @type {string} */
+    let passwordInput = $state('');
+    /** @type {string} */
+    let passwordError = $state('');
+    /** Sin persistencia: al desmontar el componente se olvida. */
+    let isUnlocked = $state(false);
+
+    const requiresPassword = $derived(preMatchInfo.required && !isUnlocked);
+
+    function checkPassword() {
+        if (passwordInput === PREMATCH_PASSWORD) {
+            isUnlocked = true;
+            passwordError = '';
+            passwordInput = '';
+        } else {
+            passwordError = 'Clave incorrecta';
+        }
+    }
+
+    /** @param {SubmitEvent} e */
+    function handlePasswordSubmit(e) {
+        e.preventDefault();
+        checkPassword();
+    }
 
     // ---- Filtros y búsqueda (estado UI) ---------------------------------
 
@@ -191,9 +229,49 @@
             </div>
         </div>
 
-        <div class="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4 text-center px-2">
-            Solo lectura — no requiere iniciar sesión.
-        </div>
+        {#if requiresPassword}
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-6 sm:p-8 mb-4">
+                <div class="text-5xl mb-3 text-center">🔒</div>
+                <h3 class="text-lg sm:text-xl font-bold text-white mb-2 text-center">Apuestas del día bloqueadas</h3>
+                {#if preMatchInfo.firstMatchHHMM}
+                    <p class="text-sm text-gray-400 mb-4 sm:mb-6 text-center">
+                        Los partidos de hoy ({todayDate}) inician a las
+                        <span class="text-cyan-300 font-mono">{preMatchInfo.firstMatchHHMM}</span>
+                        (hora Colombia). La clave se desactiva 1 minuto antes.
+                    </p>
+                {:else}
+                    <p class="text-sm text-gray-400 mb-4 sm:mb-6 text-center">
+                        Ingresa la clave para ver las apuestas del día ({todayDate}) antes de que empiecen los partidos.
+                    </p>
+                {/if}
+                <form onsubmit={handlePasswordSubmit} class="space-y-3 sm:space-y-4">
+                    <input
+                        type="password"
+                        bind:value={passwordInput}
+                        placeholder="Clave"
+                        autocomplete="off"
+                        class="w-full bg-white/5 border-2 border-white/10 focus:border-cyan-500/60 focus:bg-white/[0.07] rounded-2xl px-4 py-3 text-base text-white placeholder-gray-500 outline-none transition-all text-center tracking-widest"
+                    />
+                    {#if passwordError}
+                        <p class="text-red-400 text-sm text-center">{passwordError}</p>
+                    {/if}
+                    <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                        <button
+                            type="button"
+                            class="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white font-bold transition-all min-h-12"
+                            onclick={onBack}
+                        >← Volver</button>
+                        <button
+                            type="submit"
+                            class="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold transition-all min-h-12 shadow-lg shadow-emerald-500/30"
+                        >Entrar →</button>
+                    </div>
+                </form>
+            </div>
+        {:else}
+            <div class="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4 text-center px-2">
+                Solo lectura — no requiere iniciar sesión.
+            </div>
 
         <!-- Barra de búsqueda + filtros -->
         <div class="mb-3 sm:mb-4 space-y-2 sm:space-y-2.5">
@@ -407,6 +485,7 @@
                     </div>
                 {/each}
             </div>
+        {/if}
         {/if}
     </div>
 </div>

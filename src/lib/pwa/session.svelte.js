@@ -12,6 +12,7 @@
 const SESSION_KEY = 'pwaSession';
 const TOUR_KEY = 'pwaSeenTour';
 const INTRO_KEY = 'pwaSeenIntro';
+const GOAL_KEY_PREFIX = 'pwaSeenGoal_';
 
 const COT_TZ = 'America/Bogota';
 
@@ -120,6 +121,63 @@ export function markPwaIntroSeen() {
 export function resetPwaIntro() {
     try {
         sessionStorage.removeItem(INTRO_KEY);
+    } catch {
+        // ignorar
+    }
+}
+
+/**
+ * ¿Ya se mostró la animación del gol Three.js para este step en esta
+ * pestaña? Persistido en sessionStorage con clave por step
+ * (`pwaSeenGoal_ranking`, `pwaSeenGoal_today-bets`). Una vez por sesión
+ * por step; cerrar y abrir la pestaña lo vuelve a mostrar.
+ *
+ * Mismo patrón defensivo que `hasSeenPwaIntro` / `hasSeenPwaTour`:
+ * cualquier error de lectura devuelve `false` (default seguro =
+ * mostrar).
+ *
+ * @param {string} step
+ * @returns {boolean}
+ */
+export function hasSeenGoal(/** @type {string} */ step) {
+    if (!step) return false;
+    try {
+        return sessionStorage.getItem(GOAL_KEY_PREFIX + step) === '1';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Marca la animación del gol como vista para este step. Idempotente.
+ * Lo llama PwaGoalOverlay cuando termina su animación y se desmonta.
+ * @param {string} step
+ */
+export function markGoalSeen(/** @type {string} */ step) {
+    if (!step) return;
+    try {
+        sessionStorage.setItem(GOAL_KEY_PREFIX + step, '1');
+    } catch {
+        // sessionStorage puede fallar en modo privado de Safari; ignorar
+    }
+}
+
+/**
+ * Resetea los flags de la animación del gol para un step específico
+ * (o para todos si no se pasa step). Útil para testing o para
+ * "ver de nuevo" desde la consola del navegador.
+ * @param {string} [step]
+ */
+export function resetGoalSeen(/** @type {string} */ step) {
+    try {
+        if (step) {
+            sessionStorage.removeItem(GOAL_KEY_PREFIX + step);
+        } else {
+            // Limpiar todos los prefijos conocidos.
+            for (const s of ['ranking', 'today-bets']) {
+                sessionStorage.removeItem(GOAL_KEY_PREFIX + s);
+            }
+        }
     } catch {
         // ignorar
     }

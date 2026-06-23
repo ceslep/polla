@@ -3,8 +3,18 @@
     import { getPwaBets } from '../../api.js';
     import { getFlagData } from '../../flags.js';
 
-    /** @type {{ date: string, savedCount: number, infoMessage?: string, isDev?: boolean }} */
-    let { date, savedCount, infoMessage = '', isDev = false } = $props();
+    /**
+     * @type {{
+     *   date: string,
+     *   savedCount: number,
+     *   infoMessage?: string,
+     *   isDev?: boolean,
+     *   mode?: 'success' | 'already-submitted'
+     * }}
+     */
+    let { date, savedCount, infoMessage = '', isDev = false, mode = 'success' } = $props();
+
+    const isAlreadySubmitted = $derived(mode === 'already-submitted');
 
     let loading = $state(false);
     /** @type {Array<any>} */
@@ -61,25 +71,39 @@
         style="background: radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.30), transparent 60%), radial-gradient(circle at 50% 100%, rgba(251, 191, 36, 0.15), transparent 60%);"
     ></div>
 
-    <!-- Confetti -->
-    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        {#each confetti as c}
-            <div
-                class="absolute w-2 h-3 rounded-sm"
-                style="left: {c.left}%; top: -5%; background: {c.color}; animation: confetti-fall {c.duration}s linear {c.delay}s forwards; transform-origin: center;"
-            ></div>
-        {/each}
-    </div>
+    <!-- Confetti (solo en modo éxito: tras enviar recién. En 'already-submitted'
+         no tiene sentido celebrar otra vez.) -->
+    {#if !isAlreadySubmitted}
+        <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+            {#each confetti as c}
+                <div
+                    class="absolute w-2 h-3 rounded-sm"
+                    style="left: {c.left}%; top: -5%; background: {c.color}; animation: confetti-fall {c.duration}s linear {c.delay}s forwards; transform-origin: center;"
+                ></div>
+            {/each}
+        </div>
+    {/if}
 
     <div class="w-full max-w-2xl relative animate-fade-in">
         <div class="text-center mb-6 pt-6">
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/20 ring-2 ring-emerald-500/40 mb-4 animate-pulse-ring">
-                <span class="text-5xl">✅</span>
-            </div>
-            <h2 class="text-3xl md:text-4xl font-black text-emerald-400 mb-2">¡Apuestas registradas!</h2>
-            <p class="text-gray-300">
-                {savedCount} marcador{savedCount !== 1 ? 'es' : ''} enviado{savedCount !== 1 ? 's' : ''} {isDev ? '(simulado)' : `para el ${date}`}
-            </p>
+            {#if isAlreadySubmitted}
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-cyan-500/20 ring-2 ring-cyan-500/40 mb-4 animate-pulse-ring">
+                    <span class="text-5xl">🔒</span>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-black text-white mb-2">Ya enviaste tus apuestas</h2>
+                <p class="text-gray-300">
+                    Tus marcadores de hoy son <strong class="text-cyan-300">inmutables</strong>. Esta es tu apuesta guardada
+                    {isDev ? '(simulado)' : `para el ${date}`}.
+                </p>
+            {:else}
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/20 ring-2 ring-emerald-500/40 mb-4 animate-pulse-ring">
+                    <span class="text-5xl">✅</span>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-black text-emerald-400 mb-2">¡Apuestas registradas!</h2>
+                <p class="text-gray-300">
+                    {savedCount} marcador{savedCount !== 1 ? 'es' : ''} enviado{savedCount !== 1 ? 's' : ''} {isDev ? '(simulado)' : `para el ${date}`}
+                </p>
+            {/if}
         </div>
 
         {#if isDev}

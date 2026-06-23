@@ -59,6 +59,15 @@ if (php_sapi_name() !== 'cli') {
 use Google\Client;
 use Google\Service\Sheets;
 use Google\Service\Sheets\ValueRange;
+
+// PHPMailer: el `vendor/` del host solo tiene el Google client (Composer no
+// instaló PHPMailer). Lo cargamos igual que `solicitarCodigo2.php` desde la
+// carpeta `phpmailer/src/` que ya vive en el host. `require_once` es
+// idempotente, así que si en el futuro se añade por Composer no duplica.
+require_once __DIR__ . '/phpmailer/src/Exception.php';
+require_once __DIR__ . '/phpmailer/src/PHPMailer.php';
+require_once __DIR__ . '/phpmailer/src/SMTP.php';
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -695,8 +704,8 @@ function renderEmail(string $name, int $rank, int $points, int $exact, int $corr
 // ══════════════════════════════════════════════════════════════════════════════
 
 function sendEmail(string $toEmail, string $toName, string $subject, string $html): array {
-    $mail = new PHPMailer(true);
     try {
+        $mail = new PHPMailer(true);
         $mail->isSMTP();
         $mail->SMTPDebug   = 0;
         $mail->Debugoutput = 'echo';

@@ -4,8 +4,24 @@
     import PwaShareBets from './PwaShareBets.svelte';
     import GoalsAnalysisModal from './GoalsAnalysisModal.svelte';
 
-    /** @type {{ state: any, isDev?: boolean, devTestDate?: string, bets?: any[], todayDate?: string }} */
-    let { state: windowState, isDev = false, devTestDate = '', bets = [], todayDate = '' } = $props();
+    /**
+     * @type {{
+     *   state: any,
+     *   isDev?: boolean,
+     *   devTestDate?: string,
+     *   bets?: any[],
+     *   preMatchInfo?: { required: boolean, firstMatchHHMM: string | null },
+     *   todayDate?: string
+     * }}
+     */
+    let {
+        state: windowState,
+        isDev = false,
+        devTestDate = '',
+        bets = [],
+        preMatchInfo = { required: false, firstMatchHHMM: null },
+        todayDate = ''
+    } = $props();
 
     const installState = getInstallState();
 
@@ -423,7 +439,7 @@
 
     <!-- Modal: mensaje para WhatsApp (genera texto de apuestas del día) -->
     {#if showShareModal}
-        <PwaShareBets {bets} {todayDate} onClose={() => showShareModal = false} />
+        <PwaShareBets {bets} {todayDate} {preMatchInfo} onClose={() => showShareModal = false} />
     {/if}
 
     <!-- Modal: análisis de goles -->
