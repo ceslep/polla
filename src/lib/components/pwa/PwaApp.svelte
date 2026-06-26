@@ -108,9 +108,12 @@
     /** @type {PwaAppProps} */
     let { isDev: isDevProp = undefined, needRefresh, offlineReady, updateServiceWorker } = $props();
     const isDev = $derived(isDevProp !== undefined ? isDevProp : (
-        (import.meta?.env?.DEV === true) ||
-        (typeof window !== 'undefined' &&
-            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+        (import.meta?.env?.VITE_PWA_DISABLE_DEV !== 'true') &&
+        (
+            (import.meta?.env?.DEV === true) ||
+            (typeof window !== 'undefined' &&
+                (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+        )
     ));
 
     /**

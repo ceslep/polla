@@ -26,6 +26,7 @@ that reads/writes Google Sheets. UI strings are Spanish.
 
 ```bash
 npm run dev        # Vite dev (default :5173). PWA SW enabled in dev.
+npm run dev:real   # Vite dev with PWA dev mode OFF (real auth/window/state).
 npm run build      # production build → dist/
 npm run preview    # serve dist/
 npm run check      # svelte-check + tsc (validates JSDoc) — run before commit
@@ -266,6 +267,10 @@ add one. Archived component — only relevant as historical reference.
   that day, ignoring the real clock. This means you can develop against
   any matchday in `worldcup.json` without waiting for it. `getPwaBets` /
   `savePwaBet` skip auth in dev via the `dev: true` flag in the payload.
+- `npm run dev:real` starts the same Vite dev server but sets
+  `VITE_PWA_DISABLE_DEV=true`, forcing `isDev = false` in `PwaApp.svelte`.
+  Use it to test real auth, the real match-day window, and re-entry guard
+  behavior from `localhost`.
 - `football-data.org` key is fetched at runtime from
   `https://app.iedeoccidente.com/pollaweb/config.php` and cached in
   memory (`getConfig()` in `api.js`). Only `loadMatches()` uses it, and
