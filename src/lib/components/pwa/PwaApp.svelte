@@ -19,6 +19,7 @@
     import PwaRootPanel from './PwaRootPanel.svelte';
     import ReloadPrompt from './ReloadPrompt.svelte';
     import CacheClearButton from './CacheClearButton.svelte';
+    import PwaInstallButton from './PwaInstallButton.svelte';
     import PwaMissingBetsButton from './PwaMissingBetsButton.svelte';
     import PwaWorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
     import PwaMovementModal from './PwaMovementModal.svelte';
@@ -761,13 +762,14 @@
 
 <!-- Botones flotantes del header (top-right). El wrapper flex mantiene
      el orden visual: primero "Pendientes" (a la izquierda), después
-     "Borrar cache" (a la derecha, igual que antes). -->
+     "Instalar" y "Borrar cache" (a la derecha). -->
 <div class="fixed top-3 right-3 z-50 flex items-center gap-2">
     <PwaMissingBetsButton
         bets={pwaScoredBets}
         {todayDate}
         firstMatchHHMM={preMatchInfo.firstMatchHHMM}
     />
+    <PwaInstallButton />
     <CacheClearButton />
 </div>
 

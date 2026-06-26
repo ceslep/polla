@@ -1,6 +1,6 @@
 <script>
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
-    import { promptInstall, dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
+    import { dismissIosHint, getInstallState } from '../../pwa/install.svelte.js';
     import PwaShareBets from './PwaShareBets.svelte';
     import GoalsAnalysisModal from './GoalsAnalysisModal.svelte';
     import UpdateToast from './UpdateToast.svelte';
@@ -64,10 +64,6 @@
         setStep('login');
     }
 
-    function goTutorial() {
-        setStep('tutorial');
-    }
-
     function goShare() {
         showShareModal = true;
     }
@@ -125,6 +121,86 @@
     function closeToast() {
         toastMessage = '';
     }
+
+    // ---- Countdown elegante hasta apertura/cierre de ventana -----------
+
+    const COT_TZ = 'America/Bogota';
+
+    /** @param {number} n */
+    function pad2(n) {
+        return String(n).padStart(2, '0');
+    }
+
+    /** @param {number} ms */
+    function formatCountdown(ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return '00:00:00';
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
+    }
+
+    /** @param {string|null|undefined} iso */
+    function formatCotDateTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const fmtDate = new Intl.DateTimeFormat('es-CO', {
+            timeZone: COT_TZ, day: 'numeric', month: 'short'
+        });
+        const fmtTime = new Intl.DateTimeFormat('en-GB', {
+            timeZone: COT_TZ, hour: '2-digit', minute: '2-digit', hour12: false
+        });
+        return `${fmtDate.format(d)} · ${fmtTime.format(d)}`;
+    }
+
+    function resolveCountdownTarget() {
+        if (windowState?.status === 'open') return windowState.closeAt;
+        if (windowState?.status === 'closed') return windowState.nextOpenAt;
+        if (windowState?.status === 'upcoming') return windowState.openAt;
+        return null;
+    }
+
+    const countdownTarget = $derived.by(() => {
+        if (windowState?.status === 'open') return windowState.closeAt;
+        if (windowState?.status === 'closed') return windowState.nextOpenAt;
+        if (windowState?.status === 'upcoming') return windowState.openAt;
+        return null;
+    });
+
+    const countdownMeta = $derived.by(() => {
+        if (windowState?.status === 'open') {
+            return {
+                label: 'La ventana cierra en',
+                dotColor: 'bg-emerald-400',
+                borderClass: 'from-emerald-500 to-cyan-500',
+                digitClass: 'text-emerald-400'
+            };
+        }
+        return {
+            label: 'La ventana abre en',
+            dotColor: 'bg-red-400',
+            borderClass: 'from-red-500 to-orange-500',
+            digitClass: 'text-red-400'
+        };
+    });
+
+    let countdownText = $state(formatCountdown(new Date(resolveCountdownTarget() || 0).getTime() - Date.now()));
+
+    $effect(() => {
+        const target = countdownTarget;
+        if (!target) {
+            countdownText = '';
+            return;
+        }
+        const targetMs = new Date(target).getTime();
+        function tick() {
+            countdownText = formatCountdown(targetMs - Date.now());
+        }
+        tick();
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
+    });
 </script>
 
 <div class="min-h-screen relative overflow-hidden flex flex-col items-center text-white p-4 md:p-8">
@@ -186,22 +262,44 @@
             {/if}
         </div>
 
-        <div class="space-y-3">
-            <!-- Tutorial (público, sin login) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goTutorial}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">📖</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">¿Cómo funciona?</div>
-                        <div class="text-xs text-gray-400">Tutorial paso a paso</div>
+        <!-- Countdown elegante -->
+        {#if countdownTarget && countdownText}
+            {@const meta = countdownMeta}
+            {@const targetCot = formatCotDateTime(countdownTarget)}
+            <div class="mb-6" aria-live="polite">
+                <div class="glass-strong rounded-3xl overflow-hidden">
+                    <div class="h-1 bg-gradient-to-r {meta.borderClass}"></div>
+                    <div class="p-3 text-center">
+                        <div class="flex items-center justify-center gap-1.5 mb-2">
+                            <span class="w-1 h-1 rounded-full {meta.dotColor} animate-pulse"></span>
+                            <span class="text-[9px] uppercase tracking-[0.15em] text-gray-400 font-semibold">{meta.label}</span>
+                        </div>
+                        <div class="flex items-center justify-center gap-1 md:gap-1.5 font-mono tabular-nums">
+                            {#each countdownText.split(':') as part, i}
+                                <div class="flex flex-col items-center">
+                                    <div class="glass rounded-lg min-w-[2.25rem] md:min-w-[2.75rem] px-1 py-1 md:py-1.5">
+                                        <span class="text-xl md:text-2xl font-black {meta.digitClass}">{part}</span>
+                                    </div>
+                                    <span class="mt-1 text-[8px] uppercase tracking-widest text-gray-500">
+                                        {i === 0 ? 'Hrs' : i === 1 ? 'Min' : 'Seg'}
+                                    </span>
+                                </div>
+                                {#if i < 2}
+                                    <span class="text-sm md:text-base font-black {meta.digitClass} self-start mt-1 md:mt-1.5 animate-pulse">:</span>
+                                {/if}
+                            {/each}
+                        </div>
+                        {#if targetCot}
+                            <div class="mt-2 text-[9px] text-gray-500">
+                                {windowState?.status === 'open' ? 'Cierra' : 'Abre'} el <span class="font-medium text-gray-400">{targetCot}</span> (hora Colombia)
+                            </div>
+                        {/if}
                     </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
                 </div>
-            </button>
+            </div>
+        {/if}
 
+        <div class="space-y-3">
             <!-- Ver ranking (público) -->
             <button
                 class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
@@ -337,9 +435,6 @@
         </div>
 
         <div class="text-center mt-8 space-y-2">
-            <a href="#/" class="text-gray-500 hover:text-gray-300 text-sm underline block">
-                ← Volver a la app principal
-            </a>
             {#if !installState.installed}
                 <button
                     type="button"
@@ -363,19 +458,6 @@
 
     <!-- Toast de feedback de la verificación manual -->
     <UpdateToast message={toastMessage} variant={toastVariant} onClose={closeToast} />
-
-    <!-- Botón flotante: instalar PWA (Chrome/Edge/Desktop) -->
-    {#if installState.canShowNative && !installState.installed}
-        <button
-            type="button"
-            class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-2xl text-white font-bold shadow-2xl shadow-emerald-500/40 animate-slide-up flex items-center gap-2 max-w-[calc(100vw-2rem)]"
-            onclick={promptInstall}
-            aria-label="Instalar la app en tu dispositivo"
-        >
-            <span class="text-xl">📲</span>
-            <span>Instalar app</span>
-        </button>
-    {/if}
 
     <!-- Modal iOS: instrucciones manuales (Safari no expone beforeinstallprompt) -->
     {#if installState.isIos && !installState.installed && !installState.iosDismissed}
