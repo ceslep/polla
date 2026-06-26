@@ -23,6 +23,7 @@
     import PwaMissingBetsButton from './PwaMissingBetsButton.svelte';
     import PwaWorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
     import PwaMovementModal from './PwaMovementModal.svelte';
+    import PwaSquadsModal from './PwaSquadsModal.svelte';
     import PwaIntro from './PwaIntro.svelte';
     import PwaGoalOverlay from './PwaGoalOverlay.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
@@ -213,6 +214,8 @@
      *  al panel). */
     /** @type {{name: string, phone: string} | null} */
     let rootTarget = $state(/** @type {any} */ (null));
+    /** Controla la visibilidad del modal de plantillas. */
+    let showSquadsModal = $state(false);
 
     /**
      * En dev mode, override de fecha: la PWA simula "hoy" (en COT) para
@@ -695,7 +698,7 @@
         </button>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
@@ -754,11 +757,15 @@
         />
     </div>
 {:else}
-    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} />
+    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} />
 {/if}
 
 <!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->
 <ReloadPrompt {needRefresh} {offlineReady} {updateServiceWorker} />
+
+{#if showSquadsModal}
+    <PwaSquadsModal onClose={() => showSquadsModal = false} />
+{/if}
 
 <!-- Botones flotantes del header (top-right). El wrapper flex mantiene
      el orden visual: primero "Pendientes" (a la izquierda), después

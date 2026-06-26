@@ -16,6 +16,7 @@
      * @property {string} [todayDate]
      * @property {BoolStore} [needRefresh]   - store de useRegisterSW (App.svelte)
      * @property {BoolStore} [offlineReady] - store de useRegisterSW (App.svelte)
+     * @property {() => void} [onSquads]
      */
     /** @type {Props} */
     let {
@@ -26,7 +27,8 @@
         preMatchInfo = { required: false, firstMatchHHMM: null },
         todayDate = '',
         needRefresh,
-        offlineReady
+        offlineReady,
+        onSquads = () => {}
     } = $props();
 
     const installState = getInstallState();
@@ -57,6 +59,10 @@
 
     function goMovement() {
         setStep('movement');
+    }
+
+    function goSquads() {
+        onSquads();
     }
 
     function goBet() {
@@ -394,6 +400,21 @@
                     <div class="flex-1">
                         <div class="font-black text-lg">Movimiento de puestos</div>
                         <div class="text-xs text-gray-400">Quiénes subieron y bajaron</div>
+                    </div>
+                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
+                </div>
+            </button>
+
+            <!-- Plantillas de equipos (público) -->
+            <button
+                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                onclick={goSquads}
+            >
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110">👕</div>
+                    <div class="flex-1">
+                        <div class="font-black text-lg">Plantillas</div>
+                        <div class="text-xs text-gray-400">Jugadores y alineaciones de los 48 equipos</div>
                     </div>
                     <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
                 </div>
