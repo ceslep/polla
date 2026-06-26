@@ -24,6 +24,7 @@
  * @property {string|null} firstMatchLocalTime - 'HH:MM' en COT del primer partido
  * @property {RawMatch[]|null} matches - partidos del día aplicable
  * @property {string|null} message - descripción legible para mostrar al usuario
+ * @property {string|null} nextOpenAt - ISO de la próxima apertura (solo cuando hoy está cerrado)
  */
 
 const COT_TZ = 'America/Bogota';
@@ -148,10 +149,16 @@ export function computeWindowState(matches, now) {
                 closeAt: new Date(info.closeMs).toISOString(),
                 firstMatchLocalTime: info.firstCotTime,
                 matches: dayMatches,
-                message: `Apuestas abiertas hasta las ${info.firstCotTime} (hora Colombia).`
+                message: `Apuestas abiertas hasta las ${info.firstCotTime} (hora Colombia).`,
+                nextOpenAt: null
             };
         }
     }
+
+    // Próxima ventana futura (se necesita tanto para 'closed' como para 'upcoming')
+    const future = [...days.entries()]
+        .filter(([, info]) => info.openMs > nowMs)
+        .sort((a, b) => a[1].openMs - b[1].openMs);
 
     // ¿La ventana de hoy ya cerró?
     const fmtToday = new Intl.DateTimeFormat('en-CA', {
@@ -161,6 +168,7 @@ export function computeWindowState(matches, now) {
     const todayInfo = days.get(todayCot);
     if (todayInfo && nowMs > todayInfo.closeMs) {
         const dayMatches = matchesOnCotDate(matches, todayCot);
+        const nextOpenMs = future.length > 0 ? future[0][1].openMs : null;
         return {
             status: 'closed',
             date: todayCot,
@@ -168,14 +176,11 @@ export function computeWindowState(matches, now) {
             closeAt: new Date(todayInfo.closeMs).toISOString(),
             firstMatchLocalTime: todayInfo.firstCotTime,
             matches: dayMatches,
-            message: `La ventana de hoy (${todayCot}) cerró a las ${todayInfo.firstCotTime}.`
+            message: `La ventana de hoy (${todayCot}) cerró a las ${todayInfo.firstCotTime}.`,
+            nextOpenAt: nextOpenMs ? new Date(nextOpenMs).toISOString() : null
         };
     }
 
-    // Próxima ventana futura
-    const future = [...days.entries()]
-        .filter(([, info]) => info.openMs > nowMs)
-        .sort((a, b) => a[1].openMs - b[1].openMs);
     if (future.length > 0) {
         const [date, info] = future[0];
         return {
@@ -185,7 +190,8 @@ export function computeWindowState(matches, now) {
             closeAt: new Date(info.closeMs).toISOString(),
             firstMatchLocalTime: info.firstCotTime,
             matches: null,
-            message: `Próxima ventana: ${date} desde las 00:00 hasta las ${info.firstCotTime} (hora Colombia).`
+            message: `Próxima ventana: ${date} desde las 00:00 hasta las ${info.firstCotTime} (hora Colombia).`,
+            nextOpenAt: null
         };
     }
 
@@ -196,7 +202,8 @@ export function computeWindowState(matches, now) {
         closeAt: null,
         firstMatchLocalTime: null,
         matches: null,
-        message: 'No hay partidos próximos en el calendario.'
+        message: 'No hay partidos próximos en el calendario.',
+        nextOpenAt: null
     };
 }
 

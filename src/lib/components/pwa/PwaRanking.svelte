@@ -1,4 +1,5 @@
 <script>
+    import { onMount } from 'svelte';
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
     import PwaParticipantDetail from './PwaParticipantDetail.svelte';
     import PwaMyBetsModal from './PwaMyBetsModal.svelte';
@@ -25,6 +26,13 @@
      *  al usuario a login en vez de abrir el modal (caso anónimo en
      *  ranking público). */
     let showMyBets = $state(false);
+
+    /** Respeta preferencia de movimiento reducido. */
+    let reducedMotion = $state(false);
+
+    onMount(() => {
+        reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    });
 
     function openMyBets() {
         if (!pwaSession.authPhone) {
@@ -79,6 +87,20 @@
         return ranking.filter(r => r.participant.toLowerCase().includes(q));
     });
 
+    /**
+     * Confeti dorado para el primer puesto. Generado una sola vez.
+     */
+    const confetti = $derived.by(() => {
+        const colors = ['#fbbf24', '#f59e0b', '#fcd34d', '#10b981', '#06b6d4', '#f472b6'];
+        return Array.from({ length: 28 }, (_, i) => ({
+            left: 8 + Math.random() * 84,
+            delay: Math.random() * 1.2,
+            duration: 2 + Math.random() * 2,
+            color: colors[i % colors.length],
+            size: 0.35 + Math.random() * 0.4
+        }));
+    });
+
     function back() {
         // Si ya envió apuestas hoy, no permitir volver al form.
         if (pwaSession.submitted) {
@@ -101,10 +123,35 @@
             selectedParticipant = participant;
         }
     }
+
+    /**
+     * Devuelve las clases del podio según la posición.
+     * @param {number} i
+     */
+    function podiumClasses(i) {
+        if (i === 0) {
+            return 'bg-gradient-to-r from-yellow-500/20 via-amber-500/15 to-yellow-500/20 border-amber-400/60 shadow-[0_0_22px_rgba(251,191,36,0.18)] animate-glow-pulse';
+        }
+        if (i === 1) {
+            return 'bg-gradient-to-r from-slate-400/20 via-gray-300/15 to-slate-400/20 border-slate-300/60 shadow-[0_0_18px_rgba(203,213,225,0.12)]';
+        }
+        return 'bg-gradient-to-r from-orange-500/20 via-amber-700/15 to-orange-500/20 border-orange-400/60 shadow-[0_0_18px_rgba(251,146,60,0.12)]';
+    }
+
+    /**
+     * Devuelve las clases de la medalla según la posición.
+     * @param {number} i
+     */
+    function medalClasses(i) {
+        if (i === 0) return 'text-amber-400 animate-float';
+        if (i === 1) return 'text-slate-300 animate-float';
+        if (i === 2) return 'text-orange-400 animate-float';
+        return 'text-gray-500';
+    }
 </script>
 
-<div class="min-h-screen bg-[#111] text-white p-4 md:p-8 flex flex-col items-center">
-    <div class="w-full max-w-2xl w-full">
+<div class="min-h-screen bg-[#111] text-white p-4 md:p-8 flex flex-col items-center animate-fade-in">
+    <div class="w-full max-w-2xl">
         <div class="mb-6 flex flex-col gap-3">
             <div class="flex items-center gap-3">
                 <button
@@ -155,31 +202,44 @@
                     <p class="text-gray-400 text-sm">No hay participantes que coincidan con <span class="text-cyan-400 font-semibold">"{search}"</span>.</p>
                 </div>
             {:else}
-                <div class="space-y-2">
+                <div class="space-y-2 stagger-children">
                     {#each filteredRanking as r, i (r.participant)}
                         {@const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                        <div
-                            role="button"
-                            tabindex="0"
-                            onclick={() => selectedParticipant = r.participant}
-                            onkeydown={(e) => handleCardKeydown(e, r.participant)}
-                            class="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg hover:border-cyan-500/30 {i < 3 ? 'border-cyan-500/40' : ''}"
-                        >
-                            <div class="w-10 text-center text-lg font-bold {i < 3 ? 'text-cyan-400' : 'text-gray-500'}">
-                                {medal}
-                            </div>
-                            <div class="flex-1">
-                                <div class="font-bold text-sm md:text-base">{r.participant}</div>
-                                <div class="text-xs text-gray-500">
-                                    {r.betsCount} apuesta{r.betsCount !== 1 ? 's' : ''}
-                                    {#if r.resolved !== r.betsCount}
-                                        · {r.resolved} calificada{r.resolved !== 1 ? 's' : ''}
-                                    {/if}
+                        {@const isPodium = i < 3}
+                        <div class="relative" style="--i: {i}">
+                            {#if i === 0 && !reducedMotion}
+                                <div class="absolute -inset-2 pointer-events-none overflow-visible z-0" aria-hidden="true">
+                                    {#each confetti as c}
+                                        <div
+                                            class="absolute rounded-sm"
+                                            style="left: {c.left}%; top: -10%; width: {c.size}rem; height: {c.size * 1.25}rem; background: {c.color}; animation: confetti-fall {c.duration}s linear {c.delay}s forwards; transform-origin: center;"
+                                        ></div>
+                                    {/each}
                                 </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-2xl font-black text-cyan-400">{r.points}</div>
-                                <div class="text-[10px] uppercase tracking-wider text-gray-500">pts</div>
+                            {/if}
+                            <div
+                                role="button"
+                                tabindex="0"
+                                onclick={() => selectedParticipant = r.participant}
+                                onkeydown={(e) => handleCardKeydown(e, r.participant)}
+                                class="relative z-10 flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg border-2 {isPodium ? podiumClasses(i) : 'bg-white/5 border-white/10 hover:border-cyan-500/30'} {isPodium ? 'overflow-hidden animate-shine' : ''}"
+                            >
+                                <div class="w-10 text-center text-lg font-bold {medalClasses(i)}">
+                                    {medal}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-bold text-sm md:text-base truncate">{r.participant}</div>
+                                    <div class="text-xs text-gray-500">
+                                        {r.betsCount} apuesta{r.betsCount !== 1 ? 's' : ''}
+                                        {#if r.resolved !== r.betsCount}
+                                            · {r.resolved} calificada{r.resolved !== 1 ? 's' : ''}
+                                        {/if}
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-2xl font-black {isPodium ? 'text-white' : 'text-cyan-400'}">{r.points}</div>
+                                    <div class="text-[10px] uppercase tracking-wider {isPodium ? 'text-white/70' : 'text-gray-500'}">pts</div>
+                                </div>
                             </div>
                         </div>
                     {/each}

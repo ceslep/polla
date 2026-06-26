@@ -4,8 +4,8 @@
 //   1. In-app tour (Driver.js): pasos cortos que se disparan tras el
 //      primer login exitoso y resaltan partes del PwaForm con
 //      selectores [data-pwa-tutorial="..."].
-//   2. Standalone /tutorial (Embla carousel): 5 slides linkables
-//      desde el botón "Tutorial" del PwaLanding, sin requerir login.
+//   2. Standalone /tutorial (Embla carousel): 5 slides accesibles
+//      desde el step `tutorial` de la PWA, sin requerir login.
 //
 // El campo `selector` puede ser `null` cuando el paso no apunta a un
 // elemento concreto (e.g. mensaje de bienvenida) — Driver.js lo

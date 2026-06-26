@@ -354,15 +354,6 @@
     aria-hidden="true"
 ></canvas>
 
-{#if visible}
-    <button
-        type="button"
-        class="goal-close"
-        onclick={() => onClose?.()}
-        aria-label="Cerrar animación"
-    >×</button>
-{/if}
-
 <style>
     .goal-canvas {
         position: fixed;
@@ -380,35 +371,6 @@
     }
     @media (prefers-reduced-motion: reduce) {
         .goal-canvas {
-            display: none !important;
-        }
-    }
-    .goal-close {
-        position: fixed;
-        top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
-        right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
-        z-index: 60;
-        width: 2.5rem;
-        height: 2.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
-        color: white;
-        font-size: 1.5rem;
-        line-height: 1;
-        border-radius: 9999px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        cursor: pointer;
-        transition: background 0.15s ease-out;
-    }
-    .goal-close:hover {
-        background: rgba(0, 0, 0, 0.7);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .goal-close {
             display: none !important;
         }
     }

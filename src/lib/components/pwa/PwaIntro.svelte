@@ -356,6 +356,7 @@
             <span class="year-digit" style="--i:3">6</span>
         </div>
         <p class="subtitle">Amigos de Guática</p>
+        <p class="subtitle2">Primera Ronda Próxima a terminar</p>
     </div>
 </div>
 
@@ -571,19 +572,48 @@
         opacity: 0;
         transform: translateY(-80px);
     }
+
+    .subtitle2 {
+        font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+        font-style: normal;
+        font-weight: 500;
+        font-size: clamp(0.9rem, 1.7vw, 1.55rem);
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        margin-top: 1.4vh;
+        margin-left: 0.35em;
+        background: linear-gradient(90deg,
+            #b3f5ff 0%,
+            #00e5ff 50%,
+            #00b8d4 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.55)) drop-shadow(0 0 22px rgba(0, 229, 255, 0.22));
+        opacity: 0;
+        transform: translateY(30px);
+    }
     .stage.playing .subtitle {
         animation: subtitle-in 1.3s 4.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .stage.playing .subtitle2 {
+        animation: subtitle2-in 1.2s 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes subtitle-in {
         0%   { opacity: 0; transform: translateY(-80px); letter-spacing: 0.95em; filter: blur(6px); }
         50%  { opacity: 1; filter: blur(0px); }
         100% { opacity: 0.95; transform: translateY(0); letter-spacing: 0.6em; filter: blur(0px); }
     }
+    @keyframes subtitle2-in {
+        0%   { opacity: 0; transform: translateY(30px) scale(0.96); filter: blur(4px); }
+        100% { opacity: 0.9; transform: translateY(0) scale(1); filter: blur(0px); }
+    }
 
     .stage.fading .title-main,
     .stage.fading .divider,
     .stage.fading .year-digit,
-    .stage.fading .subtitle {
+    .stage.fading .subtitle,
+    .stage.fading .subtitle2 {
         animation: fade-out 1.0s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
     }
     @keyframes fade-out {
