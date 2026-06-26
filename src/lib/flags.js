@@ -60,6 +60,7 @@ const TEAM_TO_ISO = {
     'switzerland': 'ch',
     'turkey': 'tr',
     'curacao': 'cw',
+    'curaçao': 'cw',
     'ecuador': 'ec',
     'ivory coast': 'ci',
     'sweden': 'se',

@@ -441,6 +441,15 @@
 "phoneLength": 8
   },
     {
+"country": "Curazao",
+"countryCode": 599,
+"code": "CW",
+"flag": "https://flagcdn.com/cw.svg",
+"emoji": "🇨🇼",
+"latinAmerica": false,
+"phoneLength": 7
+  },
+    {
 "country": "Dinamarca",
 "countryCode": 45,
 "code": "DK",
