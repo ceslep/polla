@@ -89,6 +89,102 @@ export function getFormations() {
 }
 
 /**
+ * Normaliza texto: sin acentos, minúsculas, sin puntuación, espacios colapsados.
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeText(s) {
+    return String(s || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * Distancia de Levenshtein entre dos cadenas.
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+function levenshtein(a, b) {
+    const m = a.length;
+    const n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    let prev = Array.from({ length: n + 1 }, (_, i) => i);
+    let curr = new Array(n + 1);
+    for (let i = 1; i <= m; i++) {
+        curr[0] = i;
+        for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+        }
+        [prev, curr] = [curr, prev];
+    }
+    return prev[n];
+}
+
+/**
+ * Aplana todos los jugadores de todas las plantillas en un índice para normalizar
+ * nombres de goleadores escritos a mano.
+ * @param {Squad[]} squads
+ * @returns {Array<{ name: string, norm: string, surname: string }>}
+ */
+export function buildPlayerIndex(squads) {
+    /** @type {Array<{ name: string, norm: string, surname: string }>} */
+    const index = [];
+    for (const sq of squads || []) {
+        for (const p of sq.players || []) {
+            if (!p?.name) continue;
+            const norm = normalizeText(p.name);
+            if (!norm) continue;
+            const parts = norm.split(' ');
+            index.push({ name: p.name, norm, surname: parts[parts.length - 1] });
+        }
+    }
+    return index;
+}
+
+/**
+ * Dado un nombre de goleador escrito libremente ("Mbape", "Mbappe"), devuelve el
+ * nombre canónico del jugador del Mundial que mejor coincide, o null si ninguno
+ * es suficientemente similar.
+ * @param {string} raw
+ * @param {Array<{ name: string, norm: string, surname: string }>} index
+ * @returns {string | null}
+ */
+export function matchScorerName(raw, index) {
+    const norm = normalizeText(raw);
+    if (!norm || !index?.length) return null;
+    const tokens = norm.split(' ');
+    const rawSurname = tokens[tokens.length - 1];
+
+    // 1) Coincidencia exacta (nombre completo o apellido)
+    for (const p of index) {
+        if (p.norm === norm || p.surname === norm || p.surname === rawSurname) {
+            return p.name;
+        }
+    }
+
+    // 2) Fuzzy sobre el apellido (tolerancia según longitud)
+    let best = /** @type {string | null} */ (null);
+    let bestDist = Infinity;
+    for (const p of index) {
+        const d = levenshtein(p.surname, rawSurname);
+        const maxLen = Math.max(p.surname.length, rawSurname.length);
+        const threshold = maxLen <= 4 ? 1 : maxLen <= 7 ? 2 : 3;
+        if (d <= threshold && d < bestDist) {
+            bestDist = d;
+            best = p.name;
+        }
+    }
+    return best;
+}
+
+/**
  * Coordenadas porcentuales (x, y) para cada una de las 11 posiciones de la formación.
  * x: 0 izquierda, 100 derecha. y: 0 arriba (ataque), 100 abajo (portería).
  * @param {string} formation

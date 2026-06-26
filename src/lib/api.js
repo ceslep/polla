@@ -661,3 +661,31 @@ export async function getPwaBetsByPhoneRoot(payload) {
     }
     return result;
 }
+
+/**
+ * Lee TODAS las apuestas de la hoja `datos` para extraer campeón, subcampeón, etc.
+ * @returns {Promise<Array<any>>}
+ */
+export async function loadTournamentBets() {
+    const response = await fetch(GET_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            worksheetTitle: 'datos'
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result.bets || [];
+}
+

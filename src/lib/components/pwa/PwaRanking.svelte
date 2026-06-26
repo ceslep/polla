@@ -3,6 +3,7 @@
     import { pwaSession, setStep } from '../../pwa/session.svelte.js';
     import PwaParticipantDetail from './PwaParticipantDetail.svelte';
     import PwaMyBetsModal from './PwaMyBetsModal.svelte';
+    import PwaTournamentBetsModal from './PwaTournamentBetsModal.svelte';
 
     /** @type {{
      *   bets: any[],
@@ -26,6 +27,9 @@
      *  al usuario a login en vez de abrir el modal (caso anónimo en
      *  ranking público). */
     let showMyBets = $state(false);
+
+    /** Abre la modal de apuestas especiales (campeón, subcampeón, etc.) */
+    let showTournamentBets = $state(false);
 
     /** Respeta preferencia de movimiento reducido. */
     let reducedMotion = $state(false);
@@ -161,11 +165,18 @@
                 >←</button>
                 <h2 class="text-2xl font-bold text-cyan-400 flex-1">🏆 Ranking</h2>
             </div>
-            <button
-                class="w-full px-3 py-3 flex items-center justify-center gap-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-sm font-semibold transition-all"
-                onclick={openMyBets}
-                aria-label="Ver mis apuestas de hoy"
-            >📋 Mis apuestas</button>
+            <div class="grid grid-cols-2 gap-2">
+                <button
+                    class="w-full px-3 py-3 flex items-center justify-center gap-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-sm font-semibold transition-all"
+                    onclick={openMyBets}
+                    aria-label="Ver mis apuestas de hoy"
+                >📋 Mis apuestas</button>
+                <button
+                    class="w-full px-3 py-3 flex items-center justify-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-semibold transition-all"
+                    onclick={() => showTournamentBets = true}
+                    aria-label="Ver apuestas especiales del torneo"
+                >🏆 Especiales</button>
+            </div>
         </div>
 
         <div class="text-sm text-gray-400 mb-4 text-center">
@@ -269,3 +280,10 @@
         onClose={() => showMyBets = false}
     />
 {/if}
+
+{#if showTournamentBets}
+    <PwaTournamentBetsModal
+        onClose={() => showTournamentBets = false}
+    />
+{/if}
+

@@ -452,6 +452,33 @@ export function parseRunnerupBet(text) {
  * @param {string} text
  * @returns {string | null}
  */
+export function parseThirdplaceBet(text) {
+    const thirdPatterns = [
+        /(?:^|\n)[\s]*(?:tercer\s*puesto|tercer\s*lugar|tercero|3er\s*puesto|3er\s*lugar|3ro|3°|3rd)[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
+    ];
+
+    for (const pattern of thirdPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+            const team = normalizeTeamName(match[1].trim());
+            if (team && team.length > 2) return team;
+        }
+    }
+
+    const flagPattern = /(?:tercer|tercero|3er|3°)[^\n]*?([🇲🇽🇿🇦🇰🇷🇨🇿🇫🇷🇪🇸🇦🇷🇬🇧🏴󠁧󠁢󠁥󠁮󠁧󠁿🇧🇷🇩🇪🇵🇹🇳🇱🇧🇪🇮🇹🇺🇾🇨🇱🇺🇸🇨🇦🇯🇵🇦🇺🇸🇦🇶🇦🇦🇪🇲🇦🇸🇳🇬🇭🇨🇲🇧🇦])/;
+    const flagMatch = text.match(flagPattern);
+    if (flagMatch) {
+        const flag = /** @type {keyof typeof FLAG_MAP} */ (flagMatch[1]);
+        return FLAG_MAP[flag] || null;
+    }
+
+    return null;
+}
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
 export function parseTopscorerBet(text) {
     const topscorerPatterns = [
         /(?:^|\n)[\s]*(?:goleador|goleador|sub\s*goleador)[^a-zA-Záéíóúüñ]*([a-zA-Záéíóúüñ\s]+?)(?:\n|$)/i,
