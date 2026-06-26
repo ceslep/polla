@@ -4,7 +4,7 @@
     import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
-    import { getFirstMatchUtcMs, isPreMatch } from '../../pwa/prematchGuard.js';
+    import { getFirstMatchUtcMs, isPreMatch, PREMATCH_BUFFER_MS } from '../../pwa/prematchGuard.js';
     import { pwaSession, setStep, logout, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
@@ -263,6 +263,58 @@
                 return fmt.format(new Date(utc));
             })()
         };
+    });
+
+    // ---- Auto-reload en cortes horarios --------------------------------
+    // Cuando el cronómetro de la landing llega a cero (ventana abre/cierra)
+    // o cuando vence el gate pre-partido, recargamos suavemente la app para
+    // que se activen las opciones dependientes de la hora. En dev se omite.
+
+    /** @type {string} */
+    const AUTO_RELOAD_GUARD_KEY = 'pwaLastAutoReloadAt';
+    const AUTO_RELOAD_COOLDOWN_MS = 90_000;
+
+    function canAutoReload() {
+        if (isDev) return false;
+        try {
+            const last = Number(sessionStorage.getItem(AUTO_RELOAD_GUARD_KEY));
+            if (last && Date.now() - last < AUTO_RELOAD_COOLDOWN_MS) return false;
+        } catch {
+            // sessionStorage no disponible: permitir el reload de todos modos.
+        }
+        return true;
+    }
+
+    function markAutoReload() {
+        try {
+            sessionStorage.setItem(AUTO_RELOAD_GUARD_KEY, String(Date.now()));
+        } catch {
+            // noop
+        }
+    }
+
+    /** Llamado por PwaLanding cuando el contador llega a cero. */
+    function handleCountdownZero() {
+        if (!canAutoReload()) return;
+        markAutoReload();
+        load();
+    }
+
+    // Programa un reload exacto cuando vence el gate pre-partido (1 min antes
+    // del primer partido). Esto complementa el intervalo de 30 s de nowUtcMs.
+    $effect(() => {
+        if (isDev || !preMatchInfo.required) return;
+        const utc = getFirstMatchUtcMs(rawMatches, todayDate);
+        if (utc == null) return;
+        const cutoff = utc - PREMATCH_BUFFER_MS;
+        const delay = cutoff - Date.now();
+        if (delay <= 0) return;
+        const id = setTimeout(() => {
+            if (!canAutoReload()) return;
+            markAutoReload();
+            load();
+        }, delay);
+        return () => clearTimeout(id);
     });
 
     onMount(() => {
@@ -698,7 +750,7 @@
         </button>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} onCountdownZero={handleCountdownZero} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}

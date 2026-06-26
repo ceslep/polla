@@ -17,6 +17,7 @@
      * @property {BoolStore} [needRefresh]   - store de useRegisterSW (App.svelte)
      * @property {BoolStore} [offlineReady] - store de useRegisterSW (App.svelte)
      * @property {() => void} [onSquads]
+     * @property {() => void} [onCountdownZero] - se dispara una vez cuando el cronómetro llega a cero
      */
     /** @type {Props} */
     let {
@@ -28,7 +29,8 @@
         todayDate = '',
         needRefresh,
         offlineReady,
-        onSquads = () => {}
+        onSquads = () => {},
+        onCountdownZero = () => {}
     } = $props();
 
     const installState = getInstallState();
@@ -192,16 +194,24 @@
     });
 
     let countdownText = $state(formatCountdown(new Date(resolveCountdownTarget() || 0).getTime() - Date.now()));
+    /** Evita disparar onCountdownZero más de una vez por el mismo target. */
+    let countdownZeroFired = $state(false);
 
     $effect(() => {
         const target = countdownTarget;
+        countdownZeroFired = false;
         if (!target) {
             countdownText = '';
             return;
         }
         const targetMs = new Date(target).getTime();
         function tick() {
-            countdownText = formatCountdown(targetMs - Date.now());
+            const remaining = targetMs - Date.now();
+            countdownText = formatCountdown(remaining);
+            if (remaining <= 0 && !countdownZeroFired) {
+                countdownZeroFired = true;
+                onCountdownZero();
+            }
         }
         tick();
         const id = setInterval(tick, 1000);

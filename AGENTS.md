@@ -8,13 +8,14 @@ Svelte 5 PWA where participants log in, pick daily score bets for World Cup 2026
 
 - **Frontend**: Svelte 5 (runes) + Vite 8 + Tailwind 4.
 - **Backend**: PHP in `src/assets/`, deployed by hand to `https://app.iedeoccidente.com/gs/`. Needs `vendor/` (Google API PHP client) and `assets/serviceaccount.json` (service account key, **not in repo**) on the server.
-- **Types**: JSDoc on JS source in `src/`; `tsconfig.app.json` has `allowJs: true, checkJs: true`. `vite.config.ts` is the only TypeScript file.
+- **Types**: JSDoc on JS source in `src/`; `tsconfig.app.json` has `allowJs: true, checkJs: true`. `vite.config.ts` is the only TypeScript source file.
 - **PWA**: `vite-plugin-pwa` with auto-update on `visibilitychange` + every 60 min.
 
 ## Commands
 
 ```bash
-npm run dev          # Vite dev (:5173). PWA service worker enabled.
+npm run dev          # Vite dev (:5173). PWA service worker enabled; dev mode fabricates an open betting window.
+npm run dev:real     # Same, but disables dev fabrication (real clock, real auth, real pre-match gate).
 npm run build        # production build → dist/
 npm run preview      # serve dist/
 npm run check        # svelte-check + tsc — run before commit
@@ -27,6 +28,7 @@ Pre-commit verification:
 ```bash
 npm run check        # type-check active code + vite.config.ts
 node test_*.mjs      # PWA/store/window smoke tests
+node test_*.js       # parser/match smoke tests (when changing parser.js or api.js)
 ```
 
 ## Tests
@@ -35,21 +37,21 @@ No automated test runner. Smoke tests are Node scripts in the repo root:
 
 ```bash
 node test_*.js       # parser/match logic (e.g., test_parse.js, test_match.js)
-node test_*.mjs      # Svelte-runes modules (stores, session, window, etc.)
+node test_*.mjs      # Svelte-runes modules (stores, session, window, prematch guard, etc.)
 ```
 
-There are 21 test files. `.mjs` tests that import `stores.svelte.js` or `session.svelte.js` shim `globalThis.$state = (o) => o` because Svelte 5 runes modules need `$state` outside the Svelte runtime. `polla.json` is the sample WhatsApp export used by most parser tests.
+There are 22 test files. `.mjs` tests that import `stores.svelte.js` or `session.svelte.js` shim `globalThis.$state = (o) => o` because Svelte 5 runes modules need `$state` outside the Svelte runtime. `polla.json` is the sample WhatsApp export used by most parser tests.
 
 ## Active vs archived
 
-- **Active (PWA)** — `src/lib/components/pwa/`, `src/lib/pwa/`, the PWA functions in `src/lib/api.js` (`loginPwa`, `savePwaBet`, `getPwaBets`, `loadAllPwaBets`, `changePwaPassword`, `savePwaEmail`, `listParticipantsRoot`), and the matching PHP endpoints (`*_pwa*.php`, `seed_apuestas_from_json.php`). `src/App.svelte` is a pure redirector to `/#/apostar`; `src/lib/components/pwa/PwaApp.svelte` is the real orchestrator.
-- **Archived (legacy WhatsApp flow)** — `src/lib/components/_archived_*`, the rest of `src/lib/api.js` (`loadBetsFromSheets`, `saveBetsToSheets`, etc.), and the `datos` sheet. The `_archived_*` files are excluded from `tsconfig.app.json` (`exclude: ["src/**/_archived_*"]`) and nothing imports them. `appState.bets` in `src/lib/stores.svelte.js` is **only mutated by archived components**.
+- **Active (PWA)** — `src/lib/components/pwa/`, `src/lib/pwa/`, the PWA functions in `src/lib/api.js` (`loginPwa`, `savePwaBet`, `getPwaBets`, `loadAllPwaBets`, `changePwaPassword`, `savePwaEmail`, `listParticipantsRoot`, `getPwaBetsByPhoneRoot`), and the matching PHP endpoints (`*_pwa*.php`, `list_participants.php`, `get_pwa_bets_by_phone.php`, `cron_ranking_report.php`, `seed_apuestas_from_json.php`). `src/App.svelte` is a pure redirector to `/#/apostar`; `src/lib/components/pwa/PwaApp.svelte` is the real orchestrator.
+- **Archived (legacy WhatsApp flow)** — `src/lib/components/_archived_*`, the rest of `src/lib/api.js` (`loadBetsFromSheets`, `saveBetsToSheets`, etc.), and the `datos`/`alias` sheets. The `_archived_*` files are excluded from `tsconfig.app.json` (`exclude: ["src/**/_archived_*"]`) and nothing imports them. `appState.bets` in `src/lib/stores.svelte.js` is **only mutated by archived components**.
 
 ## PWA data flow
 
 1. **Routing** — hash-based, but real routing is `pwaSession.step` (Svelte 5 `$state` in `src/lib/pwa/session.svelte.js`, persisted in `sessionStorage` under `pwaSession`). `App.svelte` forces any non-`apostar` hash to `/#/apostar`.
 2. **Steps** — `landing | login | ranking | change-password | email-prompt | form | done | history | results | movement | today-bets | root-panel | tutorial`. First-login chain: `login → change-password → email-prompt → form` when backend returns `mustChangePassword`/`mustProvideEmail`.
-3. **Load** — `PwaApp.load()` calls `loadWorldCupMatches()` (openfootball, `NetworkOnly` SW + `cache: 'no-store'`) and `loadAllPwaBets()` (public, reads `apuestas` sheet). Match lookup uses `findMatchForBet` (exact teams + same date) and `compareBetWithMatch` for scoring. Bet IDs are deterministic: `pwa_<phone>_<date>_<matchId>`.
+3. **Load** — `PwaApp.load()` calls `loadWorldCupMatches()` (openfootball, `NetworkOnly` SW + `cache: 'no-store'`) and `loadAllPwaBets()` (public, reads `apuestas` sheet). Match lookup uses `findMatchForBet` (in `src/lib/stores.svelte.js`, exact teams + same date) and `compareBetWithMatch` for scoring. Bet IDs are deterministic: `pwa_<phone>_<date>_<matchId>`.
 4. **Submit** — `savePwaBet(payload)` from `PwaForm.svelte`. PHP is INSERT-only / immutable; it refuses if `mustChangePassword` or `mustProvideEmail` is still true, and returns `saved: N, alreadyExists: M` on duplicates.
 5. **Confirmation email** — `save_pwa_bet.php` sends a confirmation email on every successful save (inserts and all-duplicate submits). Recipient is `participantes` column E; CC `ceslep@gmail.com`. SMTP failure is fire-and-confirm (bet stays saved, response is still 200). Skipped in `dev: true` or when column E is empty.
 6. **Scoring** — `compareBetWithMatch()` in `src/lib/api.js`. Only `status: 'pending' | 'exact' | 'correct' | 'incorrect'` is valid (`src/lib/types.js:23`). 5/3/0 points. Inverts home/away if the match was found with teams swapped.
@@ -63,7 +65,7 @@ There are 21 test files. `.mjs` tests that import `stores.svelte.js` or `session
   - `participantes` — columns A:F: name, phone, password last-4, `mustChangePassword`, optional `email`, `isRoot`. Login reads `A2:F1000`; other endpoints read `A2:E1000`.
   - `mail_log` — written by `cron_ranking_report.php` for idempotent ranking-report emails.
   - `datos`, `alias` — legacy WhatsApp flow; read-only for history.
-- **No `localStorage`** — only `sessionStorage`: `pwaSession`, `pwaSeenTour`, `pwaSeenIntro`, plus `pwaSeenGoal_<step>`.
+- **No `localStorage`** — only `sessionStorage`: `pwaSession`, `pwaSeenTour`, `pwaSeenIntro`, plus `pwaSeenGoal_<step>`. `pwaSession` is discarded on reload if its saved `date` is not today in COT.
 - **Refresh is manual** — `load()` runs once on mount; re-fetch via header 🔄, mobile-menu "Recargar desde Sheets", or the error-screen "Reintentar".
 - **SW cache policy** (`vite.config.ts`):
   - `app.iedeoccidente.com/gs/*` → `NetworkOnly`.
@@ -96,7 +98,7 @@ There is **no 2-point tier**. The dead "Empates (2pt)" filter in archived `Resul
 ## Setup
 
 - Node 20+. `npm install`.
-- Dev: `npm run dev` → `http://localhost:5173`. The PWA detects `localhost`/`127.0.0.1` and runs `buildDevState()`: it fabricates an open window using the closest COT day with matches and sets `pwaSession.date` to that day, ignoring the real clock. `getPwaBets` / `savePwaBet` skip auth via `dev: true`.
+- Dev: `npm run dev` → `http://localhost:5173`. The PWA detects `localhost`/`127.0.0.1` and runs `buildDevState()`: it fabricates an open window using the closest COT day with matches and sets `pwaSession.date` to that day, ignoring the real clock. `getPwaBets` / `savePwaBet` skip auth via `dev: true`. Use `npm run dev:real` to test the real clock/auth/gate instead.
 - `football-data.org` API key is fetched at runtime from `https://app.iedeoccidente.com/pollaweb/config.php`; only the archived `loadMatches()` path uses it. The PWA uses openfootball only.
 - Refresh FIFA rankings monthly by opening `https://app.iedeoccidente.com/gs/fetch_fifa_rankings.php`, pasting the table from `https://www.fifa.com/es/world-rankings`, and saving. Cached at `gs/fifa_cache.json`; `public/fifa_rankings.json` is the offline fallback.
 
