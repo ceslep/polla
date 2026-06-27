@@ -24,13 +24,6 @@
 /** @type {TourStep[]} */
 export const tourSteps = [
     {
-        id: 'welcome-pwa',
-        selector: null,
-        title: '¡Listo, ya estás adentro! 🎉',
-        description: 'Tu login funcionó. Ahora vamos a mandarte al formulario para que pongas tus apuestas del día.',
-        side: 'bottom',
-    },
-    {
         id: 'pwa-matches',
         selector: '[data-pwa-tutorial="matches"]',
         title: 'Acá están los partidos del día',

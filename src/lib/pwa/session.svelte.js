@@ -6,7 +6,7 @@
  * sessionStorage para sobrevivir a recargas accidentales pero NO a cierre
  * de pestaña (es por sesión).
  *
- * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets' | 'root-panel'
+ * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'tournament-bets' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets' | 'root-panel'
  */
 
 const SESSION_KEY = 'pwaSession';
@@ -26,7 +26,7 @@ function todayCot() {
 
 /**
  * @typedef {Object} PwaSession
- * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'form'|'done'|'history'|'results'|'movement'|'today-bets'|'root-panel'} step
+ * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'tournament-bets'|'form'|'done'|'history'|'results'|'movement'|'today-bets'|'root-panel'} step
  * @property {string|null} authParticipant - nombre del participante (columna A de la hoja `participantes`)
  * @property {string|null} authPhone - phone (columna B de la hoja, last 10 digits)
  * @property {string|null} authUsername - last 10 digits (== authPhone)
@@ -274,6 +274,14 @@ export function completePasswordChange(/** @type {string} */ newPassword) {
  * PwaEmailPromptModal.svelte). */
 export function completeEmailPrompt() {
     pwaSession.mustProvideEmail = false;
+    pwaSession.step = 'form';
+    persist();
+}
+
+/** Cierra el formulario obligatorio de apuestas de torneo (campeón,
+ * subcampeón, tercer lugar, goleador) y avanza al form de marcadores.
+ * Se llama solo después de que el backend confirma el registro de las 4. */
+export function completeTournamentBets() {
     pwaSession.step = 'form';
     persist();
 }

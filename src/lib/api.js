@@ -1,4 +1,4 @@
-import { normalizeTeamName, dropOverLimitMessages, dropOrganizerBets } from './parser.js';
+import { normalizeTeamName, dropOverLimitMessages, dropOrganizerBets, parseThirdplaceBet } from './parser.js';
 
 const CONFIG_URL = 'https://app.iedeoccidente.com/pollaweb/config.php';
 const GITHUB_MATCHES_URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
@@ -689,3 +689,157 @@ export async function loadTournamentBets() {
     return result.bets || [];
 }
 
+/** Los 4 tipos de apuesta de torneo, en orden de presentación. */
+const TOURNAMENT_BET_TYPES = ['champion', 'runnerup', 'thirdplace', 'topscorer'];
+
+/**
+ * Guarda las 4 apuestas de torneo (campeón, subcampeón, tercer lugar,
+ * goleador) de un participante en la hoja `datos` vía `save_bets.php`.
+ *
+ * Cada apuesta se persiste como una fila Bet independiente. El `id` es
+ * determinista (`tour_<phone>_<type>`) para que el UPSERT de save_bets.php
+ * (dedupe por `id`) sea idempotente: re-enviar no crea duplicados.
+ *
+ * `thirdplace` no tiene columna dedicada en la hoja (solo champion/runnerup/
+ * topscorer en L,M,N), así que su valor viaja en `originalMessage` con texto
+ * canónico en español, que `parseThirdplaceBet` sabe leer de vuelta. Por
+ * consistencia, las 4 incluyen `originalMessage` canónico.
+ *
+ * @param {{
+ *   participant: string,
+ *   phone: string,
+ *   champion: string,
+ *   runnerup: string,
+ *   thirdplace: string,
+ *   topscorer: string,
+ *   timestamp?: string
+ * }} payload
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function saveTournamentBets(payload) {
+    const { participant, phone, champion, runnerup, thirdplace, topscorer } = payload;
+    const timestamp = payload.timestamp || '';
+
+    /** Texto canónico en español por tipo (para columna originalMessage).
+     * @type {Record<string, string>} */
+    const labelFor = {
+        champion: `Campeón: ${champion}`,
+        runnerup: `Subcampeón: ${runnerup}`,
+        thirdplace: `Tercer lugar: ${thirdplace}`,
+        topscorer: `Goleador: ${topscorer}`,
+    };
+    /** @type {Record<string, string>} */
+    const valueFor = { champion, runnerup, thirdplace, topscorer };
+
+    /** @type {import('./types.js').Bet[]} */
+    const bets = TOURNAMENT_BET_TYPES.map((type) => {
+        /** @type {import('./types.js').Prediction} */
+        const prediction = {};
+        // Solo champion/runnerup/topscorer tienen columna dedicada; thirdplace
+        // se reconstruye desde originalMessage al leer.
+        if (type !== 'thirdplace') {
+            prediction[/** @type {'champion'|'runnerup'|'topscorer'} */ (type)] = valueFor[type];
+        }
+        return {
+            id: `tour_${phone}_${type}`,
+            messageId: `tour_${phone}_${type}`,
+            timestamp,
+            participant,
+            phone,
+            originalMessage: labelFor[type],
+            type,
+            prediction,
+            bet_text: labelFor[type],
+            status: 'pending',
+            points: 0,
+            real_result: null,
+            verified: false,
+            manuallyEdited: false,
+        };
+    });
+
+    const response = await fetch(SAVE_BETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            worksheetTitle: 'datos',
+            bets
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Lee las apuestas de torneo de un participante desde la hoja `datos`.
+ * Reusa `loadTournamentBets()` (carga toda la hoja) y filtra por teléfono
+ * o, como respaldo, por nombre de participante. El teléfono es la clave
+ * más estable porque el backend guarda el último valor autenticado y evita
+ * reabrir el formulario por diferencias de acentos, espacios o aliases.
+ *
+ * Para tercer lugar, que no tiene columna dedicada, se deriva de
+ * `originalMessage` con `parseThirdplaceBet` — mismo fallback que usa
+ * PwaTournamentBetsModal.
+ *
+ * @param {string} participantName
+ * @param {string} [phone]
+ * @returns {Promise<{champion: string|null, runnerup: string|null, thirdplace: string|null, topscorer: string|null, hasAll: boolean}>}
+ */
+export async function getTournamentBetsForParticipant(participantName, phone) {
+    /** @type {{champion: string|null, runnerup: string|null, thirdplace: string|null, topscorer: string|null, hasAll: boolean}} */
+    const empty = { champion: null, runnerup: null, thirdplace: null, topscorer: null, hasAll: false };
+    if (!participantName && !phone) return empty;
+
+    const norm = (/** @type {string} */ s) => (s || '').trim().toLowerCase();
+    const target = norm(participantName);
+    const normPhone = (/** @type {string | undefined} */ value) => (value || '').replace(/\D/g, '');
+    const targetPhone = normPhone(phone);
+
+    let allBets;
+    try {
+        allBets = await loadTournamentBets();
+    } catch {
+        return empty;
+    }
+
+    const mine = allBets.filter((/** @type {any} */ b) => {
+        const betPhone = normPhone(b.phone);
+        if (targetPhone && betPhone && betPhone === targetPhone) return true;
+        return target && norm(b.participant) === target;
+    });
+
+    /** @type {{champion: string|null, runnerup: string|null, thirdplace: string|null, topscorer: string|null, hasAll: boolean}} */
+    const result = { champion: null, runnerup: null, thirdplace: null, topscorer: null, hasAll: false };
+    for (const bet of mine) {
+        const p = bet.prediction || bet;
+        if (bet.type === 'champion' && (p.champion || bet.champion)) {
+            result.champion = p.champion || bet.champion;
+        } else if (bet.type === 'runnerup' && (p.runnerup || bet.runnerup)) {
+            result.runnerup = p.runnerup || bet.runnerup;
+        } else if (bet.type === 'topscorer' && (p.topscorer || bet.topscorer)) {
+            result.topscorer = p.topscorer || bet.topscorer;
+        } else if (bet.type === 'thirdplace') {
+            result.thirdplace = (p.thirdplace || bet.thirdplace) || parseThirdplaceBet(bet.originalMessage || '');
+        }
+        // Fallback: parsear originalMessage para tercer lugar si aún falta
+        // (apuestas históricas que vinieron de WhatsApp en un solo mensaje).
+        if (bet.originalMessage && !result.thirdplace) {
+            const t = parseThirdplaceBet(bet.originalMessage);
+            if (t) result.thirdplace = t;
+        }
+    }
+
+    result.hasAll = Boolean(result.champion && result.runnerup && result.thirdplace && result.topscorer);
+    return result;
+}

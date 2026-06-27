@@ -1,11 +1,11 @@
 <script>
     import { onMount } from 'svelte';
     import { findMatchForBet } from '../../stores.svelte.js';
-    import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch } from '../../api.js';
+    import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
     import { getFirstMatchUtcMs, isPreMatch, PREMATCH_BUFFER_MS } from '../../pwa/prematchGuard.js';
-    import { pwaSession, setStep, logout, completeEmailPrompt, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
+    import { pwaSession, setStep, logout, completeEmailPrompt, completeTournamentBets, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
 
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
@@ -13,6 +13,7 @@
     import PwaChangePassword from './PwaChangePassword.svelte';
     import PwaEmailPromptModal from './PwaEmailPromptModal.svelte';
     import PwaForm from './PwaForm.svelte';
+    import PwaTournamentBetsForm from './PwaTournamentBetsForm.svelte';
     import PwaDone from './PwaDone.svelte';
     import PwaHistory from './PwaHistory.svelte';
     import PwaTodayBets from './PwaTodayBets.svelte';
@@ -66,6 +67,9 @@
      * @param {string} [phone]
      */
     function handleAuthSuccess(participant, phone) {
+        existingBets = [];
+        tournamentBets = null;
+        tournamentLocked = false;
         if (!hasSeenPwaTour()) {
             // Pequeño delay para que el form termine de montar y los
             // selectores [data-pwa-tutorial] existan en el DOM.
@@ -208,6 +212,15 @@
      *  no vacío, PwaForm se renderiza en read-only con los marcadores
      *  prellenados (en lugar de redirigir a PwaDone mode='already-submitted'). */
     let existingBets = $state(/** @type {any[]} */ ([]));
+    /** Apuestas de torneo del participante autenticado (campeón, subcampeón,
+     *  tercer lugar, goleador). Si `tournamentLocked` es true, ya las tiene
+     *  registradas y se muestran en read-only dentro de PwaForm. Si faltan,
+     *  el gate fuerza el step 'tournament-bets' antes del form. */
+    let tournamentBets = $state(/** @type {{champion: string|null, runnerup: string|null, thirdplace: string|null, topscorer: string|null, hasAll: boolean} | null} */ (null));
+    let tournamentLocked = $state(false);
+    /** Token de concurrencia para el gate de torneo (mismo patrón que
+     *  alreadyBetCheckToken): descarta respuestas tardías tras logout. */
+    let tournamentCheckToken = 0;
     /** Target seleccionado en el panel root. Cuando está set, PwaForm se
      *  renderiza en mode='root' y los bets se guardan a nombre del target.
      *  Limpiado en handleRootComplete (logout) y handleRootCancel (volver
@@ -396,6 +409,50 @@
                 // Si falla el check (Sheets caído, timeout), dejamos que el
                 // form se muestre: el backend sigue siendo idempotente.
                 console.warn('No pude verificar apuestas previas:', e);
+            }
+        })();
+    });
+
+    /**
+     * Gate de apuestas de torneo. Antes de dejar entrar al form de marcadores,
+     * verifica que el participante tenga registradas las 4 apuestas de torneo
+     * (campeón, subcampeón, tercer lugar, goleador). Si las tiene, las guarda
+     * en `tournamentBets` + marca `tournamentLocked` para que PwaForm las
+     * muestre en read-only. Si faltan, redirige al step 'tournament-bets'
+     * (formulario obligatorio).
+     *
+     * Se salta en root mode. En dev también debe correr, porque la
+     * verificación de apuestas de torneo es justamente lo que queremos
+     * probar durante desarrollo.
+     * Si el usuario ya envió marcadores hoy (existingBets no vacío) NO se le
+     * fuerza el formulario: pudo haber apostado antes de existir esta feature.
+     * Misma defensa de concurrencia que el check anterior (tournamentCheckToken).
+     */
+    $effect(() => {
+        const step = pwaSession.step;
+        if (step !== 'form') return;
+        if (pwaSession.isRoot) return;
+        if (!pwaSession.authParticipant) return;
+
+        const myToken = ++tournamentCheckToken;
+        const participant = pwaSession.authParticipant;
+
+        (async () => {
+            try {
+                const result = await getTournamentBetsForParticipant(participant, pwaSession.authPhone || undefined);
+                if (myToken !== tournamentCheckToken) return;
+                tournamentBets = result;
+                tournamentLocked = result.hasAll;
+                // Si falta cualquiera de las 4 apuestas, forzamos el formulario
+                // obligatorio antes del form de marcadores. Cuando el usuario
+                // ya tiene las 4, el form normal continúa y las muestra bloqueadas.
+                if (!result.hasAll) {
+                    setStep('tournament-bets');
+                }
+            } catch (e) {
+                // Si falla el check, dejamos pasar al form: el backend de
+                // marcadores es independiente y sigue siendo idempotente.
+                console.warn('No pude verificar apuestas de torneo:', e);
             }
         })();
     });
@@ -694,6 +751,19 @@
         }
     }
 
+    /**
+     * El participante completó (y el backend confirmó) las 4 apuestas de
+     * torneo. Avanza al form de marcadores. Setea `tournamentBets` con las
+     * recién guardadas + marca `tournamentLocked` para que PwaForm las
+     * muestre en read-only sin esperar a que el gate-effect re-consulte.
+     * @param {{champion: string, runnerup: string, thirdplace: string, topscorer: string}} bets
+     */
+    function onTournamentBetsComplete(bets) {
+        tournamentBets = { ...bets, hasAll: true };
+        tournamentLocked = true;
+        completeTournamentBets();
+    }
+
     function onModalClose() {
         setStep('landing');
     }
@@ -782,12 +852,15 @@
          'already-submitted' ya no se usa: cuando hay bets previos, PwaForm
          se renderiza en read-only. -->
     <PwaDone date={pwaSession.date || windowState.date} savedCount={doneSavedCount} infoMessage={doneInfoMessage} {isDev} mode={doneMode} />
+{:else if pwaSession.step === 'tournament-bets'}
+    <PwaTournamentBetsForm onComplete={onTournamentBetsComplete} />
 {:else if pwaSession.step === 'form'}
     <PwaForm
         windowState={windowState}
         onDone={onDone}
         {isDev}
         existingBets={existingBets}
+        tournamentBets={tournamentLocked ? tournamentBets : null}
         mode={rootTarget ? 'root' : 'normal'}
         targetParticipant={rootTarget}
         onRootComplete={onRootComplete}

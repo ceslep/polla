@@ -11,6 +11,7 @@
      *   onDone: (savedCount: number, infoMessage?: string) => void,
      *   isDev?: boolean,
      *   existingBets?: any[],
+     *   tournamentBets?: {champion: string|null, runnerup: string|null, thirdplace: string|null, topscorer: string|null} | null,
      *   mode?: 'normal' | 'root',
      *   targetParticipant?: { name: string, phone: string } | null,
      *   onRootComplete?: () => void,
@@ -22,6 +23,7 @@
         onDone,
         isDev = false,
         existingBets = [],
+        tournamentBets = null,
         mode = 'normal',
         targetParticipant = null,
         onRootComplete = () => {},
@@ -249,6 +251,28 @@
                 <div class="text-emerald-200 text-sm font-bold mb-1">Ya enviaste tus apuestas</div>
                 <div class="text-emerald-300/70 text-xs">
                     Tus marcadores de {windowState.date} son <strong class="text-emerald-200">inmutables</strong> — no se pueden modificar.
+                </div>
+            </div>
+        {/if}
+
+        {#if tournamentBets && (tournamentBets.champion || tournamentBets.runnerup || tournamentBets.thirdplace || tournamentBets.topscorer)}
+            <div class="mb-4 glass rounded-3xl p-4 animate-slide-down">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-lg">🏆</span>
+                    <span class="text-sm font-bold">Apuestas de torneo</span>
+                    <span class="ml-auto inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-emerald-300 bg-emerald-500/10 ring-1 ring-emerald-500/30 rounded-full px-2 py-0.5">🔒 No editable</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    {#each [{ emoji: '🥇', label: 'Campeón', value: tournamentBets.champion, team: true }, { emoji: '🥈', label: 'Subcampeón', value: tournamentBets.runnerup, team: true }, { emoji: '🥉', label: 'Tercer lugar', value: tournamentBets.thirdplace, team: true }, { emoji: '👟', label: 'Goleador', value: tournamentBets.topscorer, team: false }] as item (item.label)}
+                        {@const tf = item.team && item.value ? flagFor(item.value) : null}
+                        <div class="bg-white/5 rounded-2xl px-3 py-2 min-w-0">
+                            <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-0.5">{item.emoji} {item.label}</div>
+                            <div class="flex items-center gap-1.5 min-w-0">
+                                {#if tf}<img src={tf.flag} alt="" class="h-3.5 w-5 rounded-sm ring-1 ring-white/10 shrink-0" />{/if}
+                                <span class="font-semibold text-sm truncate">{(tf?.spanishName) || item.value || '–'}</span>
+                            </div>
+                        </div>
+                    {/each}
                 </div>
             </div>
         {/if}

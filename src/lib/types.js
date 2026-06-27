@@ -2,6 +2,7 @@
  * @typedef {Object} Prediction
  * @property {string} [champion]
  * @property {string} [runnerup]
+ * @property {string} [thirdplace]
  * @property {string} [topscorer]
  * @property {string} [homeTeam]
  * @property {string} [awayTeam]
@@ -17,7 +18,7 @@
  * @property {string} participant
  * @property {string} phone
  * @property {string} originalMessage
- * @property {string} type - 'champion' | 'runnerup' | 'topscorer' | 'score'
+ * @property {string} type - 'champion' | 'runnerup' | 'thirdplace' | 'topscorer' | 'score'
  * @property {Prediction} prediction
  * @property {string} bet_text
  * @property {string} status - 'pending' | 'exact' | 'correct' | 'incorrect'
