@@ -23,27 +23,6 @@
 /** Pasos del tour in-app (Driver.js). Se disparan tras login. */
 /** @type {TourStep[]} */
 export const tourSteps = [
-    {
-        id: 'pwa-matches',
-        selector: '[data-pwa-tutorial="matches"]',
-        title: 'Acá están los partidos del día',
-        description: 'Cada fila es un partido que se juega hoy. Solo los que tengan ventana abierta aparecen.',
-        side: 'top',
-    },
-    {
-        id: 'pwa-inputs',
-        selector: '[data-pwa-tutorial="inputs"]',
-        title: 'Poné tu marcador',
-        description: 'Tocá el casillero del equipo local y del visitante. Tenés que poner los dos.',
-        side: 'top',
-    },
-    {
-        id: 'pwa-submit',
-        selector: '[data-pwa-tutorial="submit"]',
-        title: 'Cuando termines, dale "Enviar"',
-        description: 'Solo podés mandar UNA vez por día. Después de enviar no se puede cambiar.',
-        side: 'top',
-    },
 ];
 
 /**
