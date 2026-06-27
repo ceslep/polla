@@ -291,7 +291,7 @@
                             <span class="text-[9px] uppercase tracking-[0.15em] text-gray-400 font-semibold">{meta.label}</span>
                         </div>
                         <div class="flex items-center justify-center gap-1 md:gap-1.5 font-mono tabular-nums">
-                            {#each countdownText.split(':') as part, i}
+                            {#each countdownText.split(':') as part, i (`countdown-${i}`)}
                                 <div class="flex flex-col items-center">
                                     <div class="glass rounded-lg min-w-[2.25rem] md:min-w-[2.75rem] px-1 py-1 md:py-1.5">
                                         <span class="text-xl md:text-2xl font-black {meta.digitClass}">{part}</span>
@@ -315,131 +315,20 @@
             </div>
         {/if}
 
-        <div class="space-y-3">
-            <!-- Ver ranking (público) -->
+        <div class="space-y-4">
+            <!-- Acción principal -->
             <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goRank}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">📊</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Ver ranking</div>
-                        <div class="text-xs text-gray-400">No requiere iniciar sesión</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Apuestas de hoy (público) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goTodayBets}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">📅</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Apuestas de hoy</div>
-                        <div class="text-xs text-gray-400">Cómo van ganando — orden alfabético</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Mensaje para WhatsApp (admin) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                onclick={goShare}
-                disabled={!hasShareableBets}
-                title={hasShareableBets ? 'Generar mensaje para pegar en el grupo de WhatsApp' : 'Aún no hay apuestas para hoy'}
-                data-pwa-tutorial="share-card"
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">📤</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Mensaje para WhatsApp</div>
-                        <div class="text-xs text-gray-400">
-                            {#if hasShareableBets}
-                                Pega las apuestas de hoy en el grupo
-                            {:else}
-                                Aún no hay apuestas de hoy en la hoja <span class="text-cyan-400 font-mono">apuestas</span>
-                            {/if}
-                        </div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Resultados del mundial (público) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goResults}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">🌍</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Resultados del mundial</div>
-                        <div class="text-xs text-gray-400">Partidos, goleadores y posiciones</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Análisis de goles (público) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goGoals}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">⚽</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Análisis de goles</div>
-                        <div class="text-xs text-gray-400">1.er vs 2.º tiempo · top goleadores · remontadas</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Movimiento de puestos (público) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goMovement}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">📈</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Movimiento de puestos</div>
-                        <div class="text-xs text-gray-400">Quiénes subieron y bajaron</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Plantillas de equipos (público) -->
-            <button
-                class="w-full glass hover:bg-white/10 rounded-3xl text-left px-6 py-5 transition-all min-h-16 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
-                onclick={goSquads}
-            >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">👕</div>
-                    <div class="flex-1">
-                        <div class="font-black text-lg">Plantillas</div>
-                        <div class="text-xs text-gray-400">Jugadores y alineaciones de los 48 equipos</div>
-                    </div>
-                    <div class="text-2xl text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all">→</div>
-                </div>
-            </button>
-
-            <!-- Realizar apuesta -->
-            <button
-                class="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-3xl text-left px-6 py-5 transition-all min-h-16 shadow-xl shadow-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed group hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-emerald-500/30 disabled:hover:translate-y-0"
+                class="relative w-full overflow-hidden bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 rounded-3xl text-left px-6 py-5 transition-all min-h-20 shadow-xl shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed group hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-emerald-500/30 disabled:hover:translate-y-0 animate-shine"
                 onclick={goBet}
                 disabled={!canBet}
             >
-                <div class="flex items-center gap-4">
-                    <div class="text-4xl transition-transform group-hover:scale-110">✏️</div>
+                <div class="relative flex items-center gap-4">
+                    <div class="text-4xl transition-transform group-hover:scale-110" aria-hidden="true">✏️</div>
                     <div class="flex-1">
-                        <div class="font-black text-lg">
+                        <div class="text-[10px] uppercase tracking-[0.18em] text-emerald-950/70 font-black">
+                            Acción principal
+                        </div>
+                        <div class="font-black text-xl text-white">
                             {#if isDev}
                                 Realizar apuesta (DEV)
                             {:else}
@@ -448,7 +337,7 @@
                         </div>
                         <div class="text-xs text-emerald-50/90">
                             {#if isDev}
-                                Modo pruebas — usa partidos del día más cercano
+                                Modo pruebas · usa partidos del día más cercano
                             {:else if isWindowOpen}
                                 Inicia sesión con tu celular
                             {:else if windowState?.status === 'upcoming'}
@@ -460,9 +349,96 @@
                             {/if}
                         </div>
                     </div>
-                    <div class="text-2xl group-hover:translate-x-1 transition-transform">→</div>
+                    <div class="text-2xl group-hover:translate-x-1 transition-transform" aria-hidden="true">→</div>
                 </div>
             </button>
+
+            <!-- Consultas frecuentes -->
+            <div class="grid grid-cols-2 gap-3">
+                <button
+                    class="glass hover:bg-white/10 rounded-3xl text-left p-4 transition-all min-h-28 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                    onclick={goRank}
+                >
+                    <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">📊</div>
+                    <div class="font-black text-base leading-tight">Ver ranking</div>
+                    <div class="mt-1 text-[11px] text-gray-400 leading-snug">No requiere iniciar sesión</div>
+                </button>
+
+                <button
+                    class="glass hover:bg-white/10 rounded-3xl text-left p-4 transition-all min-h-28 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                    onclick={goTodayBets}
+                >
+                    <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">📅</div>
+                    <div class="font-black text-base leading-tight">Apuestas de hoy</div>
+                    <div class="mt-1 text-[11px] text-gray-400 leading-snug">Cómo van ganando</div>
+                </button>
+
+                <button
+                    class="glass hover:bg-white/10 rounded-3xl text-left p-4 transition-all min-h-28 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                    onclick={goResults}
+                >
+                    <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">🌍</div>
+                    <div class="font-black text-base leading-tight">Resultados</div>
+                    <div class="mt-1 text-[11px] text-gray-400 leading-snug">Partidos y posiciones</div>
+                </button>
+
+                <button
+                    class="glass hover:bg-white/10 rounded-3xl text-left p-4 transition-all min-h-28 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                    onclick={goMovement}
+                >
+                    <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">📈</div>
+                    <div class="font-black text-base leading-tight">Movimiento</div>
+                    <div class="mt-1 text-[11px] text-gray-400 leading-snug">Subidas y bajadas</div>
+                </button>
+            </div>
+
+            <!-- Herramientas secundarias -->
+            <div class="glass rounded-3xl p-3 space-y-2">
+                <div class="px-2 pb-1 text-[10px] uppercase tracking-[0.18em] text-gray-500 font-black">
+                    Más herramientas
+                </div>
+
+                <button
+                    class="w-full hover:bg-white/10 rounded-2xl text-left px-3 py-3 transition-all group disabled:opacity-35 disabled:cursor-not-allowed"
+                    onclick={goShare}
+                    disabled={!hasShareableBets}
+                    title={hasShareableBets ? 'Generar mensaje para pegar en el grupo de WhatsApp' : 'Aún no hay apuestas para hoy'}
+                    data-pwa-tutorial="share-card"
+                >
+                    <div class="flex items-center gap-3">
+                        <div class="text-2xl transition-transform group-hover:scale-110" aria-hidden="true">📤</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-sm">Mensaje para WhatsApp</div>
+                            <div class="text-[11px] text-gray-400 truncate">
+                                {#if hasShareableBets}
+                                    Pega las apuestas de hoy en el grupo
+                                {:else}
+                                    Todavía no hay apuestas de hoy
+                                {/if}
+                            </div>
+                        </div>
+                        <div class="text-gray-500 group-hover:text-white transition-colors" aria-hidden="true">→</div>
+                    </div>
+                </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button
+                        class="hover:bg-white/10 rounded-2xl text-left px-3 py-3 transition-all group"
+                        onclick={goGoals}
+                    >
+                        <div class="text-2xl mb-1 transition-transform group-hover:scale-110" aria-hidden="true">⚽</div>
+                        <div class="font-bold text-sm leading-tight">Análisis de goles</div>
+                    </button>
+
+                    <button
+                        class="hover:bg-white/10 rounded-2xl text-left px-3 py-3 transition-all group"
+                        onclick={goSquads}
+                    >
+                        <div class="text-2xl mb-1 transition-transform group-hover:scale-110" aria-hidden="true">👕</div>
+                        <div class="font-bold text-sm leading-tight">Plantillas</div>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="text-center mt-8 space-y-2">

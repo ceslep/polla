@@ -803,21 +803,47 @@
 </script>
 
 {#if loading && windowState.status === 'upcoming' && !windowState.matches}
-    <div class="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-8">
-        <div class="text-6xl mb-4 animate-spin">⚙️</div>
-        <p class="text-gray-400">Cargando partidos del mundial…</p>
-        <p class="text-gray-600 text-xs mt-2">Si esto tarda más de 20s, reintenta.</p>
+    <div class="min-h-screen bg-[#0a0a0a] text-white relative overflow-hidden flex flex-col items-center justify-center p-8 animate-fade-in">
+        <!-- Atmósfera -->
+        <div class="pointer-events-none absolute inset-0 opacity-40 animate-gradient" style="background: radial-gradient(circle at 50% 30%, rgba(16,185,129,0.18), transparent 60%);"></div>
+        <div class="pointer-events-none absolute -top-24 -right-20 w-80 h-80 bg-cyan-500/10 blur-[100px] rounded-full"></div>
+        <div class="pointer-events-none absolute -bottom-24 -left-20 w-80 h-80 bg-emerald-500/10 blur-[100px] rounded-full"></div>
+
+        <div class="relative z-10 flex flex-col items-center text-center">
+            <!-- Marca con halo -->
+            <div class="relative mb-6">
+                <div class="absolute inset-0 rounded-full animate-glow-pulse"></div>
+                <div class="text-7xl animate-float">🏆</div>
+            </div>
+            <h1 class="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-300 via-white to-emerald-300 bg-clip-text text-transparent animate-gradient">
+                Polla Mundial 2026
+            </h1>
+
+            <!-- Barra de progreso indeterminada -->
+            <div class="mt-6 w-56 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div class="pwa-loader-bar h-full w-1/3 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400"></div>
+            </div>
+
+            <p class="text-gray-400 text-sm mt-5">Cargando partidos del mundial…</p>
+            <p class="text-gray-600 text-xs mt-1.5">Si esto tarda más de 20s, reintenta.</p>
+        </div>
     </div>
 {:else if windowState.status === 'no-matches' && windowState.message && (windowState.message.startsWith('La carga') || windowState.message.startsWith('Error'))}
-    <div class="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-8 text-center">
-        <div class="text-6xl mb-4">⚠️</div>
-        <p class="text-gray-300 max-w-md mb-6">{windowState.message}</p>
-        <button
-            class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 rounded-2xl text-white font-bold transition-all min-h-12"
-            onclick={() => load()}
-        >
-            🔄 Reintentar
-        </button>
+    <div class="min-h-screen bg-[#0a0a0a] text-white relative overflow-hidden flex flex-col items-center justify-center p-8 text-center">
+        <!-- Atmósfera -->
+        <div class="pointer-events-none absolute inset-0 opacity-30" style="background: radial-gradient(circle at 50% 30%, rgba(251,146,60,0.14), transparent 60%);"></div>
+        <div class="pointer-events-none absolute -top-24 -right-20 w-80 h-80 bg-amber-500/10 blur-[100px] rounded-full"></div>
+
+        <div class="relative z-10 max-w-md w-full glass-strong border border-white/10 rounded-3xl p-7 animate-scale-in">
+            <div class="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30 text-3xl">⚠️</div>
+            <p class="text-gray-200 mb-6 leading-relaxed">{windowState.message}</p>
+            <button
+                class="w-full px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 rounded-2xl text-white font-black transition-all min-h-12 shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2"
+                onclick={() => load()}
+            >
+                🔄 Reintentar
+            </button>
+        </div>
     </div>
 {:else if pwaSession.step === 'landing'}
     <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} onCountdownZero={handleCountdownZero} />
@@ -895,7 +921,7 @@
 <!-- Botones flotantes del header (top-right). El wrapper flex mantiene
      el orden visual: primero "Pendientes" (a la izquierda), después
      "Instalar" y "Borrar cache" (a la derecha). -->
-<div class="fixed top-3 right-3 z-50 flex items-center gap-2">
+<div class="fixed top-3 right-3 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full glass border border-white/10 shadow-lg shadow-black/30 animate-fade-in">
     <PwaMissingBetsButton
         bets={pwaScoredBets}
         {todayDate}

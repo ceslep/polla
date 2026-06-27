@@ -113,4 +113,16 @@
  * @property {FifaRankingEntry[]} rankings
  */
 
+/**
+ * A single row from the `datos` sheet returned by `loadTournamentBets()`.
+ * @typedef {Object} TournamentBetRow
+ * @property {string} participant
+ * @property {string} [phone]
+ * @property {'champion' | 'runnerup' | 'topscorer'} [type]
+ * @property {string} [champion]
+ * @property {string} [runnerup]
+ * @property {string} [topscorer]
+ * @property {string} [originalMessage]
+ */
+
 export {};
