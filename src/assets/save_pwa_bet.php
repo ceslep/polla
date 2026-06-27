@@ -88,7 +88,7 @@ const HEADERS = [
 // carga vía vendor/autoload.php (línea 42), igual que en el cron.
 const MAIL_GMAIL_USER = 'ingeleandro@gmail.com';
 const MAIL_GMAIL_PASS = 'zqqqtaoakbavgkou';
-const PWA_PUBLIC_URL  = 'https://app.iedeoccidente.com/polla/#/apostar';
+const PWA_PUBLIC_URL  = 'https://ceslep.github.io/polla/#/apostar';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
