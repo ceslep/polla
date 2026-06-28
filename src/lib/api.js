@@ -29,6 +29,10 @@ const CHANGE_PWA_PASSWORD_URL = 'https://app.iedeoccidente.com/gs/change_pwa_pas
 const SAVE_PWA_EMAIL_URL = 'https://app.iedeoccidente.com/gs/save_pwa_email.php';
 const LIST_PARTICIPANTS_URL = 'https://app.iedeoccidente.com/gs/list_participants.php';
 const GET_PWA_BETS_BY_PHONE_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets_by_phone.php';
+// Parte 2: misma infra, hoja `apuestas2` (segunda fase del torneo).
+const GET_ALL_PWA_BETS_PARTE2_URL = 'https://app.iedeoccidente.com/gs/get_all_pwa_bets_parte2.php';
+const GET_PWA_BETS_PARTE2_URL = 'https://app.iedeoccidente.com/gs/get_pwa_bets_parte2.php';
+const SAVE_PWA_BET_PARTE2_URL = 'https://app.iedeoccidente.com/gs/save_pwa_bet_parte2.php';
 const SHEETS_SPREADSHEET_ID = '1PIo_oLVjQubdbLodigV3cwOfwQ29k-SGsRmbeorI3nM';
 const SHEETS_WORKSHEET = 'datos';
 
@@ -571,10 +575,103 @@ export async function getPwaBets(payload) {
     return result;
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+ * PARTE 2 (segunda fase) — espejos de las funciones PWA apuntando a la
+ * hoja `apuestas2` vía endpoints `*_parte2.php`. Misma forma de payload y
+ * respuesta; lo único que cambia es la URL (y por tanto la hoja origen).
+ * ────────────────────────────────────────────────────────────────────── */
+
 /**
- * Lee TODAS las apuestas PWA de todos los participantes (público, sin auth).
- * Pensado para el modal de Movimiento en la PWA, que necesita datos de
- * todos los participantes sin requerir login.
+ * Lee TODAS las apuestas de la hoja `apuestas2` (público, sin auth).
+ * Espejo de loadAllPwaBets para el ranking de parte 2.
+ * @param {{ dev?: boolean }} [payload]
+ * @returns {Promise<{success: boolean, bets: Array<any>, total: number, error?: string}>}
+ */
+export async function loadAllPwaBetsParte2(payload) {
+    const response = await fetch(GET_ALL_PWA_BETS_PARTE2_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...(payload || {})
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Lee las apuestas de parte 2 del participante autenticado (hoja `apuestas2`).
+ * Espejo de getPwaBets.
+ * @param {{ username: string, password: string, dev?: boolean, matchDate?: string }} payload
+ * @returns {Promise<{success: boolean, bets: Array<any>, total: number, participant?: string, phone?: string, error?: string}>}
+ */
+export async function getPwaBetsParte2(payload) {
+    const response = await fetch(GET_PWA_BETS_PARTE2_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || `Error HTTP ${response.status}`);
+    }
+    return result;
+}
+
+/**
+ * Guarda apuestas de parte 2 en la hoja `apuestas2`. Espejo de savePwaBet.
+ * @param {{ date: string, firstMatchTime: string, username: string, password: string, dev?: boolean, rootMode?: boolean, targetPhone?: string, bets: Array<any> }} payload
+ * @returns {Promise<{success: boolean, saved: number, alreadyExists: number, message: string, window?: any, error?: string}>}
+ */
+export async function savePwaBetParte2(payload) {
+    const response = await fetch(SAVE_PWA_BET_PARTE2_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            spreadsheetId: SHEETS_SPREADSHEET_ID,
+            ...payload
+        })
+    });
+
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        throw new Error(`Error HTTP ${response.status}: respuesta no es JSON`);
+    }
+
+    if (!response.ok || !result.success) {
+        const err = new Error(result.error || `Error HTTP ${response.status}`);
+        // @ts-ignore
+        err.window = result.window;
+        throw err;
+    }
+    return result;
+}
+
+/**
+ * Lee TODAS las apuestas de la hoja `apuestas2` (público, sin auth).
  * @param {{ dev?: boolean }} [payload]
  * @returns {Promise<{success: boolean, bets: Array<any>, total: number, error?: string}>}
  */
@@ -660,6 +757,18 @@ export async function getPwaBetsByPhoneRoot(payload) {
         throw new Error(result.error || `Error HTTP ${response.status}`);
     }
     return result;
+}
+
+/**
+ * Apuestas especiales (campeón, subcampeón…) para parte 2. Hoy reusa la hoja
+ * `datos`; función propia para poder cambiar la fuente sin tocar componentes.
+ * @returns {Promise<Array<any>>}
+ */
+export async function loadTournamentBetsParte2() {
+    // Parte 2 reusa la hoja `datos` (mismas apuestas especiales del torneo).
+    // Se deja como función propia para poder apuntar a otra hoja en el futuro
+    // sin tocar los componentes de parte 2.
+    return loadTournamentBets();
 }
 
 /**

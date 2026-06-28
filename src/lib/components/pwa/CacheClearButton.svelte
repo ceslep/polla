@@ -1,24 +1,15 @@
 <script>
     /**
-     * Botón flotante "Borrar cache" para usuarios. Limpia:
-     *   - Todas las Cache Storage entries (incluyendo el SW cache viejo)
-     *   - localStorage y sessionStorage
-     *   - Unregistra todos los Service Workers registrados
-     *   - Recarga la página con `location.reload()` (full reload, no soft)
+     * Botón flotante "Borrar cache" para usuarios. Limpia caches, storages y
+     * Service Workers, y recarga. La lógica vive en `clearCache.js` (compartida
+     * con el auto-borrado al abrir la URL en main.js).
      *
      * Útil cuando un usuario tiene un SW viejo cacheado y los cambios del
      * deploy no se ven. El SW nuevo se registra solo en el reload.
      */
+    import { clearCachesAndReload } from '../../pwa/clearCache.js';
 
     let busy = $state(false);
-
-    /**
-     * @param {string} msg
-     * @returns {void}
-     */
-    function log(msg) {
-        console.log('[PWA:clear-cache]', msg);
-    }
 
     /**
      * @returns {Promise<void>}
@@ -26,47 +17,7 @@
     async function clearCaches() {
         if (busy) return;
         busy = true;
-        try {
-            // 1. Cache Storage
-            if (typeof caches !== 'undefined') {
-                const keys = await caches.keys();
-                log(`Cache Storage keys: ${keys.join(', ') || '(vacío)'}`);
-                await Promise.all(keys.map((k) => caches.delete(k)));
-                log(`✓ ${keys.length} cache(s) eliminada(s)`);
-            }
-
-            // 2. localStorage / sessionStorage
-            try {
-                const lsKeys = Object.keys(localStorage);
-                log(`localStorage keys: ${lsKeys.join(', ') || '(vacío)'}`);
-                localStorage.clear();
-                log('✓ localStorage limpiado');
-            } catch (err) {
-                log(`localStorage no accesible: ${err instanceof Error ? err.message : err}`);
-            }
-            try {
-                const ssKeys = Object.keys(sessionStorage);
-                log(`sessionStorage keys: ${ssKeys.join(', ') || '(vacío)'}`);
-                sessionStorage.clear();
-                log('✓ sessionStorage limpiado');
-            } catch (err) {
-                log(`sessionStorage no accesible: ${err instanceof Error ? err.message : err}`);
-            }
-
-            // 3. Service Workers
-            if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                log(`SW registrations: ${regs.length}`);
-                await Promise.all(regs.map((r) => r.unregister()));
-                log(`✓ ${regs.length} SW unregistrado(s)`);
-            }
-        } catch (err) {
-            console.error('[PWA:clear-cache] error:', err);
-        } finally {
-            // 4. Full reload (true = bypass HTTP cache)
-            log('Recargando…');
-            window.location.reload();
-        }
+        await clearCachesAndReload();
     }
 </script>
 

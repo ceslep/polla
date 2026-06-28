@@ -1,7 +1,7 @@
 <script>
     import { onMount } from 'svelte';
     import { findMatchForBet } from '../../stores.svelte.js';
-    import { loadWorldCupMatches, loadAllPwaBets, getPwaBets, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
+    import { loadWorldCupMatches, loadAllPwaBets, loadAllPwaBetsParte2, getPwaBets, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
     import { getFirstMatchUtcMs, isPreMatch, PREMATCH_BUFFER_MS } from '../../pwa/prematchGuard.js';
@@ -10,6 +10,7 @@
     import PwaLanding from './PwaLanding.svelte';
     import PwaLogin from './PwaLogin.svelte';
     import PwaRanking from './PwaRanking.svelte';
+    import PwaRankingParte2 from '../parte2/PwaRankingParte2.svelte';
     import PwaChangePassword from './PwaChangePassword.svelte';
     import PwaEmailPromptModal from './PwaEmailPromptModal.svelte';
     import PwaForm from './PwaForm.svelte';
@@ -24,6 +25,7 @@
     import PwaMissingBetsButton from './PwaMissingBetsButton.svelte';
     import PwaWorldCupResultsModal from './PwaWorldCupResultsModal.svelte';
     import PwaMovementModal from './PwaMovementModal.svelte';
+    import PwaMovementModalParte2 from '../parte2/PwaMovementModalParte2.svelte';
     import PwaSquadsModal from './PwaSquadsModal.svelte';
     import PwaIntro from './PwaIntro.svelte';
     import PwaGoalOverlay from './PwaGoalOverlay.svelte';
@@ -206,6 +208,9 @@
     let rawMatches = $state([]);
     /** @type {any[]} */
     let pwaScoredBets = $state([]);
+    /** Bets de parte 2 (hoja `apuestas2`) scoreados, para el ranking de parte 2. */
+    /** @type {any[]} */
+    let pwaScoredBetsParte2 = $state([]);
     /** @type {any[]} */
     let pwaNormalizedMatches = $state([]);
     /** Bets del día ya guardados por el participante autenticado. Si está
@@ -352,6 +357,11 @@
                 lastFetchedStep = step;
                 loadAndScorePwaBets();
             }
+        } else if (step === 'ranking2') {
+            if (lastFetchedStep !== step) {
+                lastFetchedStep = step;
+                loadAndScorePwaBetsParte2();
+            }
         }
     });
 
@@ -494,6 +504,106 @@
     }
 
     /**
+     * Garantiza que `pwaNormalizedMatches` esté poblado. Si el usuario navegó
+     * a una vista que necesita scoring antes de que termine la carga inicial,
+     * carga los matches de openfootball aquí.
+     */
+    async function ensureNormalizedMatches() {
+        if (pwaNormalizedMatches.length > 0) return;
+        console.log('[PWA] Matches no cargados, cargando ahora...');
+        const raw = await loadWorldCupMatches();
+        const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
+        rawMatches = withIds;
+        pwaNormalizedMatches = withIds
+            .filter((/** @type {any} */ m) => m.score?.ft)
+            .map((/** @type {any} */ m) => ({
+                id: m.id,
+                date: m.date,
+                time: m.time,
+                ground: m.ground,
+                homeTeam: normalizeTeamName(m.team1),
+                homeShort: m.team1,
+                awayTeam: normalizeTeamName(m.team2),
+                awayShort: m.team2,
+                homeScore: m.score.ft[0],
+                awayScore: m.score.ft[1],
+                resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
+            }));
+        console.log('[PWA] Matches cargados:', pwaNormalizedMatches.length, 'finalizados de', withIds.length, 'totales');
+    }
+
+    /**
+     * Normaliza un date string a formato YYYY-MM-DD.
+     * Soporta: "2026-06-13" (ISO), "6/13/2026" (US), "6/13/26" (US corto).
+     * @param {string | number | null | undefined} dateStr
+     */
+    function normalizeDate(dateStr) {
+        if (!dateStr) return '';
+        const s = String(dateStr).trim();
+        const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (isoMatch) {
+            return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+        }
+        const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (usMatch) {
+            let y = usMatch[3];
+            if (y.length === 2) y = '20' + y;
+            return `${y}-${usMatch[1].padStart(2, '0')}-${usMatch[2].padStart(2, '0')}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+            return d.toISOString().slice(0, 10);
+        }
+        return '';
+    }
+
+    /**
+     * Transforma filas crudas de la hoja (apuestas/apuestas2) al formato `Bet`
+     * y las scorea contra `pwaNormalizedMatches`. Los bets sin match en
+     * openfootball quedan como 'pending' (0 pts) para que el participante
+     * aparezca igual en el ranking.
+     * @param {any[]} rawBets
+     * @returns {any[]}
+     */
+    function scorePwaRawBets(rawBets) {
+        /** @type {any[]} */
+        const scored = [];
+        let skippedNoMatch = 0;
+        for (const raw of rawBets) {
+            const homeTeam = raw.homeTeam || '';
+            const awayTeam = raw.awayTeam || '';
+            const homeScore = parseInt(String(raw.homeScore ?? ''), 10);
+            const awayScore = parseInt(String(raw.awayScore ?? ''), 10);
+            if (!homeTeam || !awayTeam || isNaN(homeScore) || isNaN(awayScore)) {
+                continue;
+            }
+            const matchDate = normalizeDate(raw.matchDate || raw.date || '');
+            /** @type {any} */
+            const bet = {
+                id: raw.id,
+                type: 'score',
+                participant: raw.participant || '',
+                phone: raw.phone || '',
+                matchId: raw.matchId ? Number(raw.matchId) : null,
+                matchDate,
+                prediction: { homeTeam, awayTeam, homeScore, awayScore },
+                // timestamp = matchDate para que findMatchForBet matchee por día.
+                timestamp: matchDate || normalizeDate(raw.submittedAt || '') || ''
+            };
+            const match = findMatchForBet(bet, pwaNormalizedMatches);
+            if (!match) {
+                scored.push({ ...bet, status: 'pending', points: 0 });
+                skippedNoMatch++;
+                continue;
+            }
+            const cmp = compareBetWithMatch(bet, match);
+            scored.push({ ...bet, status: cmp.status, points: cmp.points, realResult: cmp.realResult });
+        }
+        console.log('[PWA] Bets totales:', scored.length, '— scoreados:', scored.length - skippedNoMatch, '— pending (sin match):', skippedNoMatch);
+        return scored;
+    }
+
+    /**
      * Carga todos los PWA bets (público, sin auth), los transforma al formato
      * estándar de `Bet` y los scorea contra los matches normalizados. El
      * resultado se guarda en `pwaScoredBets` para que MovementModal lo use.
@@ -503,124 +613,32 @@
      */
     async function loadAndScorePwaBets() {
         try {
-            // Fallback: si no hay matches normalizados, cargarlos primero.
-            if (pwaNormalizedMatches.length === 0) {
-                console.log('[PWA] Matches no cargados, cargando ahora...');
-                const raw = await loadWorldCupMatches();
-                const withIds = raw.map((m, i) => ({ ...m, id: i + 1 }));
-                rawMatches = withIds;
-                pwaNormalizedMatches = withIds
-                    .filter((/** @type {any} */ m) => m.score?.ft)
-                    .map((/** @type {any} */ m) => ({
-                        id: m.id,
-                        date: m.date,
-                        time: m.time,
-                        ground: m.ground,
-                        homeTeam: normalizeTeamName(m.team1),
-                        homeShort: m.team1,
-                        awayTeam: normalizeTeamName(m.team2),
-                        awayShort: m.team2,
-                        homeScore: m.score.ft[0],
-                        awayScore: m.score.ft[1],
-                        resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
-                    }));
-                console.log('[PWA] Matches cargados:', pwaNormalizedMatches.length, 'finalizados de', withIds.length, 'totales');
-            }
-
+            await ensureNormalizedMatches();
             const result = await loadAllPwaBets();
             const rawBets = result.bets || [];
             console.log('[PWA] Bets recibidos de la hoja:', rawBets.length);
-            if (rawBets.length === 0) {
-                pwaScoredBets = [];
-                return;
-            }
-
-            /**
-             * Normaliza un date string a formato YYYY-MM-DD.
-             * Soporta: "2026-06-13" (ISO), "6/13/2026" (US), "6/13/26" (US corto).
-             * @param {string | number | null | undefined} dateStr
-             */
-            function normalizeDate(dateStr) {
-                if (!dateStr) return '';
-                const s = String(dateStr).trim();
-                // Ya está en ISO
-                const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-                if (isoMatch) {
-                    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
-                }
-                // US format: M/D/YYYY o M/D/YY
-                const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-                if (usMatch) {
-                    let y = usMatch[3];
-                    if (y.length === 2) y = '20' + y;
-                    return `${y}-${usMatch[1].padStart(2, '0')}-${usMatch[2].padStart(2, '0')}`;
-                }
-                // Fallback: Date constructor
-                const d = new Date(s);
-                if (!isNaN(d.getTime())) {
-                    return d.toISOString().slice(0, 10);
-                }
-                return '';
-            }
-
-            /** @type {any[]} */
-            const scored = [];
-            let skippedNoMatch = 0;
-            for (const raw of rawBets) {
-                const homeTeam = raw.homeTeam || '';
-                const awayTeam = raw.awayTeam || '';
-                const homeScore = parseInt(String(raw.homeScore ?? ''), 10);
-                const awayScore = parseInt(String(raw.awayScore ?? ''), 10);
-                if (!homeTeam || !awayTeam || isNaN(homeScore) || isNaN(awayScore)) {
-                    continue;
-                }
-                const matchDate = normalizeDate(raw.matchDate || raw.date || '');
-                /** @type {any} */
-                const bet = {
-                    id: raw.id,
-                    type: 'score',
-                    participant: raw.participant || '',
-                    phone: raw.phone || '',
-                    matchId: raw.matchId ? Number(raw.matchId) : null,
-                    matchDate,
-                    prediction: {
-                        homeTeam,
-                        awayTeam,
-                        homeScore,
-                        awayScore
-                    },
-                    // Importante: timestamp = matchDate (normalizado a YYYY-MM-DD)
-                    // para que findMatchForBet pueda matchear el bet con el partido por día.
-                    // (submittedAt es el día que el usuario mandó la apuesta, que es
-                    // anterior al día del partido, así que no matchearía.)
-                    timestamp: matchDate || normalizeDate(raw.submittedAt || '') || ''
-                };
-                const match = findMatchForBet(bet, pwaNormalizedMatches);
-                if (!match) {
-                    // No se encontró match en openfootball. Incluímos el bet
-                    // igual con status 'pending' para que el ranking muestre
-                    // al participante (con 0 puntos), pero el movement lo ignora.
-                    scored.push({
-                        ...bet,
-                        status: 'pending',
-                        points: 0
-                    });
-                    skippedNoMatch++;
-                    continue;
-                }
-                const cmp = compareBetWithMatch(bet, match);
-                scored.push({
-                    ...bet,
-                    status: cmp.status,
-                    points: cmp.points,
-                    realResult: cmp.realResult
-                });
-            }
-            pwaScoredBets = scored;
-            console.log('[PWA] Bets totales:', scored.length, '— scoreados:', scored.length - skippedNoMatch, '— pending (sin match):', skippedNoMatch);
+            pwaScoredBets = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
         } catch (e) {
             console.error('Error cargando PWA bets para movement:', e);
             pwaScoredBets = [];
+        }
+    }
+
+    /**
+     * Igual que `loadAndScorePwaBets` pero para la segunda fase: lee la hoja
+     * `apuestas2` vía `loadAllPwaBetsParte2` y guarda en `pwaScoredBetsParte2`
+     * para el ranking de parte 2. Reusa los mismos matches de openfootball.
+     */
+    async function loadAndScorePwaBetsParte2() {
+        try {
+            await ensureNormalizedMatches();
+            const result = await loadAllPwaBetsParte2();
+            const rawBets = result.bets || [];
+            console.log('[PWA-P2] Bets recibidos de la hoja apuestas2:', rawBets.length);
+            pwaScoredBetsParte2 = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
+        } catch (e) {
+            console.error('Error cargando PWA bets parte 2:', e);
+            pwaScoredBetsParte2 = [];
         }
     }
 
@@ -701,6 +719,10 @@
     }
 
     function onRankingBack() {
+        setStep('landing');
+    }
+
+    function onRanking2Back() {
         setStep('landing');
     }
 
@@ -856,6 +878,14 @@
         canGoBet={!pwaSession.submitted && windowState?.status === 'open'}
         onGoBet={() => setStep('form')}
         onRefresh={loadAndScorePwaBets}
+    />
+{:else if pwaSession.step === 'ranking2'}
+    <PwaRankingParte2
+        bets={pwaScoredBetsParte2}
+        onBack={onRanking2Back}
+        canGoBet={false}
+        onGoBet={() => setStep('form')}
+        onRefresh={loadAndScorePwaBetsParte2}
     />
 {:else if pwaSession.step === 'today-bets'}
     <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />

@@ -6,7 +6,7 @@
  * sessionStorage para sobrevivir a recargas accidentales pero NO a cierre
  * de pestaña (es por sesión).
  *
- * Steps: 'landing' | 'login' | 'ranking' | 'change-password' | 'email-prompt' | 'tournament-bets' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'today-bets' | 'root-panel'
+ * Steps: 'landing' | 'login' | 'ranking' | 'ranking2' | 'change-password' | 'email-prompt' | 'tournament-bets' | 'form' | 'done' | 'history' | 'results' | 'movement' | 'movement2' | 'today-bets' | 'root-panel'
  */
 
 const SESSION_KEY = 'pwaSession';
@@ -26,7 +26,7 @@ function todayCot() {
 
 /**
  * @typedef {Object} PwaSession
- * @property {'landing'|'login'|'ranking'|'tutorial'|'change-password'|'email-prompt'|'tournament-bets'|'form'|'done'|'history'|'results'|'movement'|'today-bets'|'root-panel'} step
+ * @property {'landing'|'login'|'ranking'|'ranking2'|'tutorial'|'change-password'|'email-prompt'|'tournament-bets'|'form'|'done'|'history'|'results'|'movement'|'movement2'|'today-bets'|'root-panel'} step
  * @property {string|null} authParticipant - nombre del participante (columna A de la hoja `participantes`)
  * @property {string|null} authPhone - phone (columna B de la hoja, last 10 digits)
  * @property {string|null} authUsername - last 10 digits (== authPhone)
