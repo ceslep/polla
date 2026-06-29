@@ -149,7 +149,7 @@
   );
 
   /** URL canónica del form (igual que el start_url del manifest). */
-  const FORM_URL = "https://app.iedeoccidente.com/polla/#/apostar";
+  const FORM_URL = "https://ceslep.github.io/polla/#/apostar";
 
   /**
    * Texto base pre-armado. NO se usa directamente para el copy — va al
