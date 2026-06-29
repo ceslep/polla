@@ -30,6 +30,23 @@
 const COT_TZ = 'America/Bogota';
 
 /**
+ * Fecha de corte (COT, YYYY-MM-DD) a partir de la cual la jornada pertenece a
+ * la segunda fase del torneo y se guarda/lee en la hoja `apuestas2` (endpoints
+ * `*_parte2.php`). Fechas anteriores siguen en la hoja `apuestas` (parte 1).
+ */
+export const PARTE2_CUTOFF = '2026-06-28';
+
+/**
+ * ¿La jornada de esta fecha COT pertenece a la parte 2 (hoja `apuestas2`)?
+ * Compara strings YYYY-MM-DD lexicográficamente (seguro para fechas ISO).
+ * @param {string|null|undefined} date - 'YYYY-MM-DD' en COT
+ * @returns {boolean}
+ */
+export function isParte2Date(date) {
+    return !!date && date >= PARTE2_CUTOFF;
+}
+
+/**
  * Parsea "HH:MM UTC±N" o "HH:MM UTC±NN".
  * @param {string} timeStr
  * @returns {{hours: number, minutes: number, offsetMinutes: number} | null}

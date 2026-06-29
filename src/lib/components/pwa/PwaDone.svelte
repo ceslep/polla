@@ -1,6 +1,7 @@
 <script>
     import { pwaSession, setStep, logout } from '../../pwa/session.svelte.js';
-    import { getPwaBets } from '../../api.js';
+    import { getPwaBets, getPwaBetsParte2 } from '../../api.js';
+    import { isParte2Date } from '../../pwa/window.js';
     import { getFlagData } from '../../flags.js';
 
     /**
@@ -45,7 +46,9 @@
     async function load() {
         loading = true;
         try {
-            const result = await getPwaBets({
+            // Desde PARTE2_CUTOFF la jornada vive en `apuestas2`: recuperar de ahí.
+            const readFn = isParte2Date(date) ? getPwaBetsParte2 : getPwaBets;
+            const result = await readFn({
                 username: pwaSession.authUsername || '',
                 password: pwaSession.authPassword || '',
                 matchDate: date

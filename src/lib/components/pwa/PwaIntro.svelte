@@ -3,29 +3,30 @@
     import * as THREE from 'three';
 
     /**
-     * PwaIntro — animación Three.js que se reproduce una vez por sesión
-     * al cargar la PWA. Reproduce 1:1 el timeline del antiguo `textto.html`:
+     * PwaIntro — intro cinematográfica de estadio nocturno.
      *
-     *   t=0.0s  grain fade-in
-     *   t=1.0s  título "Polla Mundialista" entra con blur/rotateX
-     *   t=2.2s  divisor RGB aparece
-     *   t=2.6s  dígitos "2026" caen uno a uno (stagger 0.14s)
-     *   t=3.5s  light leak cruza la pantalla
-     *   t=4.4s  subtítulo "amigos de Guática" cae desde arriba
-     *   t=7.4s  comienza fade-out del stage
-     *   t=8.4s  termina fade-out
-     *   t=8.4s+2s  se desmonta y queda el contenido PWA debajo
-     *   t=9.4s  loop de render se cancela
+     * Capas WebGL (canvas, additive sobre negro):
+     *   1. Orbe de energía pulsante (gradiente cálido→cyan) detrás del título.
+     *   2. Cuatro haces volumétricos con barrido + flicker (reflectores).
+     *   3. Partículas con parpadeo (destellos de estadio).
      *
-     * Comportamiento defensivo:
-     *   - Si WebGL no está disponible, loguea y llama onClose() inmediato
-     *     (no deja al usuario en pantalla negra).
-     *   - Si `document.fonts.ready` no resuelve en 1.5s, arranca igual.
-     *   - `prefers-reduced-motion: reduce` → salta el intro directo al onClose.
-     *   - `onDestroy` libera renderer, geometries, materials y listeners.
+     * Capas CSS encima del canvas:
+     *   - lens flare en el cruce de haces, scanline de barrido, viñeta,
+     *     grain animado, shockwave al revelar el título.
+     *
+     * Timeline (s):
+     *   0.0  beams + orbe fade-in
+     *   0.6  kicker entra
+     *   1.2  título + shockwave
+     *   1.4  pico de lens flare
+     *   2.2  divisor se expande
+     *   2.6  dígitos "2026" caen (stagger 0.12s)
+     *   3.6  subtítulo sube
+     *   5.4  fade-out comienza
+     *   6.4  fade-out completo · 6.7 desmonta
      *
      * @typedef {Object} Props
-     * @property {() => void} onClose  Llamado cuando la animación debe desmontarse.
+     * @property {() => void} onClose
      */
     /** @type {Props} */
     let { onClose } = $props();
@@ -41,12 +42,18 @@
     let scene = null;
     /** @type {THREE.OrthographicCamera|null} */
     let camera = null;
+    /** @type {THREE.ShaderMaterial[]} */
+    let beamMats = [];
     /** @type {THREE.ShaderMaterial|null} */
-    let grainMat = null;
+    let orbMat = null;
+    /** @type {THREE.BufferGeometry|null} */
+    let orbGeom = null;
     /** @type {THREE.ShaderMaterial|null} */
     let pMat = null;
     /** @type {THREE.BufferGeometry|null} */
     let pGeom = null;
+    /** @type {THREE.BufferGeometry[]} */
+    let beamGeoms = [];
     let rafId = /** @type {number|null} */ (null);
     let closeTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
     let resizeHandler = /** @type {(() => void)|null} */ (null);
@@ -55,71 +62,123 @@
     let playStarted = false;
 
     const T = {
-        grainIn:    0.8,
-        title:      1.0,
+        beamFull:   1.2,
+        title:      1.2,
+        flarePeak:  1.4,
         divider:    2.2,
         yearStart:  2.6,
-        leak:       3.5,
-        subtitle:   4.4,
-        holdEnd:    7.4,
-        fadeOutEnd: 8.4,
-        replay:     8.6
+        subtitle:   3.6,
+        holdEnd:    5.4,
+        fadeOutEnd: 6.4
     };
-    const TOTAL = 9.4;
-    /** -1.0s: el componente se desmonta cuando COMIENZA el fade-out
-     *  (t = T.holdEnd = 7.4s). Hard cut. */
-    const CLOSE_AFTER_FADE = -1.0;
-    /** Duración exacta del intro: animations CSS terminan a T.fadeOutEnd,
-     *  y el componente se desmonta CLOSE_AFTER_FADE segundos después. */
-    const INTRO_DURATION_MS = (T.fadeOutEnd + CLOSE_AFTER_FADE) * 1000;
+    const TOTAL = 7.2;
+    const CLOSE_MS = 6700;
 
     function dispose() {
         if (disposed) return;
         disposed = true;
-        if (rafId !== null) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-        }
-        if (closeTimer !== null) {
-            clearTimeout(closeTimer);
-            closeTimer = null;
-        }
-        if (resizeHandler) {
-            window.removeEventListener('resize', resizeHandler);
-            resizeHandler = null;
-        }
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        if (closeTimer !== null) { clearTimeout(closeTimer); closeTimer = null; }
+        if (resizeHandler) { window.removeEventListener('resize', resizeHandler); resizeHandler = null; }
         if (contextLostHandler && canvasEl) {
             canvasEl.removeEventListener('webglcontextlost', contextLostHandler);
             contextLostHandler = null;
         }
-        if (pGeom) {
-            pGeom.dispose();
-            pGeom = null;
-        }
-        if (pMat) {
-            pMat.dispose();
-            pMat = null;
-        }
-        if (grainMat) {
-            grainMat.dispose();
-            grainMat = null;
-        }
-        if (renderer) {
-            renderer.dispose();
-            renderer = null;
-        }
+        if (pGeom) { pGeom.dispose(); pGeom = null; }
+        if (pMat) { pMat.dispose(); pMat = null; }
+        if (orbGeom) { orbGeom.dispose(); orbGeom = null; }
+        if (orbMat) { orbMat.dispose(); orbMat = null; }
+        for (const g of beamGeoms) g.dispose();
+        beamGeoms = [];
+        for (const m of beamMats) m.dispose();
+        beamMats = [];
+        if (renderer) { renderer.dispose(); renderer = null; }
         scene = null;
         camera = null;
     }
 
     onDestroy(dispose);
 
+    /**
+     * Trapezoide en clip-space para un haz volumétrico.
+     * UV v=1 es la fuente angosta (arriba), v=0 la base ancha.
+     */
+    function createBeamGeom(
+        /** @type {number} */ x1, /** @type {number} */ y1,
+        /** @type {number} */ x2, /** @type {number} */ y2,
+        /** @type {number} */ x3, /** @type {number} */ y3,
+        /** @type {number} */ x4, /** @type {number} */ y4
+    ) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+            x1, y1, 0,  x2, y2, 0,  x3, y3, 0,  x4, y4, 0
+        ]), 3));
+        g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
+            0, 1,  1, 1,  0, 0,  1, 0
+        ]), 2));
+        g.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 2, 1, 3]), 1));
+        return g;
+    }
+
+    const BEAM_VERT = [
+        'varying vec2 vUv;',
+        'void main() {',
+        '  vUv = uv;',
+        '  gl_Position = vec4(position, 1.0);',
+        '}'
+    ].join('\n');
+
+    // Haz con núcleo brillante, barrido horizontal (uSweep) y flicker (uIntensity).
+    const BEAM_FRAG = [
+        'precision highp float;',
+        'varying vec2 vUv;',
+        'uniform float uIntensity;',
+        'uniform float uTime;',
+        'uniform float uPhase;',
+        'uniform vec3 uColor;',
+        'void main() {',
+        '  float sweep = sin(uTime * 0.6 + uPhase) * 0.12;',
+        '  float cd = abs((vUv.x - 0.5) - sweep) * 2.0;',
+        '  float beam = 1.0 - smoothstep(0.0, 0.95, cd);',
+        '  beam = pow(beam, 1.7);',
+        '  float fade = pow(vUv.y, 0.65);',
+        '  float flick = 0.9 + 0.1 * sin(uTime * 9.0 + uPhase * 3.0);',
+        '  float i = beam * fade * uIntensity * flick;',
+        '  vec3 col = uColor * i;',
+        '  float core = pow(beam, 3.5) * fade * uIntensity * 0.5;',
+        '  col += vec3(1.0, 0.98, 0.92) * core;',
+        '  gl_FragColor = vec4(col, 1.0);',
+        '}'
+    ].join('\n');
+
+    // Orbe de energía radial, aspecto-corregido, pulsante.
+    const ORB_FRAG = [
+        'precision highp float;',
+        'varying vec2 vUv;',
+        'uniform float uIntensity;',
+        'uniform float uTime;',
+        'uniform float uAspect;',
+        'void main() {',
+        '  vec2 p = vUv - 0.5;',
+        '  p.x *= uAspect;',
+        '  float d = length(p);',
+        '  float pulse = 0.5 + 0.5 * sin(uTime * 1.4);',
+        '  float r = 0.20 + pulse * 0.025;',
+        '  float glow = exp(-pow(d / r, 1.5) * 3.0);',
+        '  float core = exp(-pow(d / (r * 0.42), 2.0) * 4.0);',
+        '  vec3 warm = vec3(1.0, 0.74, 0.30);',
+        '  vec3 cyan = vec3(0.18, 0.82, 1.0);',
+        '  vec3 col = mix(cyan, warm, core);',
+        '  float i = (glow * 0.55 + core * 1.25) * uIntensity;',
+        '  gl_FragColor = vec4(col * i, 1.0);',
+        '}'
+    ].join('\n');
+
     function buildScene() {
         if (!canvasEl) return false;
-        const canvas = canvasEl;
 
         try {
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+            renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: false, alpha: false });
         } catch (e) {
             console.error('[PwaIntro] WebGL no disponible:', e);
             return false;
@@ -130,58 +189,83 @@
         scene = new THREE.Scene();
         camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-        // ===== Grain fullscreen quad =====
-        /** @type {{ value: number }} */
-        const uTimeGrain = { value: 0 };
-        /** @type {{ value: number }} */
-        const uIntensity = { value: 0.0 };
-        grainMat = new THREE.ShaderMaterial({
-            uniforms: { uTime: uTimeGrain, uIntensity },
-            vertexShader: [
-                'varying vec2 vUv;',
-                'void main() { vUv = uv; gl_Position = vec4(position, 1.0); }'
-            ].join('\n'),
-            fragmentShader: [
-                'precision highp float;',
-                'varying vec2 vUv;',
-                'uniform float uTime;',
-                'uniform float uIntensity;',
-                'float hash(vec2 p) {',
-                '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);',
-                '}',
-                'void main() {',
-                '  float g = (hash(gl_FragCoord.xy + fract(uTime * 60.0)) - 0.5) * uIntensity;',
-                '  float c = (hash(gl_FragCoord.xy * 0.37 + 7.0) - 0.5) * 0.012;',
-                '  vec3 col = vec3(g + c * 0.6, g, g - c * 0.4) + 0.004;',
-                '  gl_FragColor = vec4(col, 1.0);',
-                '}'
-            ].join('\n')
+        // ── Orbe de energía (fondo, full-quad additive) ──
+        orbGeom = new THREE.BufferGeometry();
+        orbGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+            -1, 1, 0,  1, 1, 0,  -1, -1, 0,  1, -1, 0
+        ]), 3));
+        orbGeom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
+            0, 1,  1, 1,  0, 0,  1, 0
+        ]), 2));
+        orbGeom.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 2, 1, 3]), 1));
+        orbMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uIntensity: { value: 0.0 },
+                uTime: { value: 0 },
+                uAspect: { value: window.innerWidth / window.innerHeight }
+            },
+            vertexShader: BEAM_VERT,
+            fragmentShader: ORB_FRAG,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false
         });
-        const grainMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), grainMat);
-        scene.add(grainMesh);
+        scene.add(new THREE.Mesh(orbGeom, orbMat));
 
-        // ===== Particle field =====
-        const PALETTE = [
-            [1.00, 0.18, 0.33],   // crimson
-            [0.00, 0.90, 1.00],   // cyan
-            [1.00, 0.76, 0.03]    // gold
+        // ── Haces volumétricos (reflectores cruzados) ──
+        /** @type {Array<{geom: [number,number,number,number,number,number,number,number], color: [number,number,number], phase: number}>} */
+        const beamDefs = [
+            { geom: [-0.95, 1.0, -0.50, 1.0, 0.00, -1.0, 0.45, -1.0], color: [0.98, 0.50, 0.10], phase: 0.0 },
+            { geom: [-0.55, 1.0, -0.15, 1.0, 0.35, -1.0, 0.75, -1.0], color: [0.99, 0.72, 0.18], phase: 1.7 },
+            { geom: [ 0.50, 1.0,  0.95, 1.0, -0.45, -1.0, 0.00, -1.0], color: [0.20, 0.78, 1.00], phase: 3.1 },
+            { geom: [ 0.15, 1.0,  0.55, 1.0, -0.75, -1.0, -0.35, -1.0], color: [0.55, 0.85, 1.00], phase: 4.5 }
         ];
-        const PCOUNT = 120;
-        const pPos    = new Float32Array(PCOUNT * 3);
-        const pCol    = new Float32Array(PCOUNT * 3);
-        const pSeed   = new Float32Array(PCOUNT);
-        const pSpeed  = new Float32Array(PCOUNT);
+        for (const def of beamDefs) {
+            const g = createBeamGeom(...def.geom);
+            const m = new THREE.ShaderMaterial({
+                uniforms: {
+                    uIntensity: { value: 0.0 },
+                    uTime: { value: 0 },
+                    uPhase: { value: def.phase },
+                    uColor: { value: new THREE.Color(def.color[0], def.color[1], def.color[2]) }
+                },
+                vertexShader: BEAM_VERT,
+                fragmentShader: BEAM_FRAG,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: false
+            });
+            scene.add(new THREE.Mesh(g, m));
+            beamGeoms.push(g);
+            beamMats.push(m);
+        }
+
+        // ── Partículas (destellos de estadio con twinkle) ──
+        const PCOUNT = 170;
+        const pPos = new Float32Array(PCOUNT * 3);
+        const pCol = new Float32Array(PCOUNT * 3);
+        const pSeed = new Float32Array(PCOUNT);
+        const pSpeed = new Float32Array(PCOUNT);
+        const pSize = new Float32Array(PCOUNT);
 
         for (let i = 0; i < PCOUNT; i++) {
-            pPos[i*3]   = (Math.random() - 0.5) * 2.4;
-            pPos[i*3+1] = (Math.random() - 0.5) * 2.0;
-            pPos[i*3+2] = 0;
-            pSeed[i]    = Math.random() * 6.2831853;
-            pSpeed[i]   = 0.04 + Math.random() * 0.08;
-            const c = PALETTE[Math.floor(Math.random() * PALETTE.length)];
-            pCol[i*3]   = c[0];
-            pCol[i*3+1] = c[1];
-            pCol[i*3+2] = c[2];
+            pPos[i * 3]     = (Math.random() - 0.5) * 2.3;
+            pPos[i * 3 + 1] = (Math.random() - 0.5) * 2.0;
+            pPos[i * 3 + 2] = 0;
+            pSeed[i]  = Math.random() * 6.2831853;
+            pSpeed[i] = 0.020 + Math.random() * 0.060;
+            pSize[i]  = 1.0 + Math.random() * 2.6;
+            // Mezcla cálida (gold) ↔ fría (cyan), con blancos brillantes.
+            const t = Math.random();
+            if (t < 0.5) {
+                pCol[i * 3]     = 1.0;
+                pCol[i * 3 + 1] = 0.82 + t * 0.18;
+                pCol[i * 3 + 2] = 0.45 + t * 0.3;
+            } else {
+                pCol[i * 3]     = 0.55 + (1 - t) * 0.4;
+                pCol[i * 3 + 1] = 0.88;
+                pCol[i * 3 + 2] = 1.0;
+            }
         }
 
         pGeom = new THREE.BufferGeometry();
@@ -189,81 +273,99 @@
         pGeom.setAttribute('color',    new THREE.BufferAttribute(pCol, 3));
         pGeom.setAttribute('aSeed',    new THREE.BufferAttribute(pSeed, 1));
         pGeom.setAttribute('aSpeed',   new THREE.BufferAttribute(pSpeed, 1));
+        pGeom.setAttribute('aSize',    new THREE.BufferAttribute(pSize, 1));
 
         pMat = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 }, uPxRatio: { value: renderer.getPixelRatio() } },
+            uniforms: {
+                uTime: { value: 0 },
+                uPxRatio: { value: renderer.getPixelRatio() },
+                uIntensity: { value: 0.0 }
+            },
             vertexColors: true,
             transparent: true,
             depthWrite: false,
             depthTest: false,
+            blending: THREE.AdditiveBlending,
             vertexShader: [
                 'attribute float aSeed;',
                 'attribute float aSpeed;',
+                'attribute float aSize;',
                 'uniform float uTime;',
                 'uniform float uPxRatio;',
                 'varying vec3 vColor;',
+                'varying float vTw;',
                 'void main() {',
                 '  vec3 pos = position;',
                 '  pos.y = mod(pos.y + uTime * aSpeed + 1.2, 2.4) - 1.2;',
-                '  pos.x += sin(uTime * 0.4 + aSeed) * 0.04;',
+                '  pos.x += sin(uTime * 0.3 + aSeed) * 0.04;',
                 '  vColor = color;',
+                '  float tw = 0.5 + 0.5 * sin(uTime * (2.0 + aSpeed * 8.0) + aSeed * 6.0);',
+                '  vTw = tw;',
                 '  gl_Position = vec4(pos.xy, 0.0, 1.0);',
-                '  gl_PointSize = (1.5 + aSeed * 0.04) * uPxRatio;',
+                '  gl_PointSize = aSize * (0.7 + tw * 0.7) * uPxRatio;',
                 '}'
             ].join('\n'),
             fragmentShader: [
                 'varying vec3 vColor;',
+                'varying float vTw;',
+                'uniform float uIntensity;',
                 'void main() {',
                 '  vec2 c = gl_PointCoord - 0.5;',
                 '  float d = length(c);',
                 '  if (d > 0.5) discard;',
-                '  float alpha = (1.0 - d * 2.0);',
-                '  alpha = pow(alpha, 1.5) * 0.55;',
-                '  gl_FragColor = vec4(vColor, alpha);',
+                '  float a = 1.0 - smoothstep(0.0, 0.5, d);',
+                '  a = pow(a, 1.8) * (0.3 + vTw * 0.6) * uIntensity;',
+                '  gl_FragColor = vec4(vColor, a);',
                 '}'
             ].join('\n')
         });
 
-        const particles = new THREE.Points(pGeom, pMat);
-        scene.add(particles);
+        scene.add(new THREE.Points(pGeom, pMat));
 
+        // ── Resize ──
         resizeHandler = () => {
-            if (!renderer || !pMat) return;
+            if (!renderer || !pMat || !orbMat) return;
             renderer.setSize(window.innerWidth, window.innerHeight, false);
             pMat.uniforms.uPxRatio.value = renderer.getPixelRatio();
+            orbMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
         };
         window.addEventListener('resize', resizeHandler);
         resizeHandler();
 
+        // ── Context lost ──
         contextLostHandler = () => {
             console.warn('[PwaIntro] WebGL context lost — abortando intro.');
             if (!disposed) onClose?.();
         };
-        canvas.addEventListener('webglcontextlost', contextLostHandler);
+        canvasEl.addEventListener('webglcontextlost', contextLostHandler);
 
         return true;
     }
 
-    /**
-     * @param {number} startT
-     */
+    /** @param {number} startT */
     function startLoop(startT) {
         function loop() {
-            if (disposed || !renderer || !scene || !camera || !grainMat || !pMat) return;
+            if (disposed || !renderer || !scene || !camera || !pMat || !orbMat) return;
             const now = performance.now() / 1000;
             const t = now - startT;
 
-            /** @type {any} */
-            const grainUniforms = grainMat.uniforms;
-            /** @type {any} */
-            const pUniforms = pMat.uniforms;
-            grainUniforms.uTime.value = now;
-            pUniforms.uTime.value = t;
+            // Rampa de intensidad (smoothstep) compartida por beams + orbe.
+            const bp = Math.min(1, t / T.beamFull);
+            const ease = bp * bp * (3 - 2 * bp);
+            // Atenuación durante el fade-out.
+            const out = fading ? Math.max(0, 1 - (t - (T.holdEnd - 0.5)) / 1.4) : 1;
+            const lvl = ease * out;
 
-            const g = Math.min(1, t / T.grainIn);
-            grainUniforms.uIntensity.value = g * 0.06;
+            for (const m of beamMats) {
+                m.uniforms.uIntensity.value = lvl;
+                m.uniforms.uTime.value = t;
+            }
+            orbMat.uniforms.uIntensity.value = lvl;
+            orbMat.uniforms.uTime.value = t;
+            pMat.uniforms.uTime.value = t;
+            pMat.uniforms.uIntensity.value = lvl;
 
-            if (t > T.holdEnd - 0.7 && !fading) fading = true;
+            if (t > T.holdEnd - 0.5 && !fading) fading = true;
 
             renderer.render(scene, camera);
 
@@ -279,23 +381,18 @@
     function start() {
         if (playStarted || disposed) return;
         playStarted = true;
-        // Forzar reflow para que las animaciones CSS arranquen limpias.
         if (containerEl) void containerEl.offsetWidth;
         playing = true;
 
-        // El close se programa con un setTimeout dedicado, independiente del
-        // render loop (que termina a los 9.4s y NO puede disparar el close).
-        // INTRO_DURATION_MS = T.fadeOutEnd (8.4s) + CLOSE_AFTER_FADE (2.0s).
         closeTimer = setTimeout(() => {
             if (!disposed) onClose?.();
-        }, INTRO_DURATION_MS);
+        }, CLOSE_MS);
 
         const startT = performance.now() / 1000;
         startLoop(startT);
     }
 
     onMount(() => {
-        // Accesibilidad: respetar prefers-reduced-motion.
         const mq = typeof window !== 'undefined' && window.matchMedia
             ? window.matchMedia('(prefers-reduced-motion: reduce)')
             : null;
@@ -305,21 +402,12 @@
         }
 
         const ok = buildScene();
-        if (!ok) {
-            onClose?.();
-            return;
-        }
+        if (!ok) { onClose?.(); return; }
 
-        // Esperar fuentes listas con timeout defensivo.
         const fontTimeout = setTimeout(start, 1500);
         if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(() => {
-                clearTimeout(fontTimeout);
-                start();
-            }).catch(() => {
-                clearTimeout(fontTimeout);
-                start();
-            });
+            document.fonts.ready.then(() => { clearTimeout(fontTimeout); start(); })
+                               .catch(() => { clearTimeout(fontTimeout); start(); });
         } else {
             start();
         }
@@ -329,7 +417,7 @@
 <svelte:head>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Cormorant+Garamond:ital,wght@1,400;1,600&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@1,400;1,600&display=swap" rel="stylesheet">
 </svelte:head>
 
 <div
@@ -341,13 +429,19 @@
 >
     <canvas class="intro-canvas" bind:this={canvasEl}></canvas>
 
-    <div class="cine cine-top"></div>
-    <div class="cine cine-bot"></div>
+    <!-- Atmósfera -->
+    <div class="glow-top"></div>
+    <div class="scanline"></div>
+    <div class="lensflare"></div>
     <div class="vignette"></div>
-    <div class="light-leak"></div>
+    <div class="grain"></div>
 
     <div class="stage" class:playing class:fading>
-        <h1 class="title-main">Polla Mundialista</h1>
+        <span class="kicker"><i class="k-line"></i>Amigos de Guática<i class="k-line"></i></span>
+        <div class="title-wrap">
+            <span class="shockwave"></span>
+            <h1 class="title-main">Polla Mundialista</h1>
+        </div>
         <div class="divider"></div>
         <div class="year" aria-label="2026">
             <span class="year-digit" style="--i:0">2</span>
@@ -355,8 +449,7 @@
             <span class="year-digit" style="--i:2">2</span>
             <span class="year-digit" style="--i:3">6</span>
         </div>
-        <p class="subtitle">Amigos de Guática</p>
-        <p class="subtitle2">Primera Ronda Próxima a terminar</p>
+        <p class="subtitle">la gloria se predice</p>
     </div>
 </div>
 
@@ -366,22 +459,11 @@
         inset: 0;
         z-index: 9999;
         pointer-events: none;
-        background: #03030a;
-        overflow: hidden;
-    }
-
-    /* Body-gradient equivalente al del HTML original (radiales violeta/azul).
-       Renderizado dentro del componente para no contaminar el body de la app. */
-    .intro-root::before {
-        content: '';
-        position: fixed;
-        inset: 0;
-        z-index: 0;
-        pointer-events: none;
         background:
-            radial-gradient(ellipse 90% 60% at 50% 32%, rgba(60, 10, 80, 0.35) 0%, transparent 65%),
-            radial-gradient(ellipse 70% 50% at 50% 70%, rgba(0, 40, 80, 0.25) 0%, transparent 65%),
-            radial-gradient(ellipse at center, #08060f 0%, #03030a 60%, #000 100%);
+            radial-gradient(ellipse 120% 80% at 50% 120%, #0b1430 0%, transparent 60%),
+            radial-gradient(ellipse 100% 70% at 50% -10%, #11203f 0%, transparent 55%),
+            #04060f;
+        overflow: hidden;
     }
 
     .intro-canvas {
@@ -393,67 +475,105 @@
         z-index: 1;
     }
 
-    .cine {
+    /* ── Halo superior ── */
+    .glow-top {
         position: fixed;
-        left: 0;
-        right: 0;
-        height: 9vh;
-        background: #000;
-        z-index: 30;
+        top: -20%;
+        left: 6%;
+        right: 6%;
+        height: 64%;
+        z-index: 2;
         pointer-events: none;
+        background: radial-gradient(ellipse 80% 50% at 50% 0%,
+            rgba(245, 166, 35, 0.20) 0%,
+            rgba(0, 200, 255, 0.07) 42%,
+            transparent 72%);
+        opacity: 0;
+        transition: opacity 1.5s ease;
     }
-    .cine-top {
-        top: 0;
-        box-shadow: 0 1px 0 rgba(255, 45, 85, 0.35), 0 0 18px rgba(255, 45, 85, 0.18);
+    .is-playing .glow-top { opacity: 1; }
+    .is-fading .glow-top { opacity: 0; transition: opacity 1.0s ease; }
+
+    /* ── Barrido de luz diagonal ── */
+    .scanline {
+        position: fixed;
+        inset: -30%;
+        z-index: 3;
+        pointer-events: none;
+        background: linear-gradient(105deg,
+            transparent 38%,
+            rgba(255, 240, 200, 0.05) 48%,
+            rgba(0, 220, 255, 0.06) 52%,
+            transparent 62%);
+        opacity: 0;
+        transform: translateX(-30%);
     }
-    .cine-bot {
-        bottom: 0;
-        box-shadow: 0 -1px 0 rgba(0, 229, 255, 0.35), 0 0 18px rgba(0, 229, 255, 0.18);
+    .is-playing .scanline {
+        animation: scan 5.6s 1.0s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+    }
+    @keyframes scan {
+        0%   { opacity: 0;   transform: translateX(-35%); }
+        18%  { opacity: 1; }
+        80%  { opacity: 0.7; }
+        100% { opacity: 0;   transform: translateX(35%); }
     }
 
+    /* ── Lens flare en el cruce de haces ── */
+    .lensflare {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: min(60vw, 60vh);
+        height: min(60vw, 60vh);
+        z-index: 4;
+        pointer-events: none;
+        transform: translate(-50%, -50%) scale(0.2);
+        background: radial-gradient(circle,
+            rgba(255, 246, 224, 0.9) 0%,
+            rgba(255, 200, 120, 0.35) 14%,
+            rgba(0, 220, 255, 0.12) 32%,
+            transparent 62%);
+        opacity: 0;
+        mix-blend-mode: screen;
+    }
+    .is-playing .lensflare {
+        animation: flare 2.2s 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes flare {
+        0%   { opacity: 0;    transform: translate(-50%, -50%) scale(0.2); }
+        45%  { opacity: 0.85; transform: translate(-50%, -50%) scale(1.05); }
+        100% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.3); }
+    }
+
+    /* ── Viñeta ── */
     .vignette {
         position: fixed;
         inset: 0;
         z-index: 20;
         pointer-events: none;
-        background: radial-gradient(ellipse at center,
-            transparent 30%,
-            rgba(0, 0, 0, 0.55) 78%,
-            rgba(0, 0, 0, 0.92) 100%);
-        opacity: 0.7;
-        transition: opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .is-playing .vignette,
-    .is-fading .vignette {
-        opacity: 1;
+        background: radial-gradient(ellipse 75% 75% at 50% 48%,
+            transparent 45%,
+            rgba(2, 4, 10, 0.45) 78%,
+            rgba(2, 4, 10, 0.85) 100%);
     }
 
-    .light-leak {
+    /* ── Grain animado ── */
+    .grain {
         position: fixed;
-        top: 50%;
-        left: 0;
-        width: 70vw;
-        height: 80vh;
-        transform: translate(-110%, -50%) rotate(-6deg);
-        z-index: 15;
+        inset: -50%;
+        z-index: 21;
         pointer-events: none;
-        background: linear-gradient(90deg,
-            rgba(255, 45, 85, 0.0) 0%,
-            rgba(255, 45, 85, 0.55) 15%,
-            rgba(255, 179, 0, 0.65) 50%,
-            rgba(0, 229, 255, 0.55) 85%,
-            rgba(0, 229, 255, 0.0) 100%);
-        mix-blend-mode: screen;
-        filter: blur(30px);
-        opacity: 0;
+        opacity: 0.07;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-size: 160px 160px;
     }
-    .is-playing .light-leak {
-        animation: leak-sweep 1.0s 3.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes leak-sweep {
-        0%   { transform: translate(-110%, -50%) rotate(-6deg); opacity: 0; }
-        15%  { opacity: 1; }
-        100% { transform: translate(220%, -50%) rotate(-6deg); opacity: 0; }
+    .is-playing .grain { animation: grain 0.5s steps(4) infinite; }
+    @keyframes grain {
+        0%   { transform: translate(0, 0); }
+        25%  { transform: translate(-3%, 2%); }
+        50%  { transform: translate(2%, -3%); }
+        75%  { transform: translate(-2%, -2%); }
+        100% { transform: translate(3%, 3%); }
     }
 
     .stage {
@@ -469,98 +589,162 @@
         pointer-events: none;
     }
 
+    /* ── Kicker ── */
+    .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.8em;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: clamp(0.7rem, 1.8vw, 1.15rem);
+        letter-spacing: 0.55em;
+        text-transform: uppercase;
+        color: #ffd98a;
+        text-indent: 0.55em;
+        margin-bottom: 1.4vh;
+        filter: drop-shadow(0 0 8px rgba(255, 196, 84, 0.5));
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    .k-line {
+        display: inline-block;
+        width: clamp(1.6rem, 6vw, 4rem);
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #ffd98a, transparent);
+        opacity: 0.8;
+    }
+    .stage.playing .kicker {
+        animation: kicker-in 1.1s 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes kicker-in {
+        0%   { opacity: 0; transform: translateY(10px); letter-spacing: 0.9em; }
+        100% { opacity: 1; transform: translateY(0);    letter-spacing: 0.55em; }
+    }
+
+    /* ── Título ── */
+    .title-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .shockwave {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 224, 150, 0.85);
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .stage.playing .shockwave {
+        animation: shock 1.4s 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes shock {
+        0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0);    border-width: 3px; }
+        100% { opacity: 0;   transform: translate(-50%, -50%) scale(34);   border-width: 0.5px; }
+    }
+
     .title-main {
-        font-family: 'Bebas Neue', 'Playfair Display', serif;
+        font-family: 'Bebas Neue', sans-serif;
         font-weight: 400;
-        font-size: clamp(2.4rem, 8.4vw, 9.5rem);
-        letter-spacing: 0.16em;
+        font-size: clamp(2.8rem, 9vw, 10rem);
+        letter-spacing: 0.14em;
         line-height: 0.95;
         text-transform: uppercase;
+        text-indent: 0.14em;
         background: linear-gradient(180deg,
-            #ff8a9b 0%,
-            #ff2d55 35%,
-            #ff1744 65%,
-            #b8001f 100%);
+            #fff7ea 0%,
+            #ffd700 28%,
+            #f5a623 58%,
+            #b96f00 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: blur(20px) drop-shadow(0 0 30px rgba(255, 45, 85, 0.55)) drop-shadow(0 0 60px rgba(255, 45, 85, 0.25));
+        filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.6))
+                drop-shadow(0 0 56px rgba(245, 166, 35, 0.32));
         opacity: 0;
-        transform: scale(0.82) rotateX(18deg);
-        transform-origin: center;
+        transform: translateY(22px);
     }
     .stage.playing .title-main {
-        animation: title-in 1.6s 1.0s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        animation: title-in 1.5s 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes title-in {
-        0%   { filter: blur(20px) drop-shadow(0 0 30px rgba(255,45,85,0.55)) drop-shadow(0 0 60px rgba(255,45,85,0.25)); opacity: 0; transform: scale(0.82) rotateX(18deg); }
-        55%  { filter: blur(2px)  drop-shadow(0 0 30px rgba(255,45,85,0.75)) drop-shadow(0 0 60px rgba(255,45,85,0.35)); opacity: 1; transform: scale(1.04) rotateX(0deg); }
-        100% { filter: blur(0px)  drop-shadow(0 0 18px rgba(255,45,85,0.55)) drop-shadow(0 0 40px rgba(255,45,85,0.22)); opacity: 1; transform: scale(1.0) rotateX(0deg); }
+        0%   { opacity: 0; transform: translateY(22px) scale(0.94); filter: drop-shadow(0 0 46px rgba(255,215,0,0.85)) drop-shadow(0 0 90px rgba(245,166,35,0.55)); }
+        55%  { opacity: 1; }
+        100% { opacity: 1; transform: translateY(0) scale(1); filter: drop-shadow(0 0 22px rgba(255,215,0,0.6)) drop-shadow(0 0 56px rgba(245,166,35,0.32)); }
     }
 
+    /* ── Divisor ── */
     .divider {
         width: 0;
         height: 1px;
-        margin: 2.2vh 0 2vh;
+        margin: 2.5vh 0 2vh;
         background: linear-gradient(90deg,
             transparent 0%,
-            #ff2d55 20%,
-            #ffc107 50%,
-            #00e5ff 80%,
+            #f5a623 15%,
+            #ffd700 40%,
+            #00e5ff 70%,
             transparent 100%);
         opacity: 0;
-        box-shadow: 0 0 12px rgba(255, 193, 7, 0.5);
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.4),
+                    0 0 24px rgba(0, 229, 255, 0.25);
     }
     .stage.playing .divider {
-        animation: divider-in 1.0s 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        animation: divider-in 0.8s 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     @keyframes divider-in {
         0%   { width: 0;    opacity: 0; }
-        100% { width: 44vw; opacity: 0.95; }
+        100% { width: 42vw; opacity: 1; }
     }
 
+    /* ── Dígitos del año ── */
     .year {
-        font-family: 'Bebas Neue', 'Playfair Display', serif;
+        font-family: 'Bebas Neue', sans-serif;
         font-weight: 400;
-        font-size: clamp(2rem, 6.5vw, 6.5rem);
-        letter-spacing: 0.38em;
+        font-size: clamp(2.2rem, 7vw, 7rem);
+        letter-spacing: 0.4em;
         display: flex;
         gap: 0.1em;
-        margin-left: 0.38em;
+        margin-left: 0.4em;
     }
     .year-digit {
         display: inline-block;
         background: linear-gradient(180deg,
-            #b3f5ff 0%,
+            #eafaff 0%,
             #00e5ff 40%,
             #00b8d4 70%,
-            #006978 100%);
+            #00697f 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 0 14px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 32px rgba(0, 229, 255, 0.3));
+        filter: drop-shadow(0 0 14px rgba(0, 229, 255, 0.75))
+                drop-shadow(0 0 32px rgba(0, 229, 255, 0.32));
         opacity: 0;
-        clip-path: inset(0 100% 0 0);
-        transform: translateY(40px) scale(0.7);
+        transform: translateY(30px) scale(0.8);
     }
     .stage.playing .year-digit {
-        animation: digit-in 0.75s calc(2.6s + var(--i) * 0.14s) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        animation: digit-in 0.65s calc(2.6s + var(--i) * 0.12s) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
     @keyframes digit-in {
-        0%   { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateY(40px) scale(0.7); }
-        50%  { opacity: 1; }
-        100% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateY(0) scale(1.0); }
+        0%   { opacity: 0; transform: translateY(30px) scale(0.8); }
+        60%  { opacity: 1; }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
     }
 
+    /* ── Subtítulo ── */
     .subtitle {
-        font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+        font-family: 'Cormorant Garamond', serif;
         font-style: italic;
         font-weight: 600;
-        font-size: clamp(1.2rem, 2.4vw, 2.3rem);
-        letter-spacing: 0.6em;
+        font-size: clamp(1.1rem, 2.4vw, 2.2rem);
+        letter-spacing: 0.5em;
         text-transform: lowercase;
-        margin-top: 2.8vh;
-        margin-left: 0.6em;
+        margin-top: 3vh;
+        margin-left: 0.5em;
+        text-indent: 0.5em;
         background: linear-gradient(90deg,
             #ffd54f 0%,
             #ffc107 50%,
@@ -568,56 +752,28 @@
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 0 12px rgba(255, 193, 7, 0.6)) drop-shadow(0 0 28px rgba(255, 193, 7, 0.25));
+        filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.5));
         opacity: 0;
-        transform: translateY(-80px);
-    }
-
-    .subtitle2 {
-        font-family: 'Cormorant Garamond', 'Playfair Display', serif;
-        font-style: normal;
-        font-weight: 500;
-        font-size: clamp(0.9rem, 1.7vw, 1.55rem);
-        letter-spacing: 0.35em;
-        text-transform: uppercase;
-        margin-top: 1.4vh;
-        margin-left: 0.35em;
-        background: linear-gradient(90deg,
-            #b3f5ff 0%,
-            #00e5ff 50%,
-            #00b8d4 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.55)) drop-shadow(0 0 22px rgba(0, 229, 255, 0.22));
-        opacity: 0;
-        transform: translateY(30px);
+        transform: translateY(-40px);
     }
     .stage.playing .subtitle {
-        animation: subtitle-in 1.3s 4.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    }
-    .stage.playing .subtitle2 {
-        animation: subtitle2-in 1.2s 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        animation: subtitle-in 1.0s 3.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     @keyframes subtitle-in {
-        0%   { opacity: 0; transform: translateY(-80px); letter-spacing: 0.95em; filter: blur(6px); }
-        50%  { opacity: 1; filter: blur(0px); }
-        100% { opacity: 0.95; transform: translateY(0); letter-spacing: 0.6em; filter: blur(0px); }
-    }
-    @keyframes subtitle2-in {
-        0%   { opacity: 0; transform: translateY(30px) scale(0.96); filter: blur(4px); }
-        100% { opacity: 0.9; transform: translateY(0) scale(1); filter: blur(0px); }
+        0%   { opacity: 0;    transform: translateY(-40px); letter-spacing: 0.8em; }
+        100% { opacity: 0.95; transform: translateY(0);     letter-spacing: 0.5em; }
     }
 
+    /* ── Fade out ── */
+    .stage.fading .kicker,
     .stage.fading .title-main,
     .stage.fading .divider,
     .stage.fading .year-digit,
-    .stage.fading .subtitle,
-    .stage.fading .subtitle2 {
+    .stage.fading .subtitle {
         animation: fade-out 1.0s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
     }
     @keyframes fade-out {
-        to { opacity: 0; filter: blur(8px); transform: translateY(-8px) scale(0.97); }
+        to { opacity: 0; filter: blur(6px); transform: translateY(-6px) scale(0.98); }
     }
 
     @media (prefers-reduced-motion: reduce) {

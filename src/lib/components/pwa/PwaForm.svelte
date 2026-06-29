@@ -1,7 +1,7 @@
 <script>
     import { pwaSession, markSubmitted, setStep, logout } from '../../pwa/session.svelte.js';
-    import { savePwaBet } from '../../api.js';
-    import { firstMatchTimeCot } from '../../pwa/window.js';
+    import { savePwaBet, savePwaBetParte2 } from '../../api.js';
+    import { firstMatchTimeCot, isParte2Date } from '../../pwa/window.js';
     import { getFlagData } from '../../flags.js';
     import PwaMatchDetail from './PwaMatchDetail.svelte';
 
@@ -65,10 +65,29 @@
         /** @type {Record<number, {home: number|null, away: number|null}>} */
         const next = {};
         for (const b of existingBets) {
-            next[b.matchId] = { home: b.homeScore, away: b.awayScore };
+            const mid = matchIdOf(b);
+            if (mid == null) continue;
+            next[mid] = { home: b.homeScore, away: b.awayScore };
         }
         scores = next;
     });
+
+    /**
+     * matchId de un bet guardado. La hoja `apuestas2` no persiste una columna
+     * matchId (col F vacía), pero el id es determinístico
+     * `pwa_<phone>_<date>_<matchId>`, así que el matchId es el último segmento.
+     * Si `b.matchId` viene poblado (hoja `apuestas` parte 1), se usa directo.
+     * @param {any} b
+     * @returns {number|null}
+     */
+    function matchIdOf(b) {
+        const direct = Number(b.matchId);
+        if (b.matchId != null && b.matchId !== '' && !isNaN(direct)) return direct;
+        const id = String(b.id || '');
+        const last = id.slice(id.lastIndexOf('_') + 1);
+        const n = Number(last);
+        return last !== '' && !isNaN(n) ? n : null;
+    }
 
     /**
      * @param {number} matchId
@@ -146,7 +165,10 @@
                 awayScore: scores[m.id].away
             }));
 
-            const result = await savePwaBet({
+            // Desde PARTE2_CUTOFF (28/06/2026 COT) las jornadas se guardan en la
+            // hoja `apuestas2` vía el endpoint parte 2. Mismo payload.
+            const saveFn = isParte2Date(windowState.date) ? savePwaBetParte2 : savePwaBet;
+            const result = await saveFn({
                 date: windowState.date,
                 firstMatchTime: firstMatchTimeCot(windowState) || '00:00',
                 username: pwaSession.authUsername || '',

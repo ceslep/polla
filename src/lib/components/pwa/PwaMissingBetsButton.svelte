@@ -1,5 +1,6 @@
 <script>
-  import { loadAllPwaBets } from "../../api.js";
+  import { loadAllPwaBets, loadAllPwaBetsParte2 } from "../../api.js";
+  import { isParte2Date } from "../../pwa/window.js";
   import { fade, fly } from "svelte/transition";
 
   /**
@@ -210,7 +211,10 @@
     loading = true;
     fetchError = null;
     try {
-      const result = await loadAllPwaBets();
+      // Desde PARTE2_CUTOFF (28/06) los faltantes del día se calculan contra
+      // la hoja `apuestas2`. Antes, contra `apuestas` (parte 1).
+      const loadFn = isParte2Date(todayDate) ? loadAllPwaBetsParte2 : loadAllPwaBets;
+      const result = await loadFn();
       freshBets = (result.bets || []).map((b) => ({ ...b, type: "score" }));
       console.log("[PwaMissingBets] refreshed:", freshBets.length, "bets");
     } catch (e) {

@@ -1,6 +1,6 @@
 <script>
     import { pwaSession, setStep, logout } from '../../pwa/session.svelte.js';
-    import { getPwaBets } from '../../api.js';
+    import { getPwaBets, getPwaBetsParte2 } from '../../api.js';
 
     /** @type {{ isDev?: boolean }} */
     let { isDev = false } = $props();
@@ -26,11 +26,28 @@
     async function load() {
         loading = true;
         try {
-            const result = await getPwaBets({
+            const creds = {
                 username: pwaSession.authUsername || '',
                 password: pwaSession.authPassword || ''
-            });
-            const all = result.bets || [];
+            };
+            // El historial cubre ambas fases: hoja `apuestas` (parte 1) y
+            // `apuestas2` (parte 2). Se piden en paralelo y se combinan; si una
+            // falla, se usa lo que devuelva la otra.
+            const [r1, r2] = await Promise.allSettled([
+                getPwaBets(creds),
+                getPwaBetsParte2(creds)
+            ]);
+            const bets1 = r1.status === 'fulfilled' ? (r1.value.bets || []) : [];
+            const bets2 = r2.status === 'fulfilled' ? (r2.value.bets || []) : [];
+            // Dedup por id: el 28/06 puede existir en ambas hojas (id
+            // determinístico pwa_<phone>_<date>_<matchId>). Parte 2 (bets2) gana.
+            const seen = new Set();
+            const all = [];
+            for (const b of [...bets2, ...bets1]) {
+                if (seen.has(b.id)) continue;
+                seen.add(b.id);
+                all.push(b);
+            }
             const map = new Map();
             for (const b of all) {
                 const d = b.matchDate || 'sin fecha';

@@ -49,7 +49,7 @@
         if (e.key === 'Escape') close();
     }
 
-    const isVisible = $derived($needRefreshStore || $offlineReadyStore);
+    const isVisible = $derived($needRefreshStore);
 </script>
 
 <svelte:window on:keydown={isVisible ? onKeydown : null} />

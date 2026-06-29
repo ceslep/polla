@@ -67,6 +67,10 @@
         setStep('movement');
     }
 
+    function goMovement2() {
+        setStep('movement2');
+    }
+
     function goSquads() {
         onSquads();
     }
@@ -402,6 +406,15 @@
                     <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">📈</div>
                     <div class="font-black text-base leading-tight">Movimiento</div>
                     <div class="mt-1 text-[11px] text-gray-400 leading-snug">Subidas y bajadas</div>
+                </button>
+
+                <button
+                    class="glass hover:bg-white/10 rounded-3xl text-left p-4 transition-all min-h-28 group hover:-translate-y-0.5 hover:shadow-xl hover:shadow-white/5"
+                    onclick={goMovement2}
+                >
+                    <div class="text-3xl mb-3 transition-transform group-hover:scale-110" aria-hidden="true">📊</div>
+                    <div class="font-black text-base leading-tight">Movimiento Parte 2</div>
+                    <div class="mt-1 text-[11px] text-gray-400 leading-snug">Segunda fase del torneo</div>
                 </button>
             </div>
 

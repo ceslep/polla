@@ -284,7 +284,7 @@
                     />
                 </div>
                 <div class="max-h-64 overflow-auto overscroll-contain">
-                    {#each filterOptions(cfg.options) as o (o.value)}
+                    {#each filterOptions(cfg.options) as o (o.value + '::' + o.flagTeam)}
                         {@const of = flagFor(o.flagTeam)}
                         <button
                             type="button"

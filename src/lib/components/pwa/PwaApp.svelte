@@ -1,9 +1,9 @@
 <script>
     import { onMount } from 'svelte';
     import { findMatchForBet } from '../../stores.svelte.js';
-    import { loadWorldCupMatches, loadAllPwaBets, loadAllPwaBetsParte2, getPwaBets, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
+    import { loadWorldCupMatches, loadAllPwaBets, loadAllPwaBetsParte2, getPwaBets, getPwaBetsParte2, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
-    import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts } from '../../pwa/window.js';
+    import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts, isParte2Date } from '../../pwa/window.js';
     import { getFirstMatchUtcMs, isPreMatch, PREMATCH_BUFFER_MS } from '../../pwa/prematchGuard.js';
     import { pwaSession, setStep, logout, completeEmailPrompt, completeTournamentBets, hasSeenPwaTour, markPwaTourSeen, hasSeenPwaIntro, markPwaIntroSeen, hasSeenGoal } from '../../pwa/session.svelte.js';
 
@@ -357,7 +357,7 @@
                 lastFetchedStep = step;
                 loadAndScorePwaBets();
             }
-        } else if (step === 'ranking2') {
+        } else if (step === 'ranking2' || step === 'movement2') {
             if (lastFetchedStep !== step) {
                 lastFetchedStep = step;
                 loadAndScorePwaBetsParte2();
@@ -399,9 +399,13 @@
         const username = pwaSession.authUsername;
         const password = pwaSession.authPassword;
 
+        // Desde PARTE2_CUTOFF la jornada vive en la hoja `apuestas2`: el check
+        // de "ya envió" debe leerla, no la hoja parte 1.
+        const readFn = isParte2Date(date) ? getPwaBetsParte2 : getPwaBets;
+
         (async () => {
             try {
-                const result = await getPwaBets({
+                const result = await readFn({
                     username,
                     password,
                     matchDate: date
@@ -617,7 +621,10 @@
             const result = await loadAllPwaBets();
             const rawBets = result.bets || [];
             console.log('[PWA] Bets recibidos de la hoja:', rawBets.length);
-            pwaScoredBets = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
+            const scored = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
+            // Parte 1 corta el 27/06: jornadas >= PARTE2_CUTOFF (28/06) son de la
+            // segunda fase aunque haya filas viejas en la hoja `apuestas`.
+            pwaScoredBets = scored.filter((/** @type {any} */ b) => !isParte2Date(b.matchDate));
         } catch (e) {
             console.error('Error cargando PWA bets para movement:', e);
             pwaScoredBets = [];
@@ -635,7 +642,10 @@
             const result = await loadAllPwaBetsParte2();
             const rawBets = result.bets || [];
             console.log('[PWA-P2] Bets recibidos de la hoja apuestas2:', rawBets.length);
-            pwaScoredBetsParte2 = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
+            const scored = rawBets.length === 0 ? [] : scorePwaRawBets(rawBets);
+            // Parte 2 arranca el 28/06: solo jornadas >= PARTE2_CUTOFF (defensa
+            // contra filas anteriores que pudieran existir en `apuestas2`).
+            pwaScoredBetsParte2 = scored.filter((/** @type {any} */ b) => isParte2Date(b.matchDate));
         } catch (e) {
             console.error('Error cargando PWA bets parte 2:', e);
             pwaScoredBetsParte2 = [];
@@ -673,10 +683,17 @@
                             resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
                         }));
                     await loadAndScorePwaBets();
+                    // Si hoy pertenece a la parte 2, cargar también `apuestas2`
+                    // para que el badge de "Pendientes" tenga datos al iniciar
+                    // (sin esperar a que el usuario entre a ranking2/movement2).
+                    if (isParte2Date(todayDate)) {
+                        await loadAndScorePwaBetsParte2();
+                    }
                     let s = computeWindowState(withIds, nowOverride || undefined);
                     s = buildDevState(withIds, s, nowOverride || undefined);
                     if (!isDev && !pwaSession.isRoot && s.status === 'open' && pwaSession.authUsername && pwaSession.authPassword && s.date && pwaSession.date === s.date) {
-                        const existing = await getPwaBets({
+                        const readFn = isParte2Date(s.date) ? getPwaBetsParte2 : getPwaBets;
+                        const existing = await readFn({
                             username: pwaSession.authUsername,
                             password: pwaSession.authPassword,
                             matchDate: s.date
@@ -937,6 +954,15 @@
             onClose={onModalClose}
         />
     </div>
+{:else if pwaSession.step === 'movement2'}
+    <div class="text-white">
+        <PwaMovementModalParte2
+            bets={pwaScoredBetsParte2}
+            matches={pwaNormalizedMatches}
+            winners={pwaScoredBetsParte2.length > 0 ? computePwaWinners(pwaScoredBetsParte2) : []}
+            onClose={onModalClose}
+        />
+    </div>
 {:else}
     <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} />
 {/if}
@@ -953,7 +979,7 @@
      "Instalar" y "Borrar cache" (a la derecha). -->
 <div class="fixed top-3 right-3 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full glass border border-white/10 shadow-lg shadow-black/30 animate-fade-in">
     <PwaMissingBetsButton
-        bets={pwaScoredBets}
+        bets={isParte2Date(todayDate) ? pwaScoredBetsParte2 : pwaScoredBets}
         {todayDate}
         firstMatchHHMM={preMatchInfo.firstMatchHHMM}
     />
