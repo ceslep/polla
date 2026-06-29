@@ -1,6 +1,7 @@
 <script>
     import { getFlagData } from '../../flags.js';
     import { PREMATCH_PASSWORD } from '../../pwa/prematchGuard.js';
+    import { isParte2Date } from '../../pwa/window.js';
 
     /**
      * @type {{
@@ -375,7 +376,7 @@
                         onclick={clearFilters}
                     >Limpiar filtros</button>
                 {:else}
-                    <p class="text-gray-400 text-sm">Aún no hay apuestas para hoy ({todayDate}) en la hoja <code class="text-cyan-400 font-mono">apuestas</code>.</p>
+                    <p class="text-gray-400 text-sm">Aún no hay apuestas para hoy ({todayDate}) en la hoja <code class="text-cyan-400 font-mono">{isParte2Date(todayDate) ? 'apuestas2' : 'apuestas'}</code>.</p>
                 {/if}
             </div>
         {:else}

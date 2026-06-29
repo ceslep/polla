@@ -905,7 +905,7 @@
         onRefresh={loadAndScorePwaBetsParte2}
     />
 {:else if pwaSession.step === 'today-bets'}
-    <PwaTodayBets bets={pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />
+    <PwaTodayBets bets={isParte2Date(todayDate) ? pwaScoredBetsParte2 : pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />
 {:else if pwaSession.step === 'root-panel'}
     <PwaRootPanel
         bets={pwaScoredBets}
