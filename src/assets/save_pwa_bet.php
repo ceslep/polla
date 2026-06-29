@@ -76,6 +76,7 @@ const WORKSHEET = 'apuestas';
 const PARTICIPANTS_WORKSHEET = 'participantes';
 const TIMEZONE = 'America/Bogota';
 const COT_OFFSET_HOURS = -5;
+const PARTE2_CUTOFF = '2026-06-28';
 
 const HEADERS = [
     'id', 'timestamp', 'participant', 'phone', 'matchDate', '',
@@ -307,11 +308,11 @@ function sendBetConfirmationEmail(
             $away = htmlspecialchars((string)$row[7], ENT_QUOTES, 'UTF-8');
             $hs   = (int)$row[8];
             $as   = (int)$row[9];
-            $rowsHtml .= "<tr>"
-                . "<td>{$home}</td>"
-                . "<td class='vs'>vs</td>"
-                . "<td>{$away}</td>"
-                . "<td class='score'>{$hs} - {$as}</td>"
+            $rowsHtml .= "<tr style='border-bottom:1px solid #eceff1'>"
+                . "<td style='padding:12px 14px;color:#333;'>{$home}</td>"
+                . "<td style='padding:12px 6px;text-align:center;color:#999;font-weight:600;'>vs</td>"
+                . "<td style='padding:12px 14px;color:#333;'>{$away}</td>"
+                . "<td style='padding:12px 14px;text-align:center;font-family:\"Courier New\",monospace;font-size:18px;font-weight:700;color:#10b981;'>{$hs} - {$as}</td>"
                 . "</tr>";
             $altLines[] = "{$row[6]} vs {$row[7]}: {$hs} - {$as}";
         }
@@ -325,71 +326,45 @@ function sendBetConfirmationEmail(
         $timeEsc = htmlspecialchars($firstMatchTime, ENT_QUOTES, 'UTF-8');
         $urlEsc  = htmlspecialchars(PWA_PUBLIC_URL, ENT_QUOTES, 'UTF-8');
 
-        // Layout email-safe inspirado en solicitarCodigo2.php:
-        // <style> en <head>, sin inline styles, fondo claro, tabla
-        // con <thead>/<tbody>, jerarquía clara. Los gradientes oscuros
-        // y los inline styles del HTML original hacían que Gmail lo
-        // marque como "promocional" y filtre el cross-account CC.
         $html = <<<HTML
 <!DOCTYPE html>
 <html lang='es'>
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width,initial-scale=1.0'>
-    <style>
-        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;background:#f5f5f5;margin:0;padding:0}
-        .container{max-width:600px;margin:20px auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);overflow:hidden}
-        .header{background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;padding:30px;text-align:center}
-        .logo{font-size:28px;font-weight:800;margin-bottom:8px;letter-spacing:.5px}
-        .subtitle{margin:0;font-size:14px;opacity:.9}
-        .content{padding:30px}
-        .greeting{font-size:18px;margin-bottom:16px;color:#10b981;font-weight:600}
-        .info-box{background:#e3f2fd;border-left:4px solid #2196f3;padding:14px 18px;margin:20px 0;border-radius:5px;color:#1565c0;font-size:14px}
-        .info-box strong{color:#0d47a1}
-        table{width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:5px;overflow:hidden}
-        thead{background:#eceff1}
-        th{padding:12px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc}
-        td{padding:12px 14px;border-bottom:1px solid #eceff1;color:#333}
-        td.score{text-align:center;font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#10b981}
-        td.vs{text-align:center;color:#999;font-weight:600}
-        .cta-wrap{text-align:center;margin:24px 0 8px}
-        .cta{display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;text-decoration:none;border-radius:9999px;font-weight:700;font-size:15px;box-shadow:0 2px 8px rgba(16,185,129,.3)}
-        .footer{background:#f5f5f5;padding:20px 30px;font-size:12px;color:#666;text-align:center;border-top:1px solid #ddd}
-        .footer p{margin:5px 0}
-    </style>
 </head>
-<body>
-    <div class='container'>
-        <div class='header'>
-            <div class='logo'>&#x26bd;&#xFE0F; POLLA 2026</div>
-            <p class='subtitle'>Apuestas guardadas</p>
+<body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#333;background:#f5f5f5;margin:0;padding:0;'>
+    <div style='max-width:600px;margin:12px auto;background:#fff;border-radius:8px;overflow:hidden;'>
+        <div style='background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;padding:24px;text-align:center;'>
+            <div style='font-size:24px;font-weight:800;margin-bottom:4px;letter-spacing:.5px;'>&#x26bd;&#xFE0F; POLLA 2026</div>
+            <div style='margin:0;font-size:13px;opacity:.9;'>Apuestas guardadas</div>
         </div>
-        <div class='content'>
-            <p class='greeting'>Hola, {$nameEsc}!</p>
-            <div class='info-box'>
-                Tus apuestas del <strong>{$dateEsc}</strong> se guardaron correctamente.
-                La ventana cierra a las <strong>{$timeEsc}</strong> (hora Colombia).
+        <div style='padding:20px;'>
+            <p style='font-size:17px;margin:0 0 14px;color:#10b981;font-weight:600;'>Hola, {$nameEsc}!</p>
+            <div style='background:#e3f2fd;border-left:4px solid #2196f3;padding:12px 16px;margin:0 0 18px;border-radius:5px;color:#1565c0;font-size:13px;'>
+                Tus apuestas del <strong style='color:#0d47a1;'>{$dateEsc}</strong> se guardaron correctamente.
+                La ventana cierra a las <strong style='color:#0d47a1;'>{$timeEsc}</strong> (hora Colombia).
             </div>
-            <table>
+            <table style='width:100%;border-collapse:collapse;margin:16px 0;background:#fafafa;border-radius:5px;overflow:hidden;'>
                 <thead>
-                    <tr>
-                        <th>Local</th>
-                        <th></th>
-                        <th>Visitante</th>
-                        <th>Tu apuesta</th>
+                    <tr style='background:#eceff1;'>
+                        <th style='padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc;'>Local</th>
+                        <th style='padding:10px 4px;text-align:center;font-size:10px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc;'></th>
+                        <th style='padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc;'>Visitante</th>
+                        <th style='padding:10px 12px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;font-weight:600;border-bottom:2px solid #cfd8dc;'>Apuesta</th>
                     </tr>
                 </thead>
                 <tbody>
                     {$rowsHtml}
                 </tbody>
             </table>
-            <div class='cta-wrap'>
-                <a href='{$urlEsc}' class='cta'>Ver en la PWA</a>
+            <div style='text-align:center;margin:20px 0 4px;'>
+                <a href='{$urlEsc}' style='display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);color:#fff;text-decoration:none;border-radius:9999px;font-weight:700;font-size:14px;'>Ver en la PWA</a>
             </div>
         </div>
-        <div class='footer'>
-            <p>Polla Mundialista 2026 &middot; IED Occidente</p>
-            <p>Este correo fue enviado de forma automatica. Por favor no respondas.</p>
+        <div style='background:#f5f5f5;padding:16px 20px;font-size:11px;color:#666;text-align:center;border-top:1px solid #ddd;'>
+            <div style='margin:4px 0;'>Polla Mundialista 2026 &middot; IED Occidente</div>
+            <div style='margin:4px 0;'>Este correo fue enviado de forma automatica. Por favor no respondas.</div>
         </div>
     </div>
 </body>
@@ -441,6 +416,13 @@ try {
     }
     if (!preg_match('/^\d{1,2}:\d{2}$/', $firstMatchTime)) {
         throw new Exception('firstMatchTime debe tener formato HH:MM.');
+    }
+
+    if ($date >= PARTE2_CUTOFF) {
+        throw new Exception(
+            'A partir del ' . PARTE2_CUTOFF . ' las apuestas se guardan en la hoja parte 2. '
+            . 'Actualiza la aplicación o contacta al administrador.'
+        );
     }
 
     $client = new Client();
@@ -527,7 +509,7 @@ try {
 
     // 2. Validar ventana (server-side, hora COT)
     $window = validateWindow($date, $firstMatchTime);
-    if (!$dev && !$window['ok']) {
+    if (!$dev && !$rootMode && !$window['ok']) {
         http_response_code(400);
         echo json_encode([
             'success' => false,

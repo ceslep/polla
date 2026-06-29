@@ -50,7 +50,7 @@
             : (pwaSession.authParticipant || '')
     );
     const headerLabel = $derived(isRootMode ? 'Apostando como' : 'Hola,');
-    const windowStillOpen = $derived(windowState?.status === 'open');
+    const windowStillOpen = $derived(windowState?.status === 'open' || isRootMode);
 
     /** True cuando el participante ya tiene bets guardados hoy: el form se
      *  renderiza en read-only con los marcadores prellenados y sin botón

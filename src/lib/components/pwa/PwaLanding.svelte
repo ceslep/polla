@@ -37,7 +37,7 @@
 
     const isWindowOpen = $derived(windowState?.status === 'open');
     // En dev mode el botón siempre se puede pulsar aunque la ventana esté cerrada.
-    const canBet = $derived(isDev || isWindowOpen);
+    const canBet = $derived(isDev || isWindowOpen || pwaSession.isRoot);
 
     /** True si hay al menos una apuesta de tipo score para `todayDate`. */
     const hasShareableBets = $derived.by(() => {
