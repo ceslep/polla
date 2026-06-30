@@ -68,11 +68,11 @@
         divider:    2.2,
         yearStart:  2.6,
         subtitle:   3.6,
-        holdEnd:    5.4,
-        fadeOutEnd: 6.4
+        holdEnd:    4.2,
+        fadeOutEnd: 5.2
     };
-    const TOTAL = 7.2;
-    const CLOSE_MS = 6700;
+    const TOTAL = 5.5;
+    const CLOSE_MS = 4800;
 
     function dispose() {
         if (disposed) return;
@@ -404,7 +404,7 @@
         const ok = buildScene();
         if (!ok) { onClose?.(); return; }
 
-        const fontTimeout = setTimeout(start, 1500);
+        const fontTimeout = setTimeout(start, 800);
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(() => { clearTimeout(fontTimeout); start(); })
                                .catch(() => { clearTimeout(fontTimeout); start(); });
@@ -509,7 +509,7 @@
         transform: translateX(-30%);
     }
     .is-playing .scanline {
-        animation: scan 5.6s 1.0s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+        animation: scan 3.6s 1.0s cubic-bezier(0.45, 0, 0.2, 1) forwards;
     }
     @keyframes scan {
         0%   { opacity: 0;   transform: translateX(-35%); }

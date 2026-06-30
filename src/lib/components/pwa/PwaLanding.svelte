@@ -237,14 +237,16 @@
 
     <div class="w-full max-w-md animate-fade-in">
         <!-- Hero -->
-        <div class="text-center mb-8 pt-6">
-            <div class="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 mb-4 rounded-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 ring-1 ring-white/10 shadow-2xl shadow-emerald-500/10">
-                <img src="./balon.png" alt="" class="w-12 h-12 md:w-14 md:h-14 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+        <div class="mb-3 pt-2 flex flex-col items-center">
+            <div class="flex items-center gap-3 mb-1">
+                <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 ring-1 ring-white/10 shadow-lg shadow-emerald-500/10 flex items-center justify-center shrink-0">
+                    <img src="./balon.png" alt="" class="w-6 h-6 md:w-7 md:h-7 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                </div>
+                <h1 class="text-3xl md:text-4xl font-black bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent italic tracking-tighter">
+                    POLLA 2026
+                </h1>
             </div>
-            <h1 class="text-4xl md:text-5xl font-black bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent italic tracking-tighter">
-                POLLA 2026
-            </h1>
-            <p class="text-gray-400 mt-2 text-sm md:text-base">Apuesta los marcadores del día</p>
+            <p class="text-gray-400 text-xs md:text-sm">Apuesta los marcadores del día</p>
         </div>
 
         {#if isDev}
@@ -260,7 +262,7 @@
         {/if}
 
         <!-- Estado de la ventana -->
-        <div class="mb-6 text-center">
+        <div class="mb-3 text-center">
             {#if isDev}
                 <div class="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/40 rounded-full px-4 py-1.5 text-amber-300 text-sm font-medium">
                     <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
@@ -290,7 +292,7 @@
         {#if countdownTarget && countdownText}
             {@const meta = countdownMeta}
             {@const targetCot = formatCotDateTime(countdownTarget)}
-            <div class="mb-6" aria-live="polite">
+            <div class="mb-3" aria-live="polite">
                 <div class="glass-strong rounded-3xl overflow-hidden">
                     <div class="h-1 bg-gradient-to-r {meta.borderClass}"></div>
                     <div class="p-3 text-center">

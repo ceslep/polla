@@ -633,11 +633,19 @@ export function computeMovement(bets, matches, currentWinners) {
         const points = Number(bet.points) || 0;
         if (points === 0) continue;
         const pred = bet.prediction || {};
-        const h = pred.homeTeam, a = pred.awayTeam;
+        const h = normalizeTeamName(pred.homeTeam || '');
+        const a = normalizeTeamName(pred.awayTeam || '');
         if (!h || !a) continue;
-        const match = matches.find(m =>
-            (m.homeTeam === h && m.awayTeam === a) ||
-            (m.homeTeam === a && m.awayTeam === h));
+        const match = matches.find(m => {
+            const mHome = m.homeTeam;
+            const mAway = m.awayTeam;
+            const mHomeShort = normalizeTeamName(m.homeShort || '');
+            const mAwayShort = normalizeTeamName(m.awayShort || '');
+            return (
+                ((mHome === h || mHomeShort === h) && (mAway === a || mAwayShort === a)) ||
+                ((mHome === a || mHomeShort === a) && (mAway === h || mAwayShort === h))
+            );
+        });
         if (!match || !match.date) continue;
         if (match.date >= yesterday) continue;
         pointsBefore.set(bet.participant, (pointsBefore.get(bet.participant) || 0) + points);
