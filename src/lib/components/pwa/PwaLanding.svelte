@@ -4,6 +4,7 @@
     import PwaShareBets from './PwaShareBets.svelte';
     import GoalsAnalysisModal from './GoalsAnalysisModal.svelte';
     import UpdateToast from './UpdateToast.svelte';
+    import SyncStatus from './SyncStatus.svelte';
 
     /**
      * @typedef {import('svelte/store').Writable<boolean>} BoolStore
@@ -18,6 +19,7 @@
      * @property {BoolStore} [offlineReady] - store de useRegisterSW (App.svelte)
      * @property {() => void} [onSquads]
      * @property {() => void} [onCountdownZero] - se dispara una vez cuando el cronómetro llega a cero
+     * @property {() => (void | Promise<void>)} [onRefresh] - recarga manual de datos
      */
     /** @type {Props} */
     let {
@@ -30,7 +32,8 @@
         needRefresh,
         offlineReady,
         onSquads = () => {},
-        onCountdownZero = () => {}
+        onCountdownZero = () => {},
+        onRefresh = () => {}
     } = $props();
 
     const installState = getInstallState();
@@ -247,6 +250,9 @@
                 </h1>
             </div>
             <p class="text-gray-400 text-xs md:text-sm">Apuesta los marcadores del día</p>
+            <div class="mt-2.5">
+                <SyncStatus onRefresh={onRefresh} />
+            </div>
         </div>
 
         {#if isDev}

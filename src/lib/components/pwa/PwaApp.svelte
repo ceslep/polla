@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { findMatchForBet } from '../../stores.svelte.js';
+    import { findMatchForBet, appState } from '../../stores.svelte.js';
     import { loadWorldCupMatches, loadAllPwaBets, loadAllPwaBetsParte2, getPwaBets, getPwaBetsParte2, compareBetWithMatch, getTournamentBetsForParticipant } from '../../api.js';
     import { normalizeTeamName } from '../../parser.js';
     import { computeWindowState, matchesOnCotDate, matchLocalToCot, todayCot, nowCotParts, isParte2Date } from '../../pwa/window.js';
@@ -29,6 +29,8 @@
     import PwaSquadsModal from './PwaSquadsModal.svelte';
     import PwaIntro from './PwaIntro.svelte';
     import PwaGoalOverlay from './PwaGoalOverlay.svelte';
+    import ConnectionBanner from './ConnectionBanner.svelte';
+    import UpdateToast from './UpdateToast.svelte';
     import OnboardingTour from '../OnboardingTour.svelte';
     import TutorialPage from '../TutorialPage.svelte';
     import { tourSteps } from '../tutorialSteps.js';
@@ -533,6 +535,7 @@
                 awayScore: m.score.ft[1],
                 resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
             }));
+        appState.sync.lastMatchesAt = Date.now();
         console.log('[PWA] Matches cargados:', pwaNormalizedMatches.length, 'finalizados de', withIds.length, 'totales');
     }
 
@@ -625,6 +628,7 @@
             // Parte 1 corta el 27/06: jornadas >= PARTE2_CUTOFF (28/06) son de la
             // segunda fase aunque haya filas viejas en la hoja `apuestas`.
             pwaScoredBets = scored.filter((/** @type {any} */ b) => !isParte2Date(b.matchDate));
+            appState.sync.lastBetsAt = Date.now();
         } catch (e) {
             console.error('Error cargando PWA bets para movement:', e);
             pwaScoredBets = [];
@@ -646,6 +650,7 @@
             // Parte 2 arranca el 28/06: solo jornadas >= PARTE2_CUTOFF (defensa
             // contra filas anteriores que pudieran existir en `apuestas2`).
             pwaScoredBetsParte2 = scored.filter((/** @type {any} */ b) => isParte2Date(b.matchDate));
+            appState.sync.lastBetsAt = Date.now();
         } catch (e) {
             console.error('Error cargando PWA bets parte 2:', e);
             pwaScoredBetsParte2 = [];
@@ -682,6 +687,7 @@
                             awayScore: m.score.ft[1],
                             resultString: `${m.team1} ${m.score.ft[0]} - ${m.score.ft[1]} ${m.team2}`
                         }));
+                    appState.sync.lastMatchesAt = Date.now();
                     await loadAndScorePwaBets();
                     // Si hoy pertenece a la parte 2, cargar también `apuestas2`
                     // para que el badge de "Pendientes" tenga datos al iniciar
@@ -730,6 +736,61 @@
             loading = false;
         }
     }
+
+    // ---- Recarga manual de datos (botón ↻ de SyncStatus) ----------------
+    // Handler único compartido por todas las vistas. Marca refreshing para
+    // el spinner del chip, refetchea la fase correcta y muestra un toast de
+    // confirmación (silent=true para el auto-refresco en vivo, sin toast).
+
+    /** @type {{ message: string, variant: 'info'|'success'|'error' }} */
+    let toast = $state({ message: '', variant: 'info' });
+
+    /**
+     * @param {'parte1'|'parte2'} [fase]
+     * @param {boolean} [silent]  - true = sin toast (auto-refresco en vivo)
+     */
+    async function refreshData(fase, silent = false) {
+        if (appState.sync.refreshing) return;
+        appState.sync.refreshing = true;
+        try {
+            const target = fase || (isParte2Date(todayDate) ? 'parte2' : 'parte1');
+            if (target === 'parte2') {
+                await loadAndScorePwaBetsParte2();
+            } else {
+                await loadAndScorePwaBets();
+            }
+            if (!silent) toast = { message: 'Datos actualizados', variant: 'success' };
+        } catch {
+            if (!silent) toast = { message: 'No se pudo actualizar. Revisa tu conexión.', variant: 'error' };
+        } finally {
+            appState.sync.refreshing = false;
+        }
+    }
+
+    /** Callback de ConnectionBanner al recuperar la red: refetch + aviso. */
+    function handleReconnect() {
+        toast = { message: 'Conexión restaurada — actualizando…', variant: 'info' };
+        refreshData(undefined, true);
+    }
+
+    // ---- Auto-refresco silencioso durante partidos en vivo --------------
+    // Mientras la ventana está "open" (hay partidos hoy) y el usuario mira
+    // el ranking / resultados / movimiento, refrescamos los bets cada 50s
+    // sin toast. Se limpia al salir de esas vistas o al cerrar la ventana.
+    const LIVE_REFRESH_MS = 50_000;
+    const LIVE_STEPS = ['ranking', 'ranking2', 'today-bets', 'movement', 'movement2'];
+    $effect(() => {
+        if (isDev) return;
+        if (windowState?.status !== 'open') return;
+        if (!LIVE_STEPS.includes(pwaSession.step)) return;
+        if (!appState.sync.online) return;
+        const fase = (pwaSession.step === 'ranking2' || pwaSession.step === 'movement2')
+            ? 'parte2' : 'parte1';
+        const id = setInterval(() => {
+            if (appState.sync.online) refreshData(fase, true);
+        }, LIVE_REFRESH_MS);
+        return () => clearInterval(id);
+    });
 
     function onLoginBack() {
         setStep('landing');
@@ -885,7 +946,7 @@
         </div>
     </div>
 {:else if pwaSession.step === 'landing'}
-    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} onCountdownZero={handleCountdownZero} />
+    <PwaLanding state={windowState} {isDev} devTestDate={devTestDate} bets={pwaScoredBets} {preMatchInfo} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} onCountdownZero={handleCountdownZero} onRefresh={() => refreshData()} />
 {:else if pwaSession.step === 'login'}
     <PwaLogin onBack={onLoginBack} {isDev} onSuccess={handleAuthSuccess} />
 {:else if pwaSession.step === 'ranking'}
@@ -894,7 +955,7 @@
         onBack={onRankingBack}
         canGoBet={!pwaSession.submitted && windowState?.status === 'open'}
         onGoBet={() => setStep('form')}
-        onRefresh={loadAndScorePwaBets}
+        onRefresh={() => refreshData('parte1')}
     />
 {:else if pwaSession.step === 'ranking2'}
     <PwaRankingParte2
@@ -902,10 +963,10 @@
         onBack={onRanking2Back}
         canGoBet={false}
         onGoBet={() => setStep('form')}
-        onRefresh={loadAndScorePwaBetsParte2}
+        onRefresh={() => refreshData('parte2')}
     />
 {:else if pwaSession.step === 'today-bets'}
-    <PwaTodayBets bets={isParte2Date(todayDate) ? pwaScoredBetsParte2 : pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} />
+    <PwaTodayBets bets={isParte2Date(todayDate) ? pwaScoredBetsParte2 : pwaScoredBets} matches={pwaNormalizedMatches} {todayDate} {preMatchInfo} onBack={onTodayBetsBack} onRefresh={() => refreshData()} />
 {:else if pwaSession.step === 'root-panel'}
     <PwaRootPanel
         bets={pwaScoredBets}
@@ -952,6 +1013,7 @@
             matches={pwaNormalizedMatches}
             winners={pwaScoredBets.length > 0 ? computePwaWinners(pwaScoredBets) : []}
             onClose={onModalClose}
+            onRefresh={() => refreshData('parte1')}
         />
     </div>
 {:else if pwaSession.step === 'movement2'}
@@ -961,14 +1023,26 @@
             matches={pwaNormalizedMatches}
             winners={pwaScoredBetsParte2.length > 0 ? computePwaWinners(pwaScoredBetsParte2) : []}
             onClose={onModalClose}
+            onRefresh={() => refreshData('parte2')}
         />
     </div>
 {:else}
-    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} />
+    <PwaLanding state={windowState} {isDev} bets={pwaScoredBets} {todayDate} {needRefresh} {offlineReady} onSquads={() => showSquadsModal = true} onRefresh={() => refreshData()} />
 {/if}
 
 <!-- Banner de actualización del SW (auto-update prompt). Siempre montado en la PWA. -->
 <ReloadPrompt {needRefresh} {offlineReady} {updateServiceWorker} />
+
+<!-- Banner de conectividad: espeja navigator.onLine → appState.sync.online.
+     Al recuperar la red, refetchea en silencio. Siempre montado. -->
+<ConnectionBanner onReconnect={handleReconnect} />
+
+<!-- Toast de feedback de recarga (compartido por refreshData/handleReconnect). -->
+<UpdateToast
+    message={toast.message}
+    variant={toast.variant}
+    onClose={() => (toast = { message: '', variant: 'info' })}
+/>
 
 {#if showSquadsModal}
     <PwaSquadsModal onClose={() => showSquadsModal = false} />

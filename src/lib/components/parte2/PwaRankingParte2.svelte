@@ -4,6 +4,7 @@
     import PwaParticipantDetailParte2 from './PwaParticipantDetailParte2.svelte';
     import PwaMyBetsModalParte2 from './PwaMyBetsModalParte2.svelte';
     import PwaTournamentBetsModalParte2 from './PwaTournamentBetsModalParte2.svelte';
+    import SyncStatus from '../pwa/SyncStatus.svelte';
 
     /** @type {{
      *   bets: any[],
@@ -218,6 +219,7 @@
                         Ranking · Parte 2
                     </h2>
                 </div>
+                <SyncStatus onRefresh={onRefresh} />
             </div>
 
             <!-- Chips de resumen (solo-display) -->

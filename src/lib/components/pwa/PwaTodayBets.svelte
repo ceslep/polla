@@ -2,6 +2,7 @@
     import { getFlagData } from '../../flags.js';
     import { PREMATCH_PASSWORD } from '../../pwa/prematchGuard.js';
     import { isParte2Date } from '../../pwa/window.js';
+    import SyncStatus from './SyncStatus.svelte';
 
     /**
      * @type {{
@@ -9,7 +10,8 @@
      *   matches?: any[],
      *   todayDate?: string,
      *   preMatchInfo?: { required: boolean, firstMatchHHMM: string | null },
-     *   onBack: () => void
+     *   onBack: () => void,
+     *   onRefresh?: () => (void | Promise<void>)
      * }}
      */
     let {
@@ -17,7 +19,8 @@
         matches = [],
         todayDate = '',
         preMatchInfo = { required: false, firstMatchHHMM: null },
-        onBack
+        onBack,
+        onRefresh = () => {}
     } = $props();
 
     // ---- Pre-match password gate ----------------------------------------
@@ -228,6 +231,9 @@
                     {todayDate} · {blocks.length} participante{blocks.length !== 1 ? 's' : ''} · {totalBets} apuesta{totalBets !== 1 ? 's' : ''}
                 </p>
             </div>
+            {#if !requiresPassword}
+                <SyncStatus onRefresh={onRefresh} compact />
+            {/if}
         </div>
 
         {#if requiresPassword}

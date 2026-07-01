@@ -1,8 +1,9 @@
 <script>
     import { computeMovement, getLatestFinishedDate } from '../../stores.svelte.js';
+    import SyncStatus from '../pwa/SyncStatus.svelte';
 
-    /** @type {{ bets: any[], matches: any[], winners?: Array<{participant: string, points: number, rank: number}>, onClose: () => void }} */
-    let { bets = [], matches = [], winners = /** @type {Array<{participant: string, points: number, rank: number}>} */ ([]), onClose } = $props();
+    /** @type {{ bets: any[], matches: any[], winners?: Array<{participant: string, points: number, rank: number}>, onClose: () => void, onRefresh?: () => (void | Promise<void>) }} */
+    let { bets = [], matches = [], winners = /** @type {Array<{participant: string, points: number, rank: number}>} */ ([]), onClose, onRefresh = () => {} } = $props();
 
     /** Pestaña activa. */
     let tab = $state(/** @type {'movimiento' | 'estadisticas'} */ ('movimiento'));
@@ -358,7 +359,10 @@
                         {/if}
                     </p>
                 </div>
-                <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 text-xl transition-all" onclick={onClose} aria-label="Cerrar">&times;</button>
+                <div class="flex items-center gap-2 shrink-0">
+                    <SyncStatus onRefresh={onRefresh} compact />
+                    <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 text-xl transition-all" onclick={onClose} aria-label="Cerrar">&times;</button>
+                </div>
             </div>
 
             <!-- Tabs -->

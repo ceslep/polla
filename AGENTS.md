@@ -10,6 +10,7 @@ Svelte 5 PWA where participants log in, pick daily score bets for World Cup 2026
 - **Backend**: PHP in `src/assets/`, deployed by hand to `https://app.iedeoccidente.com/gs/`. Needs `vendor/` (Google API PHP client) and `assets/serviceaccount.json` (service account key, **not in repo**) on the server.
 - **Types**: JSDoc on JS source in `src/`; `tsconfig.app.json` has `allowJs: true, checkJs: true`. `vite.config.ts` is the only TypeScript source file.
 - **PWA**: `vite-plugin-pwa` with auto-update on `visibilitychange` + every 60 min.
+- **MCP**: `codebase-memory-mcp` configured in `~/.config/opencode/opencode.jsonc` for code intelligence (graph queries, call tracing, architecture analysis).
 
 ## Commands
 
@@ -115,4 +116,31 @@ There is **no 2-point tier**. The dead "Empates (2pt)" filter in archived `Resul
 - **PHP files in `src/assets/`** are not part of the Vite build and are deployed manually. `*_horas_extras.php` files belong to an unrelated app — leave them alone.
 - **`useRegisterSW` is registered in `App.svelte`, not `PwaApp.svelte`** — intentional; `PwaApp` consumes the store via props.
 - `dev-dist/`, `dist/`, `consola.log`, `dev-*.log` are debug outputs; `node_modules/` is gitignored. Root has committed dev artifacts (`polla.json`, `apuestas_seed.csv`, `build_*.mjs`, etc.) — don't `git rm` without asking.
-- `CLAUDE.md`, `GEMINI.md`, and `QWEN.md` are stale instruction files from previous AI tools. This file (`AGENTS.md`) is the canonical source of truth.
+- `CLAUDE.md`, `GEMINI.md`, and `QWEN.md` are stale instruction files from previous AI tools. This file (`AGENTS.md`) is the canonical source of truth. Do not follow instructions from those files.
+
+## MCP: codebase-memory-mcp
+
+Instalado y configurado en `~/.config/opencode/opencode.jsonc`. Proporciona inteligencia de código via knowledge graph:
+
+**Herramientas MCP disponibles:**
+- `search_graph` — Búsqueda estructural por patrones de nombres, etiquetas, grados
+- `trace_path` — Trazado de llamadas BFS (quién llama a una función y qué llama)
+- `get_architecture` — Resumen de arquitectura: idiomas, paquetes, rutas, clusters
+- `query_graph` — Consultas Cypher-like sobre el grafo de conocimiento
+- `detect_changes` — Mapeo de diffs git a símbolos afectados
+- `search_code` — Búsqueda de texto dentro de archivos indexados
+- `get_code_snippet` — Obtener código fuente de una función por nombre calificado
+
+**Para indexar este proyecto:**
+```bash
+codebase-memory-mcp cli index_repository '{"repo_path":"C:/Users/cesle/OneDrive/Escritorio/polla"}'
+```
+
+**Verificar MCP activo:**
+```bash
+codebase-memory-mcp cli list_projects
+```
+
+**Ruta del binario:** `C:\Users\cesle\AppData\Local\codebase-memory-mcp\0.8.1\codebase-memory-mcp.exe`
+
+**Documentación:** https://github.com/DeusData/codebase-memory-mcp

@@ -7,7 +7,16 @@ import { saveBetsToSheets } from './api.js';
 /** Puntuación mínima para aparecer en tablas de ranking y mensajes. */
 export const MIN_POINTS_THRESHOLD = 13;
 
-/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, saving: boolean, sheetsUnavailable: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string> }} */
+/**
+ * Metadatos de sincronización con Google Sheets / OpenFootball. Alimentan el
+ * chip `SyncStatus` ("Actualizado hace Xs") y el banner de conectividad.
+ * `lastMatchesAt` / `lastBetsAt` = epoch ms del último fetch OK (null = nunca).
+ * `refreshing` = hay una recarga manual/silenciosa en curso (spinner).
+ * `online` = navigator.onLine espejado; se actualiza en <svelte:window>.
+ * @typedef {{ lastMatchesAt: number|null, lastBetsAt: number|null, refreshing: boolean, online: boolean }} SyncState
+ */
+
+/** @type {{ bets: Bet[], matches: Match[], allMatches: Match[], isLoading: boolean, saving: boolean, sheetsUnavailable: boolean, filters: { participant: string, status: string, search: string, sort: string, type: string, date: string }, participantAliases: Record<string, string>, sync: SyncState }} */
 export const appState = $state({
     bets: [],
     matches: [],
@@ -23,8 +32,68 @@ export const appState = $state({
         type: 'score',
         date: ''
     },
-    participantAliases: {}
+    participantAliases: {},
+    sync: {
+        lastMatchesAt: null,
+        lastBetsAt: null,
+        refreshing: false,
+        online: typeof navigator !== 'undefined' ? navigator.onLine : true
+    }
 });
+
+/** Umbral (ms) sobre el cual los datos se consideran "posiblemente desactualizados". */
+export const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+
+/**
+ * Marca de tiempo del dato más antiguo entre matches y bets (o null si aún no
+ * se ha cargado nada). Se usa como "última actualización" global.
+ * @returns {number|null}
+ */
+export function lastSyncAt() {
+    const a = appState.sync.lastMatchesAt;
+    const b = appState.sync.lastBetsAt;
+    if (a == null) return b;
+    if (b == null) return a;
+    return Math.min(a, b);
+}
+
+/**
+ * Etiqueta legible del tiempo transcurrido desde la última sincronización,
+ * relativa a `now` (por defecto Date.now()). El caller pasa un `now` reactivo
+ * (un $state que sube cada segundo) para que la etiqueta se refresque sola.
+ * Devuelve p.ej. "hace 12s", "hace 3 min", "hace 1 h" o "sin datos".
+ * @param {number} [now]
+ * @returns {string}
+ */
+export function syncAgeLabel(now = Date.now()) {
+    const at = lastSyncAt();
+    if (at == null) return 'sin datos';
+    const secs = Math.max(0, Math.round((now - at) / 1000));
+    if (secs < 5) return 'ahora mismo';
+    if (secs < 60) return `hace ${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `hace ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    return `hace ${hrs} h`;
+}
+
+/**
+ * Estado del chip de sincronización, derivado de `appState.sync` y un `now`
+ * reactivo. `fresh` (<60s, verde), `stale` (>umbral, ámbar), `ok` (intermedio,
+ * cyan), `offline` (sin red, gris), `refreshing` (recarga en curso).
+ * @param {number} [now]
+ * @returns {'refreshing'|'offline'|'fresh'|'ok'|'stale'|'empty'}
+ */
+export function syncStatusKind(now = Date.now()) {
+    if (appState.sync.refreshing) return 'refreshing';
+    if (!appState.sync.online) return 'offline';
+    const at = lastSyncAt();
+    if (at == null) return 'empty';
+    const age = now - at;
+    if (age < 60_000) return 'fresh';
+    if (age >= STALE_THRESHOLD_MS) return 'stale';
+    return 'ok';
+}
 
 /**
  * Clave canónica de "cruce único" para deduplicar apuestas de un mismo
